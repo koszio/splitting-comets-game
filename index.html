@@ -26,23 +26,23 @@
           hitSound: 0.2s flick (each hit plays fully at lower volume)
           explosionSound: using local file "small-explosion-94980.mp3"
         */
-        const bulletSoundSrc = "https://actions.google.com/sounds/v1/wood/wood_plank_flicks.ogg";
-        const hitSoundSrc = "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg";
         // Use your local file for explosion sounds.
-        const explosionSoundURL = "retro-explode.mp3";
-  
+        const explosionSoundURL = "";
+        const bulletSoundSrc = "";
+        const hitSoundSrc = "";
+        
          // Create a pool for bullet sounds (pool size 3)
          const BULLET_SOUND_POOL_SIZE = 3;
         const bulletSoundPool = [];
         for (let i = 0; i < BULLET_SOUND_POOL_SIZE; i++) {
           let a = new Audio(bulletSoundSrc);
-          a.volume = 0.5;
+          a.volume = 0.25;
           bulletSoundPool.push(a);
         }
         let nextBulletSoundIndex = 0;
   
         // Create a pool for hit sounds (pool size 5) at lower volume
-        const HIT_SOUND_POOL_SIZE = 5;
+        const HIT_SOUND_POOL_SIZE = 500;
         const hitSoundPool = [];
         for (let i = 0; i < HIT_SOUND_POOL_SIZE; i++) {
           let a = new Audio(hitSoundSrc);
@@ -50,9 +50,21 @@
           hitSoundPool.push(a);
         }
         let nextHitSoundIndex = 0;
+
+           // ----- BACKGROUND MUSIC -----
+        // For testing, we use a royalty‑free track from Bensound:
+        // https://www.bensound.com/bensound-music/bensound-slowmotion.mp3
+        const bgMusic = new Audio("https://www.bensound.com/bensound-music/bensound-slowmotion.mp3");
+        bgMusic.loop = true;
+        bgMusic.volume = 0.1;
+        // Autoplay is often blocked so we start the music on the first key press:
+        window.addEventListener("keydown", function startMusic(){
+          bgMusic.play().catch(err => console.error("Error playing background music:", err));
+          window.removeEventListener("keydown", startMusic);
+        });
   
-        // ----- Setup Canvas -----
-        const canvas = document.getElementById("gameCanvas");
+         // ----- Setup Canvas -----
+         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         function resizeCanvas() {
           canvas.width = window.innerWidth;
@@ -66,35 +78,55 @@
         canvas.focus();
   
         // ----- Global Constants -----
-        const SHIP_ROT_SPEED   = 6;       // rotation speed (radians/sec)
-        const SHIP_REVERSE     = 400;     // braking deceleration (pixels/sec²)
-        const BULLET_SPEED     = 600;     // bullet speed (pixels/sec)
+        const SHIP_ROT_SPEED   = 6;       // radians/sec
+        const SHIP_REVERSE     = 400;     // pixels/sec² (braking)
+        const BULLET_SPEED     = 600;     // pixels/sec
         const BULLET_RADIUS    = 4;
         const BULLET_INTERVAL  = 30;      // ms between shots
         const FRICTION         = 0.99;
-      
-        const SHIP_SIZE        = 30;      // spaceship size (pixels)
-        const SHIP_ACCEL       = 800;     // forward acceleration (pixels/sec²)
   
-        // Comets
-        const COMET_SPEED_MIN  = 300;
-        const COMET_SPEED_MAX  = 500;
-        const COMET_FRICTION   = 0.999;
+        const SHIP_SIZE        = 30;      // spaceship size (pixels)
+        const SHIP_ACCEL       = 800;     // pixels/sec²
+  
+        // Normal Comets – speeds: 400 to 700
+        const COMET_SPEED_MIN  = 400;
+        const COMET_SPEED_MAX  = 700;
+        const COMET_FRICTION   = 0.998;
         const MAX_COMET_TIER   = 3;
         const BASE_COMET_RADIUS= 30;
-        const COMET_SPAWN_MIN  = 3;       // seconds
-        const COMET_SPAWN_MAX  = 5;       // seconds
-        const COMET_SPAWN_BATCH_MIN = 3;
-        const COMET_SPAWN_BATCH_MAX = 5;
-        const COMET_MIN_SPEED  = 50;      // comets never slow below this speed
+        const COMET_SPAWN_MIN  = 2;       
+        const COMET_SPAWN_MAX  = 3;       
+        const COMET_SPAWN_BATCH_MIN = 1;
+        const COMET_SPAWN_BATCH_MAX = 3;
+        const COMET_MIN_SPEED  = 50;
+  
+        // Big Comets
+        let bigComets = [];
+        let bigCometSpawnTimer = 0;
+        const BIG_COMET_SPAWN_INTERVAL = 85;
+        const BIG_COMET_SPAWN_MAX = 2;
+        const DIAGONAL_ANGLES = [Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4];
+        const BIG_COMET_SPEED_MIN = 150;
+        const BIG_COMET_SPEED_MAX = 200;
+        const BIG_COMET_COLOR = "#cd7f32";
+        const BIG_COMET_SCALE = 2.5;
+  
+        // Power‑Up Constants
+        const POWERUP_SPAWN_INTERVAL = 15;
+        const POWERUP_LIFETIME = 15;
+        const POWERUP_BOX_SIZE = 60;
+        const POWERUP_RADIUS = POWERUP_BOX_SIZE / 2;
+  
+        let powerUps = [];
+        let powerUpSpawnTimer = 0;
   
         // ----- Game State & Timer -----
-        let gameState = "menu";  // "menu", "settings", "playing", "gameover", "win"
+        let gameState = "menu";
         let score = 0;
         let gameTime = 0;
         let winTriggered = false;
   
-        // Spaceship (initial HP = 5). (Invulnerability removed.)
+        // Spaceship
         let spaceship = {
           x: canvas.width / 2,
           y: canvas.height / 2,
@@ -103,7 +135,7 @@
           angle: 0,
           size: SHIP_SIZE,
           hitPoints: 5,
-          hitFlashTimer: 0  // When > 0, the ship will flash red on hit
+          hitFlashTimer: 0
         };
   
         let bullets = [];
@@ -111,8 +143,8 @@
         let smallExplosionParticles = [];
         let comets = [];
   
-        // ----- Starfield (Enhanced Glowing Stars) -----
-        const NUM_STARS = 200;
+        // ----- Starfield -----
+        const NUM_STARS = 500;
         let stars = [];
         function initStarfield() {
           stars = [];
@@ -128,7 +160,6 @@
           }
         }
         initStarfield();
-  
         function updateStarfield(dt) {
           for (let star of stars) {
             if (star.flicker) {
@@ -136,7 +167,6 @@
             }
           }
         }
-  
         function drawStarfield(ctx) {
           ctx.save();
           for (let star of stars) {
@@ -160,8 +190,111 @@
           }
           ctx.restore();
         }
+
+        // Generate a stone-like texture pattern
+        function generateStonePattern() {
+          let patternCanvas = document.createElement("canvas");
+          patternCanvas.width = 50;
+          patternCanvas.height = 50;
+          let pctx = patternCanvas.getContext("2d");
+          pctx.globalAlpha = 1.0;
+          pctx.fillStyle = "#444";
+          pctx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
+          for (let i = 0; i < 20; i++) {
+            let x = Math.random() * patternCanvas.width;
+            let y = Math.random() * patternCanvas.height;
+            let radius = Math.random() * 3;
+            let gray = Math.floor(100 + Math.random() * 50);
+            pctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+            pctx.beginPath();
+            pctx.arc(x, y, radius, 0, 2 * Math.PI);
+            pctx.fill();
+          }
+          return ctx.createPattern(patternCanvas, "repeat");
+        }
   
-        // ----- Health Bar Drawing Function (Top Right) -----
+        // ----- Cronos Planet -----
+        function drawCronos(ctx) {
+  // Planet position & size
+  const x = canvas.width * 0.75;
+  const y = canvas.height * 0.5;
+  const radius = 200; // Planet radius
+
+  // ---------- Planet Gradient ----------
+  const grad = ctx.createRadialGradient(x, y, radius * 0.2, x, y, radius);
+  grad.addColorStop(0.2,  "#c9b8a3"); // center
+  grad.addColorStop(0.8,"#b09b83");
+  grad.addColorStop(0.6,"#97856f");
+  grad.addColorStop(1,  "#7f6f5a"); // outer edge
+
+  // ---------- Ring Geometry ----------
+  const ringOuter = radius * 1.9;   // Outer ellipse radius
+  const ringInner = radius * 1.25;  // Inner ellipse radius
+  const ringFlatten = 0.45;         // How "flat" the ring ellipse is
+
+  // ---------- Ring Pattern with Dust ----------
+  const ringCanvas = document.createElement("canvas");
+  ringCanvas.width = 80;
+  ringCanvas.height = 40;
+  const ringCtx = ringCanvas.getContext("2d");
+
+  // Semi‑transparent dark fill
+  ringCtx.fillStyle = "rgba(60,50,40,0.4)";
+  ringCtx.fillRect(0, 0, ringCanvas.width, ringCanvas.height);
+
+  // Scatter small black dots for dust
+  for (let i = 0; i < 30; i++) {
+    const rx = Math.random() * ringCanvas.width;
+    const ry = Math.random() * ringCanvas.height;
+    ringCtx.fillStyle = "rgba(0,0,0,0.6)";
+    ringCtx.beginPath();
+    ringCtx.arc(rx, ry, 1, 0, 2 * Math.PI);
+    ringCtx.fill();
+  }
+
+  const ringPattern = ctx.createPattern(ringCanvas, "repeat");
+
+  // Helper function: draw half of a donut arc from angleStart to angleEnd
+  // Using "evenodd" so the inner ellipse carves out a hole.
+  function drawDonutArc(angleStart, angleEnd) {
+    ctx.beginPath();
+    // Outer ellipse arc
+    ctx.ellipse(0, 0, ringOuter, ringOuter * ringFlatten, 0, angleStart, angleEnd, true);
+    // Inner ellipse arc (reverse)
+    ctx.ellipse(0, 0, ringInner, ringInner * ringFlatten, 0, angleEnd, angleStart, false);
+    ctx.fillStyle = ringPattern;
+    ctx.fill("evenodd");
+  }
+
+  // ---------- DRAW THE RING BACK HALF ----------
+  // (the portion behind the planet)
+  ctx.save();
+  // Move to planet center & tilt the ring
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI / 6);
+  // e.g. 0..Math.PI is the "back half" after rotation
+  drawDonutArc(0, Math.PI);
+  ctx.restore();
+
+  // ---------- DRAW THE PLANET ----------
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.restore();
+
+  // ---------- DRAW THE RING FRONT HALF ----------
+  // (the portion in front of the planet)
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI / 6);
+  // front half is Math.PI..2*Math.PI
+  drawDonutArc(Math.PI, 2 * Math.PI);
+  ctx.restore();
+}
+
+
         function drawHealthBar() {
           const barWidth = 100;
           const barHeight = 15;
@@ -171,47 +304,84 @@
           ctx.strokeStyle = "white";
           ctx.lineWidth = 2;
           ctx.strokeRect(x, y, barWidth, barHeight);
-          let hpFraction = spaceship.hitPoints / 5; // max HP is 5
+          let hpFraction = spaceship.hitPoints / 5;
           ctx.fillStyle = "red";
           ctx.fillRect(x, y, barWidth * hpFraction, barHeight);
         }
-  
+
+        function spawnPowerUp() {
+          let loc = getSpawnLocation();
+          return {
+            x: loc.x,
+            y: loc.y,
+            vx: randomRange(-50, 50),
+            vy: randomRange(-50, 50),
+            lifetime: 10,
+            radius: POWERUP_RADIUS
+          };
+        }
+
+        // Timers
         let lastBulletTime = 0;
         let cometSpawnTimer = 0;
-        let nextCometSpawn = randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX);
+
+        // Big Comet logic
+        function updateBigComets(dt) {
+          for (let i = bigComets.length - 1; i >= 0; i--) {
+            let bc = bigComets[i];
+            bc.x += bc.vx * dt;
+            bc.y += bc.vy * dt;
+            if (bc.x < -bc.radius || bc.x > canvas.width + bc.radius ||
+                bc.y < -bc.radius || bc.y > canvas.height + bc.radius) {
+              bigComets.splice(i, 1);
+            }
+          }
+        }
+
+        function updateTimers(dt) {
+          bigCometSpawnTimer += dt;
+          if (bigCometSpawnTimer >= BIG_COMET_SPAWN_INTERVAL) {
+            for (let i = 0; i < BIG_COMET_SPAWN_MAX; i++) {
+              spawnBigComet();
+            }
+            bigCometSpawnTimer = 0;
+          }
+        }
   
-        // ----- Input Handling -----
-        const keys = {};
-        window.addEventListener("keydown", (e) => {
-          if (gameState === "menu" && e.code === "Enter") {
-            gameState = "playing";
-            score = 0;
-            gameTime = 0;
-            winTriggered = false;
-            return;
-          }
-          if (gameState === "menu" && e.code === "KeyS") {
-            gameState = "settings";
-            return;
-          }
-          if (gameState === "settings" && e.code === "Escape") {
-            gameState = "menu";
-            return;
-          }
-          if ((gameState === "gameover" || gameState === "win") && e.code === "Enter") {
-            restartGame();
-            gameState = "playing";
-            return;
-          }
-          keys[e.code] = true;
-          e.preventDefault();
-        });
-        window.addEventListener("keyup", (e) => {
-          keys[e.code] = false;
-          e.preventDefault();
-        });
-  
-        // ----- Touch Support -----
+        // INPUT HANDLING
+const keys = {};
+window.addEventListener("keydown", (e) => {
+  // For starting/restarting the game, check both e.key and e.code (and keyCode for legacy)
+  if (gameState === "menu" && (e.key === "Enter" || e.code === "Enter" || e.key === "NumpadEnter" || e.keyCode === 13)) {
+    // (Optionally call restartGame() here if you want to reset everything on start)
+    gameState = "playing";
+    score = 0;
+    gameTime = 0;
+    winTriggered = false;
+    // Do not return here so that keys[e.key] is set below.
+  }
+  else if (gameState === "menu" && (e.key.toLowerCase() === "s" || e.code === "KeyS")) {
+    gameState = "settings";
+    // (No return here)
+  }
+  else if (gameState === "settings" && (e.key === "Escape" || e.keyCode === 27)) {
+    gameState = "menu";
+  }
+  else if ((gameState === "gameover" || gameState === "win") &&
+           (e.key === "Enter" || e.key === "NumpadEnter" || e.code === "Enter" || e.keyCode === 13)) {
+    restartGame();
+    gameState = "playing";
+  }
+  // Always record the key state:
+  keys[e.key] = true;
+  e.preventDefault();
+});
+window.addEventListener("keyup", (e) => {
+  keys[e.key] = false;
+  e.preventDefault();
+});
+
+
         let touchStartX = null, touchStartY = null;
         canvas.addEventListener("touchstart", function(e) {
           e.preventDefault();
@@ -255,11 +425,10 @@
           touchStartY = null;
         }, false);
   
-        // ----- Utility Functions -----
+        // Utility
         function randomRange(min, max) {
           return Math.random() * (max - min) + min;
         }
-        // Returns a darker color (70% saturation, 30% lightness)
         function randomColor() {
           const hue = Math.floor(Math.random() * 360);
           return "hsl(" + hue + ", 70%, 30%)";
@@ -282,41 +451,75 @@
             obj.vy = -obj.vy * damping;
           }
         }
+        function roundRect(ctx, x, y, width, height, radius) {
+          ctx.beginPath();
+          ctx.moveTo(x + radius, y);
+          ctx.lineTo(x + width - radius, y);
+          ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+          ctx.lineTo(x + width, y + height - radius);
+          ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+          ctx.lineTo(x + radius, y + height);
+          ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+          ctx.lineTo(x, y + radius);
+          ctx.quadraticCurveTo(x, y, x + radius, y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
   
-        // ----- New: Generate an irregular comet shape (polygon) -----
+        // 1) Generate Comet Shape with freq/phase:
         function generateCometShape(segments) {
           let shape = [];
           for (let i = 0; i < segments; i++) {
             let angle = i * 2 * Math.PI / segments;
             let factor = 1 + (Math.random() * 0.6 - 0.3);
-            shape.push({ angle: angle, factor: factor });
+            let frequency = Math.random() * 2 + 1; // ~1..3
+            let phase = Math.random() * 2 * Math.PI;
+            shape.push({ angle, factor, frequency, phase });
           }
           return shape;
         }
-  
-        // ----- New: Generate a stone-like texture pattern (fully opaque) -----
-        function generateStonePattern() {
-          let patternCanvas = document.createElement("canvas");
-          patternCanvas.width = 50;
-          patternCanvas.height = 50;
-          let pctx = patternCanvas.getContext("2d");
-          pctx.globalAlpha = 1.0;
-          pctx.fillStyle = "#444";
-          pctx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
-          for (let i = 0; i < 20; i++) {
-            let x = Math.random() * patternCanvas.width;
-            let y = Math.random() * patternCanvas.height;
-            let radius = Math.random() * 3;
-            let gray = Math.floor(100 + Math.random() * 50);
-            pctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
-            pctx.beginPath();
-            pctx.arc(x, y, radius, 0, 2 * Math.PI);
-            pctx.fill();
+
+        // 2) Spawn Comet with optional morph
+        function spawnComet(tier = MAX_COMET_TIER, x, y, vx, vy) {
+          if (x === undefined || y === undefined) {
+            let loc = getSpawnLocation();
+            x = loc.x;
+            y = loc.y;
           }
-          return ctx.createPattern(patternCanvas, "repeat");
+          if (vx === undefined || vy === undefined) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = randomRange(COMET_SPEED_MIN, COMET_SPEED_MAX);
+            vx = Math.cos(angle) * speed;
+            vy = Math.sin(angle) * speed;
+          }
+          const radius = BASE_COMET_RADIUS * Math.pow(0.6, MAX_COMET_TIER - tier);
+          let hp;
+          if (tier === 3) hp = 5;
+          else if (tier === 2) hp = 4;
+          else hp = 3;
+          
+          const comet = {
+            x, y, vx, vy,
+            radius,
+            tier,
+            color: randomColor(),
+            hitPoints: hp,
+            hitEffectTimer: 0,
+            slowEffectTimer: 0,
+            indestructableTimer: 0,
+            oldVX: vx,
+            oldVY: vy,
+            trail: [],
+            trailTimer: 0,
+            shape: generateCometShape(12),
+            pattern: generateStonePattern(),
+            morph: true
+          };
+          comets.push(comet);
         }
-  
-        // ----- New: Helper functions for safe spawning -----
+
+        // Additional helper for spawn location
         function getQuadrant(x, y) {
           const midX = canvas.width / 2;
           const midY = canvas.height / 2;
@@ -341,49 +544,13 @@
           } while(isInSameQuadrant(loc.x, loc.y, spaceship.x, spaceship.y));
           return loc;
         }
-  
-        // ----- Comet Trails & Spawning -----
-        const TRAIL_INTERVAL = 0.05;
-        function spawnComet(tier = MAX_COMET_TIER, x, y, vx, vy) {
-          if (x === undefined || y === undefined) {
-            let loc = getSpawnLocation();
-            x = loc.x;
-            y = loc.y;
-          }
-          if (vx === undefined || vy === undefined) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = randomRange(COMET_SPEED_MIN, COMET_SPEED_MAX);
-            vx = Math.cos(angle) * speed;
-            vy = Math.sin(angle) * speed;
-          }
-          const radius = BASE_COMET_RADIUS * Math.pow(0.6, MAX_COMET_TIER - tier);
-          let hp;
-          if (tier === 3) { hp = 5; }
-          else if (tier === 2) { hp = 4; }
-          else { hp = 3; }
-          const comet = {
-            x, y, vx, vy,
-            radius,
-            tier,
-            color: randomColor(),
-            hitPoints: hp,
-            hitEffectTimer: 0,
-            slowEffectTimer: 0,  // slows when hit; remains slowed afterward
-            indestructableTimer: 0,
-            oldVX: vx,
-            oldVY: vy,
-            trail: [],
-            trailTimer: 0,
-            shape: generateCometShape(12),
-            pattern: generateStonePattern()
-          };
-          comets.push(comet);
-        }
-  
-        // ----- Explosion Effects -----
+
+        // -------------- PLACEHOLDERS FILLED BELOW -------------- //
+
+        // Explosion Effects
         function createSmallExplosion(x, y) {
           let exp = new Audio(explosionSoundURL);
-          exp.volume = 1.0;
+          exp.volume = 0.125;
           exp.play().catch(err => console.error("Explosion play error:", err));
           const count = 10;
           for (let i = 0; i < count; i++) {
@@ -400,6 +567,7 @@
             });
           }
         }
+
         function createHugeExplosion(x, y) {
           let exp = new Audio(explosionSoundURL);
           exp.volume = 1.0;
@@ -419,7 +587,7 @@
             });
           }
         }
-  
+
         function updateExplosionParticles(dt) {
           for (let i = smallExplosionParticles.length - 1; i >= 0; i--) {
             const p = smallExplosionParticles[i];
@@ -432,7 +600,7 @@
             }
           }
         }
-  
+
         function checkCometCollisions() {
           let indicesToRemove = new Set();
           for (let i = 0; i < comets.length; i++) {
@@ -443,7 +611,9 @@
               let dy = c2.y - c1.y;
               let dist = Math.hypot(dx, dy);
               let minDist = c1.radius + c2.radius;
+              // Colliding
               if (dist < minDist && dist > 0) {
+                // If either is < MAX tier, we remove it
                 if (c1.tier < MAX_COMET_TIER) {
                   indicesToRemove.add(i);
                   createSmallExplosion(c1.x, c1.y);
@@ -454,6 +624,7 @@
                   createSmallExplosion(c2.x, c2.y);
                   score += 5;
                 }
+                // If both are MAX tier, bounce
                 if (c1.tier === MAX_COMET_TIER && c2.tier === MAX_COMET_TIER) {
                   let nx = dx / dist;
                   let ny = dy / dist;
@@ -461,8 +632,7 @@
                   let dvy = c1.vy - c2.vy;
                   let dot = dvx * nx + dvy * ny;
                   if (dot <= 0) {
-                    let bounceFactor = 1;
-                    let impulse = bounceFactor * dot;
+                    let impulse = dot;
                     c1.vx -= impulse * nx;
                     c1.vy -= impulse * ny;
                     c2.vx += impulse * nx;
@@ -477,9 +647,69 @@
               }
             }
           }
+          // Remove comets that were marked
           comets = comets.filter((_, index) => !indicesToRemove.has(index));
         }
+
+
+        function checkBigCometCollisions() {
+  // Big Comets vs. Big Comets
+  for (let i = 0; i < bigComets.length; i++) {
+    for (let j = i + 1; j < bigComets.length; j++) {
+      let bc1 = bigComets[i];
+      let bc2 = bigComets[j];
+      let dx = bc2.x - bc1.x;
+      let dy = bc2.y - bc1.y;
+      let dist = Math.hypot(dx, dy);
+      let minDist = bc1.radius + bc2.radius;
+      if (dist < minDist && dist > 0) {
+        let nx = dx / dist;
+        let ny = dy / dist;
+        let overlap = minDist - dist;
+        // Bounce them apart equally
+        bc1.x -= nx * (overlap / 2);
+        bc1.y -= ny * (overlap / 2);
+        bc2.x += nx * (overlap / 2);
+        bc2.y += ny * (overlap / 2);
+        // Adjust velocities (optional, to simulate a bounce)
+        let impulse = (bc1.vx - bc2.vx) * nx + (bc1.vy - bc2.vy) * ny;
+        if (impulse < 0) {
+          bc1.vx -= impulse * nx;
+          bc1.vy -= impulse * ny;
+          bc2.vx += impulse * nx;
+          bc2.vy += impulse * ny;
+        }
+      }
+    }
+  }
   
+  // Big Comets vs. Normal Comets
+  for (let i = 0; i < bigComets.length; i++) {
+    for (let j = 0; j < comets.length; j++) {
+      let bc = bigComets[i];
+      let c = comets[j];
+      let dx = c.x - bc.x;
+      let dy = c.y - bc.y;
+      let dist = Math.hypot(dx, dy);
+      let minDist = bc.radius + c.radius;
+      if (dist < minDist && dist > 0) {
+        let nx = dx / dist;
+        let ny = dy / dist;
+        let overlap = minDist - dist;
+        // Adjust positions so they bounce apart
+        c.x += nx * (overlap / 2);
+        c.y += ny * (overlap / 2);
+        bc.x -= nx * (overlap / 2);
+        bc.y -= ny * (overlap / 2);
+        // Bounce the normal comet more strongly (big comets remain mostly unaffected)
+        c.vx = -c.vx * 0.5;
+        c.vy = -c.vy * 0.5;
+      }
+    }
+  }
+}
+
+
         function restartGame() {
           gameState = "menu";
           spaceship.x = canvas.width / 2;
@@ -490,303 +720,262 @@
           spaceship.hitPoints = 5;
           spaceship.hitFlashTimer = 0;
           bullets = [];
-          comets = [];
           sparks = [];
+          comets = [];
+          bigComets = [];
           smallExplosionParticles = [];
           lastBulletTime = 0;
           cometSpawnTimer = 0;
-          nextCometSpawn = randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX);
+          bigCometSpawnTimer = 0;
+          powerUps = [];
+          powerUpSpawnTimer = 0;
+          score = 0;
           gameTime = 0;
           winTriggered = false;
+          // Spawn an initial comet
           spawnComet();
           initStarfield();
-          score = 0;
         }
   
-        // ----- Game Loop -----
-        let lastLoopTime = performance.now();
-        function gameLoop(now) {
-          const dt = (now - lastLoopTime) / 1000;
-          lastLoopTime = now;
-          updateExplosionParticles(dt);
-          update(dt);
-          draw();
-          requestAnimationFrame(gameLoop);
-        }
-        requestAnimationFrame(gameLoop);
+        // Spaceship
+        function drawSpaceship() {
+          ctx.save();
+          ctx.translate(spaceship.x, spaceship.y);
+          ctx.rotate(spaceship.angle);
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = "cyan";
   
-        function update(dt) {
-          // Update ship hit flash timer
+          let shipFill = "gray";
           if (spaceship.hitFlashTimer > 0) {
-            spaceship.hitFlashTimer -= dt;
-            if (spaceship.hitFlashTimer < 0) spaceship.hitFlashTimer = 0;
+            shipFill = "red";
+          } else if (spaceship.hitPoints <= 2) {
+            shipFill = (Math.floor(gameTime * 10) % 2 === 0) ? "red" : "gray";
           }
   
-          if (gameState === "menu" || gameState === "settings" ||
-              gameState === "gameover" || gameState === "win") {
-            updateStarfield(dt);
-            return;
-          }
-          updateStarfield(dt);
-          gameTime += dt;
-          let spawnAllowed = gameTime < 120;
-          if (gameTime >= 120 && comets.length === 0 && !winTriggered) {
-            createHugeExplosion(spaceship.x, spaceship.y);
-            winTriggered = true;
-            gameState = "win";
-          }
+          let shipGrad = ctx.createLinearGradient(spaceship.size, 0, -spaceship.size, 0);
+          shipGrad.addColorStop(0, shipFill);
+          shipGrad.addColorStop(1, "#111");
   
-          // --- Spaceship vs. Comet Collision (separation & bounce) ---
-          for (let i = 0; i < comets.length; i++) {
-            const c = comets[i];
-            const dx = spaceship.x - c.x;
-            const dy = spaceship.y - c.y;
-            const distance = Math.hypot(dx, dy);
-            if (distance < spaceship.size + c.radius) {
-              let nx = dx / distance;
-              let ny = dy / distance;
-              let overlap = (spaceship.size + c.radius) - distance;
-              // Separate both objects equally
-              spaceship.x += nx * (overlap / 2);
-              spaceship.y += ny * (overlap / 2);
-              c.x -= nx * (overlap / 2);
-              c.y -= ny * (overlap / 2);
-              // Bounce velocities with a bounce factor of 0.5
-              spaceship.vx = -spaceship.vx * 0.5;
-              spaceship.vy = -spaceship.vy * 0.5;
-              c.vx = -c.vx * 0.5;
-              c.vy = -c.vy * 0.5;
-              // Always reduce HP (no invulnerability)
-              spaceship.hitPoints--;
-              spaceship.hitFlashTimer = 0.3;
-              if (spaceship.hitPoints <= 0) {
-                comets = [];
-                bullets = [];
-                sparks = [];
-                createHugeExplosion(spaceship.x, spaceship.y);
-                gameState = "gameover";
-                return;
+          // Body
+          ctx.beginPath();
+          ctx.moveTo(spaceship.size, 0);
+          ctx.lineTo(spaceship.size * 0.2, spaceship.size * 0.7);
+          ctx.quadraticCurveTo(-spaceship.size * 0.7, spaceship.size * 0.5, -spaceship.size * 0.6, 0);
+          ctx.quadraticCurveTo(-spaceship.size * 0.7, -spaceship.size * 0.5, spaceship.size * 0.2, -spaceship.size * 0.7);
+          ctx.closePath();
+          ctx.fillStyle = shipGrad;
+          ctx.fill();
+          ctx.strokeStyle = "white";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+  
+          // Flame
+          ctx.save();
+          ctx.globalAlpha = 0.7;
+          let flameLength = spaceship.size * 0.8;
+          let flameWidth = spaceship.size * 0.3;
+          let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.6, 0, -spaceship.size * 0.6 - flameLength, 0);
+          flameGrad.addColorStop(0, "yellow");
+          flameGrad.addColorStop(1, "red");
+          ctx.fillStyle = flameGrad;
+          ctx.beginPath();
+          ctx.moveTo(-spaceship.size * 0.6, flameWidth / 2);
+          ctx.lineTo(-spaceship.size * 0.6 - flameLength, 0);
+          ctx.lineTo(-spaceship.size * 0.6, -flameWidth / 2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+  
+          // Cockpit
+          let cockpitRadius = spaceship.size * 0.3;
+          let cockpitGrad = ctx.createRadialGradient(
+            spaceship.size * 0.3, 0,
+            cockpitRadius * 0.3,
+            spaceship.size * 0.3, 0,
+            cockpitRadius
+          );
+          cockpitGrad.addColorStop(0, "lightblue");
+          cockpitGrad.addColorStop(1, "blue");
+          ctx.beginPath();
+          ctx.arc(spaceship.size * 0.3, 0, cockpitRadius, 0, Math.PI * 2);
+          ctx.fillStyle = cockpitGrad;
+          ctx.fill();
+          ctx.strokeStyle = "white";
+          ctx.stroke();
+  
+          ctx.restore();
+        }
+
+        // 3) Draw normal comets with morph
+        function drawNormalComets() {
+          for (let c of comets) {
+            // Draw comet trail
+            if (c.trail && c.trail.length > 0) {
+              ctx.save();
+              let maxAlpha = 0.1;
+              for (let i = 0; i < c.trail.length; i++) {
+                let pos = c.trail[i];
+                let alpha = ((i + 1) / c.trail.length) * maxAlpha;
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, c.radius, 0, 2 * Math.PI);
+                ctx.fillStyle = "white";
+                ctx.fill();
               }
+              ctx.restore();
             }
-          }
-  
-          // --- Update Spaceship Based on Input ---
-          if (keys["ArrowUp"]) {
-            spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * dt;
-            spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * dt;
-          }
-          if (keys["ArrowDown"]) {
-            spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * dt;
-            spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * dt;
-          }
-          if (keys["Space"]) {
-            let speed = Math.sqrt(spaceship.vx**2 + spaceship.vy**2);
-            if (speed > 0) {
-              let deceleration = SHIP_REVERSE * dt;
-              let newSpeed = Math.max(0, speed - deceleration);
-              spaceship.vx = (spaceship.vx / speed) * newSpeed;
-              spaceship.vy = (spaceship.vy / speed) * newSpeed;
-            }
-          }
-          if (keys["ArrowLeft"]) {
-            spaceship.angle -= SHIP_ROT_SPEED * dt;
-          }
-          if (keys["ArrowRight"]) {
-            spaceship.angle += SHIP_ROT_SPEED * dt;
-          }
-          spaceship.x += spaceship.vx * dt;
-          spaceship.y += spaceship.vy * dt;
-          spaceship.vx *= FRICTION;
-          spaceship.vy *= FRICTION;
-          bounce(spaceship, spaceship.size);
-  
-          lastBulletTime += dt * 1000;
-          if (lastBulletTime > BULLET_INTERVAL) {
-            const noseX = spaceship.x + Math.cos(spaceship.angle) * spaceship.size;
-            const noseY = spaceship.y + Math.sin(spaceship.angle) * spaceship.size;
-            const perpX = Math.cos(spaceship.angle + Math.PI / 2);
-            const perpY = Math.sin(spaceship.angle + Math.PI / 2);
-            const holeOffset = spaceship.size / 4;
-  
-            const leftAngle = spaceship.angle + randomRange(0.1, 0.15);
-            const centerAngle = spaceship.angle + randomRange(-0.03, 0.03);
-            const rightAngle = spaceship.angle - randomRange(0.1, 0.15);
-  
-            const spawnPositions = [
-              { x: noseX + perpX * holeOffset, y: noseY + perpY * holeOffset },
-              { x: noseX, y: noseY },
-              { x: noseX - perpX * holeOffset, y: noseY - perpY * holeOffset },
-            ];
-            const bulletAngles = [leftAngle, centerAngle, rightAngle];
-            for (let i = 0; i < 3; i++) {
-              const pos = spawnPositions[i];
-              const angle = bulletAngles[i];
-              const bullet = {
-                x: pos.x,
-                y: pos.y,
-                vx: Math.cos(angle) * BULLET_SPEED + spaceship.vx,
-                vy: Math.sin(angle) * BULLET_SPEED + spaceship.vy,
-                radius: BULLET_RADIUS,
-              };
-              bullets.push(bullet);
-            }
-            bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-            bulletSoundPool[nextBulletSoundIndex].play();
-            nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
-            lastBulletTime = 0;
-            const numSparks = Math.floor(randomRange(1, 3));
-            for (let i = 0; i < numSparks; i++) {
-              const baseSparkOffset = Math.PI / 8;
-              const sparkAngle = spaceship.angle + (Math.random() < 0.5 ? baseSparkOffset : -baseSparkOffset) + randomRange(-0.05, 0.05);
-              sparks.push({
-                angle: sparkAngle,
-                length: randomRange(2, 5),
-                lifetime: 0.2,
-              });
-            }
-          }
-  
-          for (let i = sparks.length - 1; i >= 0; i--) {
-            sparks[i].lifetime -= dt;
-            if (sparks[i].lifetime <= 0) {
-              sparks.splice(i, 1);
-            }
-          }
-  
-          for (let i = bullets.length - 1; i >= 0; i--) {
-            const b = bullets[i];
-            b.x += b.vx * dt;
-            b.y += b.vy * dt;
-            if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-              bullets.splice(i, 1);
-            }
-          }
-  
-          // Update comets
-          for (let comet of comets) {
-            if (comet.slowEffectTimer > 0) {
-              comet.slowEffectTimer -= dt;
-              if (comet.slowEffectTimer < 0) {
-                comet.slowEffectTimer = 0;
+
+            // Draw comet body
+            ctx.save();
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            if (c.shape && c.shape.length > 0) {
+              // First vertex
+              let v0 = c.shape[0];
+              let factor0 = v0.factor;
+              if (c.morph) {
+                factor0 += 0.1 * Math.sin(gameTime * v0.frequency + v0.phase);
               }
-            }
-            if (comet.indestructableTimer > 0) {
-              comet.indestructableTimer -= dt;
-              if (comet.indestructableTimer < 0) {
-                comet.indestructableTimer = 0;
-              }
-            }
-            if (comet.hitEffectTimer > 0) {
-              comet.hitEffectTimer -= dt;
-              if (comet.hitEffectTimer < 0) {
-                comet.hitEffectTimer = 0;
-              }
-            }
-            comet.x += comet.vx * dt;
-            comet.y += comet.vy * dt;
-            comet.vx *= COMET_FRICTION;
-            comet.vy *= COMET_FRICTION;
-  
-            let currentSpeed = Math.hypot(comet.vx, comet.vy);
-            if (currentSpeed < COMET_MIN_SPEED && currentSpeed > 0) {
-              let factor = COMET_MIN_SPEED / currentSpeed;
-              comet.vx *= factor;
-              comet.vy *= factor;
-            }
-  
-            bounce(comet, comet.radius);
-  
-            comet.trailTimer += dt;
-            if (comet.trailTimer >= TRAIL_INTERVAL) {
-              comet.trailTimer -= TRAIL_INTERVAL;
-              comet.trail.push({ x: comet.x, y: comet.y });
-              if (comet.trail.length > 10) {
-                comet.trail.shift();
-              }
-            }
-          }
-  
-          // Check collisions: Bullets vs. Comets
-          for (let i = bullets.length - 1; i >= 0; i--) {
-            const b = bullets[i];
-            let bulletHit = false;
-            for (let j = comets.length - 1; j >= 0; j--) {
-              const c = comets[j];
-              if (c.indestructableTimer > 0) continue;
-              const dx = b.x - c.x;
-              const dy = b.y - c.y;
-              if (Math.hypot(dx, dy) < c.radius) {
-                bulletHit = true;
-                hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                hitSoundPool[nextHitSoundIndex].play();
-                nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
-                c.hitPoints--;
-                if (c.tier === 3) {
-                  if (c.slowEffectTimer === 0) {
-                    c.vx *= 0.66;
-                    c.vy *= 0.66;
-                    c.slowEffectTimer = 0.5;
-                  }
-                }
-                c.hitEffectTimer = 0.5;
-                if (c.hitPoints <= 0) {
-                  createSmallExplosion(c.x, c.y);
-                  if (c.tier > 1) {
-                    const newTier = c.tier - 1;
-                    const baseSpeed = Math.hypot(c.vx, c.vy);
-                    let splits = Math.floor(randomRange(2, 6));
-                    const offset = 50;
-                    for (let k = 0; k < splits; k++) {
-                      let newAngle = Math.random() * 2 * Math.PI;
-                      let factor = randomRange(0.7, 0.8);
-                      let extraFactor = randomRange(1.2, 1.5);
-                      let newSpeed = baseSpeed * factor * extraFactor;
-                      spawnComet(
-                        newTier,
-                        c.x + Math.cos(newAngle) * offset,
-                        c.y + Math.sin(newAngle) * offset,
-                        Math.cos(newAngle) * newSpeed,
-                        Math.sin(newAngle) * newSpeed
-                      );
-                      comets[comets.length - 1].indestructableTimer = 0.01;
-                    }
-                  }
-                  score += 10;
-                  comets.splice(j, 1);
-                }
-                break;
-              }
-            }
-            if (bulletHit) {
-              bullets.splice(i, 1);
-            }
-          }
-  
-          checkCometCollisions();
-  
-          if (spawnAllowed) {
-            cometSpawnTimer += dt;
-            if (cometSpawnTimer > nextCometSpawn) {
-              let area = canvas.width * canvas.height;
-              let scaleFactor = area / 480000;
-              scaleFactor = Math.max(0.5, Math.min(2, scaleFactor));
-              let spawnCount = Math.floor(
-                (COMET_SPAWN_BATCH_MIN + Math.floor(Math.random() * (COMET_SPAWN_BATCH_MAX - COMET_SPAWN_BATCH_MIN + 1))) *
-                scaleFactor
+              ctx.moveTo(
+                c.x + c.radius * factor0 * Math.cos(v0.angle),
+                c.y + c.radius * factor0 * Math.sin(v0.angle)
               );
-              for (let i = 0; i < spawnCount; i++) {
-                spawnComet();
+
+              // Remaining vertices
+              for (let i = 1; i < c.shape.length; i++) {
+                let v = c.shape[i];
+                let f = v.factor;
+                if (c.morph) {
+                  f += 0.1 * Math.sin(gameTime * v.frequency + v.phase);
+                }
+                ctx.lineTo(
+                  c.x + c.radius * f * Math.cos(v.angle),
+                  c.y + c.radius * f * Math.sin(v.angle)
+                );
               }
-              cometSpawnTimer = 0;
-              nextCometSpawn = randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX);
+              ctx.closePath();
+            } else {
+              ctx.arc(c.x, c.y, c.radius, 0, 2 * Math.PI);
             }
+            ctx.fillStyle = c.pattern;
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255,255,255,0.8)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
           }
         }
   
+       // New rocky pattern for big comets with a darker base color
+       function generateRockPattern() {
+  let patternCanvas = document.createElement("canvas");
+  patternCanvas.width = 50;
+  patternCanvas.height = 50;
+  let pctx = patternCanvas.getContext("2d");
+  // Use a deep, dark brown for the background:
+  pctx.fillStyle = "#4a2c2a";
+  pctx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
+  // Add random speckles to simulate rock:
+  for (let i = 0; i < 30; i++) {
+    let rx = Math.random() * patternCanvas.width;
+    let ry = Math.random() * patternCanvas.height;
+    let r = Math.random() * 2 + 0.5;
+    pctx.fillStyle = "rgba(30,15,15,0.7)";
+    pctx.beginPath();
+    pctx.arc(rx, ry, r, 0, 2 * Math.PI);
+    pctx.fill();
+  }
+  return pctx.createPattern(patternCanvas, "repeat");
+}
+
+
+// Cache the new rock pattern
+const cachedRockPattern = generateRockPattern();
+
+function spawnBigComet() {
+  const angle = DIAGONAL_ANGLES[Math.floor(Math.random() * DIAGONAL_ANGLES.length)];
+  let x, y;
+  if (angle === Math.PI/4 || angle === 7*Math.PI/4) {
+    x = -BASE_COMET_RADIUS * BIG_COMET_SCALE;
+    y = randomRange(0, canvas.height);
+  } else {
+    x = canvas.width + BASE_COMET_RADIUS * BIG_COMET_SCALE;
+    y = randomRange(0, canvas.height);
+  }
+  const speed = randomRange(BIG_COMET_SPEED_MIN, BIG_COMET_SPEED_MAX);
+  const vx = Math.cos(angle) * speed;
+  const vy = Math.sin(angle) * speed;
+  let radius = BASE_COMET_RADIUS * BIG_COMET_SCALE;
+  // Use 24 segments for a smoother, rounder shape
+  let shape = generateCometShape(12);
+  shape.forEach(v => {
+    v.factor = 1 + (v.factor - 1) * 0.3;
+  });
+  let big = {
+    x, y, vx, vy,
+    radius,
+    color: BIG_COMET_COLOR,
+    hitPoints: Infinity,
+    indestructible: true,
+    shape: shape,
+    // Generate a unique rock pattern for each comet
+    pattern: generateRockPattern(),
+    trail: [],
+    trailTimer: 0,
+    morph: true
+  };
+  bigComets.push(big);
+}
+
+
+
+function drawBigComets(ctx) {
+  for (let bc of bigComets) {
+    ctx.save();
+    ctx.globalAlpha = 1.0;
+    ctx.beginPath();
+    if (bc.shape && bc.shape.length > 0) {
+      let v0 = bc.shape[0];
+      let factor0 = v0.factor;
+      if (bc.morph) {
+        factor0 += 0.1 * Math.sin(gameTime * v0.frequency + v0.phase);
+      }
+      ctx.moveTo(
+        bc.x + bc.radius * factor0 * Math.cos(v0.angle),
+        bc.y + bc.radius * factor0 * Math.sin(v0.angle)
+      );
+      for (let i = 1; i < bc.shape.length; i++) {
+        let v = bc.shape[i];
+        let f = v.factor;
+        if (bc.morph) {
+          f += 0.1 * Math.sin(gameTime * v.frequency + v.phase);
+        }
+        ctx.lineTo(
+          bc.x + bc.radius * f * Math.cos(v.angle),
+          bc.y + bc.radius * f * Math.sin(v.angle)
+        );
+      }
+      ctx.closePath();
+    } else {
+      ctx.arc(bc.x, bc.y, bc.radius, 0, Math.PI * 2);
+    }
+    ctx.fillStyle = bc.pattern;  // Use the rocky pattern here
+    ctx.fill();
+    ctx.strokeStyle = "rgba(30,30,30,0.8)"; // Use a dark stroke if desired
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+
+        // Main Draw
         function draw() {
           ctx.fillStyle = "black";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
+
           drawStarfield(ctx);
+          drawCronos(ctx);
   
           if (gameState === "menu") {
             ctx.fillStyle = "white";
@@ -809,6 +998,7 @@
             return;
           }
           if (gameState === "win") {
+            // draw any leftover explosion particles
             for (let p of smallExplosionParticles) {
               ctx.beginPath();
               ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -846,37 +1036,36 @@
           ctx.fillText("Score: " + score, canvas.width / 2, 40);
           drawHealthBar();
   
-          // Draw spaceship with hit flash & low-HP blinking effect
-          ctx.save();
-          ctx.translate(spaceship.x, spaceship.y);
-          ctx.rotate(spaceship.angle);
-          ctx.shadowBlur = 20;
-          ctx.shadowColor = "cyan";
-          let shipFill = "gray";
-          if (spaceship.hitFlashTimer > 0) {
-            shipFill = "red";
-          } else if (spaceship.hitPoints <= 2) {
-            shipFill = (Math.floor(gameTime * 10) % 2 === 0) ? "red" : "gray";
+          // Power-ups
+          for (let pu of powerUps) {
+            ctx.save();
+            ctx.translate(pu.x, pu.y);
+            let size = POWERUP_BOX_SIZE;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#800000";
+            ctx.fillStyle = "#800000";
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "white";
+            roundRect(ctx, -size/2, -size/2, size, size, 6);
+            ctx.beginPath();
+            ctx.moveTo(-size/2, -size/2);
+            ctx.lineTo(0, -size);
+            ctx.lineTo(size/2, -size/2);
+            ctx.closePath();
+            ctx.fillStyle = "white";
+            ctx.fill();
+            ctx.font = "bold 14px Arial";
+            ctx.fillStyle = "#000";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("PuP", 0, 0);
+            ctx.restore();
           }
-          ctx.beginPath();
-          ctx.moveTo(spaceship.size, 0);
-          ctx.quadraticCurveTo(spaceship.size / 2, -spaceship.size / 2, -spaceship.size / 2, -spaceship.size / 4);
-          ctx.quadraticCurveTo(-spaceship.size / 2, spaceship.size / 4, spaceship.size / 2, spaceship.size / 2);
-          ctx.quadraticCurveTo(spaceship.size, 0, spaceship.size, 0);
-          ctx.closePath();
-          ctx.fillStyle = shipFill;
-          ctx.fill();
-          ctx.strokeStyle = "white";
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(spaceship.size / 2, 0, spaceship.size / 8, 0, 2 * Math.PI);
-          ctx.fillStyle = "lightblue";
-          ctx.fill();
-          ctx.stroke();
-          ctx.restore();
-  
-          // Draw sparks
+
+          // Spaceship
+          drawSpaceship();
+
+          // Sparks
           const noseX = spaceship.x + Math.cos(spaceship.angle) * spaceship.size;
           const noseY = spaceship.y + Math.sin(spaceship.angle) * spaceship.size;
           ctx.save();
@@ -893,7 +1082,7 @@
           }
           ctx.restore();
   
-          // Draw bullets
+          // Bullets
           ctx.fillStyle = "white";
           for (let b of bullets) {
             ctx.beginPath();
@@ -901,52 +1090,13 @@
             ctx.fill();
           }
   
-          // Draw comet trails
-          for (let c of comets) {
-            if (c.trail && c.trail.length > 0) {
-              ctx.save();
-              let maxAlpha = 0.05;
-              for (let i = 0; i < c.trail.length; i++) {
-                let pos = c.trail[i];
-                let alpha = ((i + 1) / c.trail.length) * maxAlpha;
-                ctx.globalAlpha = alpha;
-                ctx.beginPath();
-                ctx.arc(pos.x, pos.y, c.radius, 0, 2 * Math.PI);
-                ctx.fillStyle = c.color;
-                ctx.fill();
-              }
-              ctx.restore();
-            }
-          }
+          // Normal Comets
+          drawNormalComets();
   
-          // Draw comets with irregular shape and stone texture, fully opaque
-          for (let c of comets) {
-            let drawX = c.x;
-            let drawY = c.y;
-            ctx.save();
-            ctx.globalAlpha = 1.0;
-            ctx.beginPath();
-            if (c.shape && c.shape.length > 0) {
-              ctx.moveTo(drawX + c.radius * c.shape[0].factor * Math.cos(c.shape[0].angle),
-                         drawY + c.radius * c.shape[0].factor * Math.sin(c.shape[0].angle));
-              for (let i = 1; i < c.shape.length; i++) {
-                let pointX = drawX + c.radius * c.shape[i].factor * Math.cos(c.shape[i].angle);
-                let pointY = drawY + c.radius * c.shape[i].factor * Math.sin(c.shape[i].angle);
-                ctx.lineTo(pointX, pointY);
-              }
-              ctx.closePath();
-            } else {
-              ctx.arc(drawX, drawY, c.radius, 0, Math.PI * 2);
-            }
-            ctx.fillStyle = c.pattern;
-            ctx.fill();
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.restore();
-          }
+          // Big Comets
+          drawBigComets(ctx);
   
-          // Draw explosion particles
+          // Explosion Particles
           for (let p of smallExplosionParticles) {
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -954,10 +1104,376 @@
             ctx.fill();
           }
         }
+
+        // Game Loop
+        let lastLoopTime = performance.now();
+        function gameLoop(now) {
+          const dt = (now - lastLoopTime) / 1000;
+          lastLoopTime = now;
+          updateExplosionParticles(dt);
+          update(dt);
+          draw();
+          requestAnimationFrame(gameLoop);
+        }
+        requestAnimationFrame(gameLoop);
+
+        // The main update function
+        function update(dt) {
+          // always update starfield
+          updateStarfield(dt);
+          
+             // Update ship hit flash timer
+          if (spaceship.hitFlashTimer > 0) {
+            spaceship.hitFlashTimer -= dt;
+            if (spaceship.hitFlashTimer < 0) spaceship.hitFlashTimer = 0;
+          }
+
+          // if in menu/settings/gameover/win, do minimal
+          if (gameState === "menu" || gameState === "settings" ||
+              gameState === "gameover" || gameState === "win") {
+            return;
+          }
+
+          // Increase global time so comet morph can happen
+          gameTime += dt;
+
+          // Power-ups
+          powerUpSpawnTimer += dt;
+          if (powerUpSpawnTimer >= POWERUP_SPAWN_INTERVAL) {
+            powerUps.push(spawnPowerUp());
+            powerUpSpawnTimer = 0;
+          }
+          for (let i = powerUps.length - 1; i >= 0; i--) {
+            let pu = powerUps[i];
+            pu.lifetime -= dt;
+            pu.x += pu.vx * dt;
+            pu.y += pu.vy * dt;
+            bounce(pu, POWERUP_RADIUS);
+            if (pu.lifetime <= 0) {
+              powerUps.splice(i, 1);
+              continue;
+            }
+            // Check if spaceship picks it up
+            const dx = spaceship.x - pu.x;
+            const dy = spaceship.y - pu.y;
+            if (Math.hypot(dx, dy) < (spaceship.size / 2 + pu.radius)) {
+              // Refill HP
+              spaceship.hitPoints = Math.min(5, spaceship.hitPoints + 3);
+              powerUps.splice(i, 1);
+            }
+          }
+
+          // Win condition if survive 120s and no comets left
+          let spawnAllowed = gameTime < 120;
+          if (gameTime >= 60 && comets.length === 0 && !winTriggered) {
+            createHugeExplosion(spaceship.x, spaceship.y);
+            winTriggered = true;
+            gameState = "win";
+          }
+
+          // Movement/Collisions
+          // Spaceship vs comets
+          for (let i = 0; i < comets.length; i++) {
+            const c = comets[i];
+            const dx = spaceship.x - c.x;
+            const dy = spaceship.y - c.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < spaceship.size + c.radius) {
+              let nx = dx / dist;
+              let ny = dy / dist;
+              let overlap = (spaceship.size + c.radius) - dist;
+              // separate them
+              spaceship.x += nx * (overlap / 2);
+              spaceship.y += ny * (overlap / 2);
+              c.x -= nx * (overlap / 2);
+              c.y -= ny * (overlap / 2);
+              // bounce velocities
+              spaceship.vx = -spaceship.vx * 0.5;
+              spaceship.vy = -spaceship.vy * 0.5;
+              c.vx = -c.vx * 0.3;
+              c.vy = -c.vy * 0.3;
+              // damage spaceship
+              spaceship.hitPoints--;
+              spaceship.hitFlashTimer = 0.3;
+              if (spaceship.hitPoints <= 0) {
+                comets = [];
+                bigComets = [];
+                bullets = [];
+                sparks = [];
+                createHugeExplosion(spaceship.x, spaceship.y);
+                gameState = "gameover";
+                return;
+              }
+            }
+          }
+
+          // Spaceship vs bigComets
+          for (let i = 0; i < bigComets.length; i++) {
+            const bc = bigComets[i];
+            const dx = spaceship.x - bc.x;
+            const dy = spaceship.y - bc.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < spaceship.size * 1.2 + bc.radius) {
+              let nx = dx / dist;
+              let ny = dy / dist;
+              let overlap = (spaceship.size + bc.radius) - dist;
+              spaceship.x += nx * (overlap / 2);
+              spaceship.y += ny * (overlap / 2);
+              spaceship.vx = -spaceship.vx * 0.5;
+              spaceship.vy = -spaceship.vy * 0.5;
+              spaceship.hitPoints--;
+              spaceship.hitFlashTimer = 0.3;
+              if (spaceship.hitPoints <= 0) {
+                comets = [];
+                bigComets = [];
+                bullets = [];
+                sparks = [];
+                createHugeExplosion(spaceship.x, spaceship.y);
+                gameState = "gameover";
+                return;
+              }
+            }
+          }
+
+          // Movement controls
+          if (keys["ArrowUp"]) {
+            spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * dt;
+            spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * dt;
+          }
+          if (keys["ArrowDown"]) {
+            spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * dt;
+            spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * dt;
+          }
+          if (keys["Space"]) {
+            // Quick brake
+            let speed = Math.sqrt(spaceship.vx**2 + spaceship.vy**2);
+            if (speed > 0) {
+              let deceleration = SHIP_REVERSE * dt;
+              let newSpeed = Math.max(0, speed - deceleration);
+              spaceship.vx = (spaceship.vx / speed) * newSpeed;
+              spaceship.vy = (spaceship.vy / speed) * newSpeed;
+            }
+          }
+          if (keys["ArrowLeft"]) {
+            spaceship.angle -= SHIP_ROT_SPEED * dt;
+          }
+          if (keys["ArrowRight"]) {
+            spaceship.angle += SHIP_ROT_SPEED * dt;
+          }
   
-        // Spawn an initial comet
-        spawnComet();
-  
+          // Spaceship movement
+          spaceship.x += spaceship.vx * dt;
+          spaceship.y += spaceship.vy * dt;
+          spaceship.vx *= FRICTION;
+          spaceship.vy *= FRICTION;
+          bounce(spaceship, spaceship.size, 0.3);
+
+          // Shooting
+          lastBulletTime += dt * 1000;
+          if (lastBulletTime > BULLET_INTERVAL) {
+            // Fire triple bullets each time
+            const noseX = spaceship.x + Math.cos(spaceship.angle) * spaceship.size;
+            const noseY = spaceship.y + Math.sin(spaceship.angle) * spaceship.size;
+            const perpX = Math.cos(spaceship.angle + Math.PI / 2);
+            const perpY = Math.sin(spaceship.angle + Math.PI / 2);
+            const holeOffset = spaceship.size / 4;
+
+            const leftAngle = spaceship.angle - randomRange(0.1, 0.15);
+            const centerAngle = spaceship.angle + randomRange(-0.03, 0.03);
+            const rightAngle = spaceship.angle + randomRange(0.1, 0.15);
+
+            const spawnPositions = [
+              { x: noseX + perpX * holeOffset, y: noseY + perpY * holeOffset },
+              { x: noseX,                     y: noseY                     },
+              { x: noseX - perpX * holeOffset, y: noseY - perpY * holeOffset }
+            ];
+            const bulletAngles = [leftAngle, centerAngle, rightAngle];
+            for (let i = 0; i < 3; i++) {
+              const pos = spawnPositions[i];
+              const angle = bulletAngles[i];
+              const bullet = {
+                x: pos.x,
+                y: pos.y,
+                vx: Math.cos(angle) * BULLET_SPEED + spaceship.vx,
+                vy: Math.sin(angle) * BULLET_SPEED + spaceship.vy,
+                radius: BULLET_RADIUS
+              };
+              bullets.push(bullet);
+            }
+            bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+            bulletSoundPool[nextBulletSoundIndex].play();
+            nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+            lastBulletTime = 0;
+            // Sparks
+            const numSparks = Math.floor(randomRange(1, 3));
+            for (let i = 0; i < numSparks; i++) {
+              const baseSparkOffset = Math.PI / 8;
+              const sparkAngle = spaceship.angle + (Math.random() < 0.5 ? baseSparkOffset : -baseSparkOffset) + randomRange(-0.05, 0.05);
+              sparks.push({
+                angle: sparkAngle,
+                length: randomRange(2, 5),
+                lifetime: 0.2
+              });
+            }
+          }
+
+          // Update sparks
+          for (let i = sparks.length - 1; i >= 0; i--) {
+            sparks[i].lifetime -= dt;
+            if (sparks[i].lifetime <= 0) {
+              sparks.splice(i, 1);
+            }
+          }
+
+          // Update bullets
+          for (let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i];
+            b.x += b.vx * dt;
+            b.y += b.vy * dt;
+            // off screen => remove
+            if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+              bullets.splice(i, 1);
+            }
+          }
+
+          // Update comets
+          for (let c of comets) {
+            if (c.slowEffectTimer > 0) {
+              c.slowEffectTimer -= dt;
+              if (c.slowEffectTimer < 0) c.slowEffectTimer = 0;
+            }
+            if (c.indestructableTimer > 0) {
+              c.indestructableTimer -= dt;
+              if (c.indestructableTimer < 0) c.indestructableTimer = 0;
+            }
+            if (c.hitEffectTimer > 0) {
+              c.hitEffectTimer -= dt;
+              if (c.hitEffectTimer < 0) c.hitEffectTimer = 0;
+            }
+            c.x += c.vx * dt;
+            c.y += c.vy * dt;
+            c.vx *= COMET_FRICTION;
+            c.vy *= COMET_FRICTION;
+            // never drop below COMET_MIN_SPEED
+            let speed = Math.hypot(c.vx, c.vy);
+            if (speed < COMET_MIN_SPEED && speed > 0) {
+              let factor = COMET_MIN_SPEED / speed;
+              c.vx *= factor;
+              c.vy *= factor;
+            }
+            bounce(c, c.radius);
+
+            c.trailTimer += dt;
+            if (c.trailTimer >= 0.05) { // TRAIL_INTERVAL
+              c.trailTimer -= 0.05;
+              c.trail.push({ x: c.x, y: c.y });
+              if (c.trail.length > 5) {
+                c.trail.shift();
+              }
+            }
+          }
+
+          // update big comets
+          updateBigComets(dt);
+          updateTimers(dt);
+
+          // Bullets vs Comets
+          for (let i = bullets.length - 1; i >= 0; i--) {
+            let b = bullets[i];
+            let bulletHit = false;
+            for (let j = comets.length - 1; j >= 0; j--) {
+              let c = comets[j];
+              if (c.indestructableTimer > 0) continue;
+              let dx = b.x - c.x;
+              let dy = b.y - c.y;
+              if (Math.hypot(dx, dy) < c.radius) {
+                bulletHit = true;
+                // bullet sound
+                hitSoundPool[nextHitSoundIndex].currentTime = 0;
+                hitSoundPool[nextHitSoundIndex].play();
+                nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+                c.hitPoints--;
+                // slow effect if tier 3
+                if (c.tier === 3 && c.slowEffectTimer === 0) {
+                  c.vx *= 0.66;
+                  c.vy *= 0.66;
+                  c.slowEffectTimer = 0.5;
+                }
+                c.hitEffectTimer = 0.5;
+                // destroyed
+                if (c.hitPoints <= 0) {
+                  createSmallExplosion(c.x, c.y);
+                  // if bigger than tier1 => split
+                  if (c.tier > 1) {
+                    const newTier = c.tier - 1;
+                    const baseSpeed = Math.hypot(c.vx, c.vy);
+                    let splits = Math.floor(randomRange(2, 6));
+                    const offset = 50;
+                    for (let k = 0; k < splits; k++) {
+                      let newAngle = Math.random() * 2 * Math.PI;
+                      let factor = randomRange(0.7, 0.8);
+                      let extraFactor = randomRange(1.2, 1.5);
+                      let newSpeed = baseSpeed * factor * extraFactor;
+                      spawnComet(
+                        newTier,
+                        c.x + Math.cos(newAngle) * offset,
+                        c.y + Math.sin(newAngle) * offset,
+                        Math.cos(newAngle) * newSpeed,
+                        Math.sin(newAngle) * newSpeed
+                      );
+                      // short indestructable so they don't instantly collide
+                      comets[comets.length - 1].indestructableTimer = 0.01;
+                    }
+                  }
+                  score += 10;
+                  comets.splice(j, 1);
+                }
+                break;
+              }
+            }
+            // if not hit normal comet, check big comet
+            if (!bulletHit) {
+              for (let j = bigComets.length - 1; j >= 0; j--) {
+                let bc = bigComets[j];
+                let dx = b.x - bc.x;
+                let dy = b.y - bc.y;
+                if (Math.hypot(dx, dy) < bc.radius) {
+                  bulletHit = true;
+                  // big comets are indestructible
+                  break;
+                }
+              }
+            }
+            if (bulletHit) {
+              bullets.splice(i, 1);
+            }
+          }
+
+          // check collisions among comets
+          checkCometCollisions();
+
+          checkBigCometCollisions();
+
+          // spawn new comets over time if < 120s
+          if (spawnAllowed) {
+            cometSpawnTimer += dt;
+            if (cometSpawnTimer > randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX)) {
+              // scale spawn count based on area
+              let area = canvas.width * canvas.height;
+              let scaleFactor = area / 480000;
+              scaleFactor = Math.max(0.5, Math.min(2, scaleFactor));
+              let spawnCount = Math.floor(
+                (COMET_SPAWN_BATCH_MIN + Math.floor(Math.random() * (COMET_SPAWN_BATCH_MAX - COMET_SPAWN_BATCH_MIN + 1))) *
+                scaleFactor
+              );
+              for (let i = 0; i < spawnCount; i++) {
+                spawnComet();
+              }
+              cometSpawnTimer = 0;
+            }
+          }
+        }
+
       })();
     </script>
   </body>
