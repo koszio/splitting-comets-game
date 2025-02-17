@@ -27,7 +27,7 @@
           explosionSound: using local file "small-explosion-94980.mp3"
         */
         // Use your local file for explosion sounds.
-        const explosionSoundURL = "";
+        const explosionSoundURL = "expl-sfx.mp3";
         const bulletSoundSrc = "";
         const hitSoundSrc = "";
         
@@ -54,7 +54,7 @@
            // ----- BACKGROUND MUSIC -----
         // For testing, we use a royalty‑free track from Bensound:
         // https://www.bensound.com/bensound-music/bensound-slowmotion.mp3
-        const bgMusic = new Audio("https://www.bensound.com/bensound-music/bensound-slowmotion.mp3");
+        const bgMusic = new Audio("");
         bgMusic.loop = true;
         bgMusic.volume = 0.1;
         // Autoplay is often blocked so we start the music on the first key press:
@@ -191,28 +191,44 @@
           ctx.restore();
         }
 
-        // Generate a stone-like texture pattern
         function generateStonePattern() {
-          let patternCanvas = document.createElement("canvas");
-          patternCanvas.width = 50;
-          patternCanvas.height = 50;
-          let pctx = patternCanvas.getContext("2d");
-          pctx.globalAlpha = 1.0;
-          pctx.fillStyle = "#444";
-          pctx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
-          for (let i = 0; i < 20; i++) {
-            let x = Math.random() * patternCanvas.width;
-            let y = Math.random() * patternCanvas.height;
-            let radius = Math.random() * 3;
-            let gray = Math.floor(100 + Math.random() * 50);
-            pctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
-            pctx.beginPath();
-            pctx.arc(x, y, radius, 0, 2 * Math.PI);
-            pctx.fill();
-          }
-          return ctx.createPattern(patternCanvas, "repeat");
-        }
+          const baseColors = [
+    "#8B4513", // SaddleBrown
+    "#A0522D", // Sienna
+    "#556B2F", // DarkOliveGreen
+    "#6B8E23", // OliveDrab
+    "#2F4F4F", // DarkSlateGray
+    "#800000", // Maroon
+    "#4B0082"  // Indigo
+  ];
+  // Pick a random base color
+  const baseColor = baseColors[Math.floor(Math.random() * baseColors.length)];
   
+  let patternCanvas = document.createElement("canvas");
+  patternCanvas.width = 50;
+  patternCanvas.height = 50;
+  let pctx = patternCanvas.getContext("2d");
+  
+  // Use the chosen base color
+  pctx.fillStyle = baseColor;
+  pctx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
+  
+  // Add random speckles for texture
+  for (let i = 0; i < 20; i++) {
+    let x = Math.random() * patternCanvas.width;
+    let y = Math.random() * patternCanvas.height;
+    let radius = Math.random() * 3;
+    // Use random gray values for the speckles
+    let gray = Math.floor(100 + Math.random() * 50);
+    pctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+    pctx.beginPath();
+    pctx.arc(x, y, radius, 0, 2 * Math.PI);
+    pctx.fill();
+  }
+  
+  return ctx.createPattern(patternCanvas, "repeat");
+}
+
         // ----- Cronos Planet -----
         function drawCronos(ctx) {
   // Planet position & size
@@ -430,6 +446,8 @@ window.addEventListener("keyup", (e) => {
           return Math.random() * (max - min) + min;
         }
         function randomColor() {
+
+          
           const hue = Math.floor(Math.random() * 360);
           return "hsl(" + hue + ", 70%, 30%)";
         }
@@ -480,6 +498,25 @@ window.addEventListener("keyup", (e) => {
           return shape;
         }
 
+
+        function randomRockColor() {
+    const colors = [
+        "#4B4B4B", // Dark gray
+        "#5C5C5C", // Medium gray
+        "#6E6E6E", // Light gray
+        "#403A3A", // Dark brown
+        "#554D4D", // Brownish-gray
+        "#3A2F2F", // Darker brown
+        "#3B3A47", // Dark bluish-gray
+        "#4C3D3D", // Reddish-brown
+        "#5A4F4F", // Muted purple-gray
+        "#524949"  // Dark grayish-brown
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
+
+
         // 2) Spawn Comet with optional morph
         function spawnComet(tier = MAX_COMET_TIER, x, y, vx, vy) {
           if (x === undefined || y === undefined) {
@@ -503,7 +540,7 @@ window.addEventListener("keyup", (e) => {
             x, y, vx, vy,
             radius,
             tier,
-            color: randomColor(),
+            color: randomRockColor(),
             hitPoints: hp,
             hitEffectTimer: 0,
             slowEffectTimer: 0,
@@ -512,7 +549,7 @@ window.addEventListener("keyup", (e) => {
             oldVY: vy,
             trail: [],
             trailTimer: 0,
-            shape: generateCometShape(12),
+            shape: generateCometShape(8),
             pattern: generateStonePattern(),
             morph: true
           };
