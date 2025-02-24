@@ -54,7 +54,7 @@
            // ----- BACKGROUND MUSIC -----
         // For testing, we use a royalty‑free track from Bensound:
         // https://www.bensound.com/bensound-music/bensound-slowmotion.mp3
-        const bgMusic = new Audio("");
+        const bgMusic = new Audio("bensound-slowmotion.mp3");
         bgMusic.loop = true;
         bgMusic.volume = 0.1;
         // Autoplay is often blocked so we start the music on the first key press:
@@ -386,7 +386,7 @@ window.addEventListener("keydown", (e) => {
   else if ((gameState === "gameover" || gameState === "win") &&
            (e.key === "Enter" || e.key === "NumpadEnter" || e.code === "Enter" || e.keyCode === 13)) {
     restartGame();
-    gameState = "playing";
+    gameState = "menu";
   }
   // Always record the key state:
   keys[e.key] = true;
