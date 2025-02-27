@@ -261,6 +261,14 @@
       const POWERUP_BOX_SIZE = 60;
       const POWERUP_RADIUS = POWERUP_BOX_SIZE / 2;
 
+      // Pulsar animation variables
+      let pulsarActive = true;
+      let pulsarX = 100;
+      let pulsarY = 100;
+      let pulsarRadius = 25;
+      let pulsarTime = 0;
+      let pulsarColor = 'rgba(100, 200, 255, ';
+      
       let powerUps = [];
       let powerUpSpawnTimer = 0;
 
@@ -286,11 +294,31 @@
       let smallExplosionParticles = [];
       let comets = [];
 
-      // ----- Starfield -----
+      // ----- Background Elements -----
       const NUM_STARS = 500;
+      const NUM_DISTANT_STARS = 200;
+      const NUM_NEBULA_CLOUDS = 5;
+      const NUM_DUST_PARTICLES = 120;
+      const NUM_SHOOTING_STARS = 3;
+      
       let stars = [];
+      let distantStars = []; // Parallax effect stars
+      let nebulaClouds = [];
+      let spaceDust = [];
+      let shootingStars = [];
+      let auroraPoints = [];
+      
+      // Initialize all background elements
       function initStarfield() {
+        // Reset all arrays
         stars = [];
+        distantStars = [];
+        nebulaClouds = [];
+        spaceDust = [];
+        shootingStars = [];
+        auroraPoints = [];
+        
+        // Regular stars (closer/faster)
         for (let i = 0; i < NUM_STARS; i++) {
           const x = Math.random() * canvas.width;
           const y = Math.random() * canvas.height;
@@ -299,20 +327,221 @@
           const sizeVariation = flicker ? (Math.random() * 1 + 0.2) : 0;
           const sizeSpeed = flicker ? (Math.random() * 0.5 + 0.2) : 0;
           const sizeTime = flicker ? Math.random() * Math.PI * 2 : 0;
-          stars.push({ x, y, baseSize, sizeVariation, sizeSpeed, sizeTime, flicker });
+          // Add color variations for some stars
+          const colorHue = Math.random() < 0.2 ? 
+            Math.floor(Math.random() * 60) + (Math.random() < 0.5 ? 0 : 180) : // red/orange or blue tones
+            null; // white (default)
+          stars.push({ 
+            x, y, baseSize, sizeVariation, sizeSpeed, sizeTime, flicker, 
+            colorHue,
+            parallaxFactor: 1.0 
+          });
+        }
+        
+        // Distant stars (parallax effect - move slower)
+        for (let i = 0; i < NUM_DISTANT_STARS; i++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const baseSize = Math.random() * 1.5 + 0.3;
+          const flicker = Math.random() < 0.3; // Less flickering in distance
+          const sizeVariation = flicker ? (Math.random() * 0.7 + 0.1) : 0;
+          const sizeSpeed = flicker ? (Math.random() * 0.3 + 0.1) : 0;
+          const sizeTime = flicker ? Math.random() * Math.PI * 2 : 0;
+          distantStars.push({ 
+            x, y, baseSize, sizeVariation, sizeSpeed, sizeTime, flicker,
+            parallaxFactor: 0.3 // Move much slower
+          });
+        }
+        
+        // Nebula clouds
+        for (let i = 0; i < NUM_NEBULA_CLOUDS; i++) {
+          // Create larger-scale nebula elements
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const width = Math.random() * 300 + 200;
+          const height = Math.random() * 200 + 150;
+          
+          // Random nebula colors - purples, blues, reds
+          const colorPalette = [
+            'rgba(110, 20, 170, 0.07)',  // Purple
+            'rgba(50, 70, 180, 0.06)',   // Blue
+            'rgba(180, 50, 90, 0.05)',   // Red
+            'rgba(60, 100, 200, 0.07)',  // Light blue
+            'rgba(180, 90, 30, 0.05)'    // Orange
+          ];
+          
+          const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+          const driftSpeed = {
+            x: (Math.random() - 0.5) * 4, // Slow horizontal drift
+            y: (Math.random() - 0.5) * 2  // Even slower vertical drift
+          };
+          
+          nebulaClouds.push({
+            x, y, width, height, color, driftSpeed,
+            // Each nebula has several "centers" to create irregular shapes
+            centers: Array(Math.floor(Math.random() * 4 + 3)).fill().map(() => ({
+              xOffset: (Math.random() - 0.5) * width * 0.7,
+              yOffset: (Math.random() - 0.5) * height * 0.7,
+              radius: Math.random() * 80 + 40
+            })),
+            // Animation variables
+            time: Math.random() * Math.PI * 2,
+            timeFactor: Math.random() * 0.4 + 0.1
+          });
+        }
+        
+        // Space dust particles
+        for (let i = 0; i < NUM_DUST_PARTICLES; i++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const size = Math.random() * 1.5 + 0.5;
+          const opacity = Math.random() * 0.15 + 0.05; // Very subtle
+          const driftSpeed = {
+            x: (Math.random() - 0.5) * 15, // Medium drift speed
+            y: (Math.random() - 0.5) * 15
+          };
+          
+          spaceDust.push({
+            x, y, size, opacity, driftSpeed
+          });
+        }
+        
+        // Create shooting stars (inactive initially)
+        for (let i = 0; i < NUM_SHOOTING_STARS; i++) {
+          shootingStars.push({
+            active: false,
+            timeToNext: Math.random() * 10 + 5 // Random delay before first appearance
+          });
+        }
+        
+        // Aurora points
+        const numPoints = 15;
+        for (let i = 0; i < numPoints; i++) {
+          const xPos = (i / (numPoints - 1)) * canvas.width;
+          auroraPoints.push({
+            x: xPos,
+            y: canvas.height * 0.05, // Near top of screen
+            wavePhase: Math.random() * Math.PI * 2,
+            waveSpeed: Math.random() * 0.5 + 0.2
+          });
         }
       }
+      
       initStarfield();
+      
       function updateStarfield(dt) {
+        // Update regular stars
         for (let star of stars) {
           if (star.flicker) {
             star.sizeTime += dt * star.sizeSpeed;
           }
         }
+        
+        // Update distant stars (slower)
+        for (let star of distantStars) {
+          if (star.flicker) {
+            star.sizeTime += dt * star.sizeSpeed * 0.7; // Even slower flicker
+          }
+        }
+        
+        // Update nebula clouds - slow drifting motion
+        for (let cloud of nebulaClouds) {
+          cloud.x += cloud.driftSpeed.x * dt * 0.2;
+          cloud.y += cloud.driftSpeed.y * dt * 0.1;
+          
+          // Wrap around edges
+          if (cloud.x < -cloud.width) cloud.x = canvas.width + cloud.width/2;
+          if (cloud.x > canvas.width + cloud.width) cloud.x = -cloud.width/2;
+          if (cloud.y < -cloud.height) cloud.y = canvas.height + cloud.height/2;
+          if (cloud.y > canvas.height + cloud.height) cloud.y = -cloud.height/2;
+          
+          // Update animation time
+          cloud.time += dt * cloud.timeFactor;
+        }
+        
+        // Update space dust - faster drift
+        for (let dust of spaceDust) {
+          dust.x += dust.driftSpeed.x * dt;
+          dust.y += dust.driftSpeed.y * dt;
+          
+          // Wrap around edges
+          if (dust.x < 0) dust.x = canvas.width;
+          if (dust.x > canvas.width) dust.x = 0;
+          if (dust.y < 0) dust.y = canvas.height;
+          if (dust.y > canvas.height) dust.y = 0;
+        }
+        
+        // Update shooting stars
+        for (let star of shootingStars) {
+          if (!star.active) {
+            // Count down to next activation
+            star.timeToNext -= dt;
+            if (star.timeToNext <= 0) {
+              // Activate new shooting star
+              star.active = true;
+              star.x = Math.random() * canvas.width;
+              star.y = Math.random() * (canvas.height * 0.3); // Top third of screen
+              star.length = Math.random() * 100 + 50;
+              star.angle = Math.PI * 0.25 + Math.random() * Math.PI * 0.5; // Downward angle
+              star.speed = Math.random() * 300 + 200;
+              star.duration = Math.random() * 2 + 1; // 1-3 seconds
+              star.elapsed = 0;
+              star.thickness = Math.random() * 2 + 1;
+            }
+          } else {
+            // Update active shooting star
+            star.x += Math.cos(star.angle) * star.speed * dt;
+            star.y += Math.sin(star.angle) * star.speed * dt;
+            star.elapsed += dt;
+            
+            // Check if shooting star is done
+            if (star.elapsed >= star.duration || 
+                star.x < -star.length || star.x > canvas.width + star.length ||
+                star.y < -star.length || star.y > canvas.height + star.length) {
+              star.active = false;
+              star.timeToNext = Math.random() * 15 + 5; // 5-20 seconds until next appearance
+            }
+          }
+        }
+        
+        // Update aurora points
+        for (let point of auroraPoints) {
+          point.wavePhase += dt * point.waveSpeed;
+          // Aurora waves up and down slightly
+          point.y = canvas.height * 0.05 + Math.sin(point.wavePhase) * 15;
+        }
       }
+      
       function drawStarfield(ctx) {
         ctx.save();
-        for (let star of stars) {
+        
+        // Draw nebula clouds first (behind everything)
+        for (let cloud of nebulaClouds) {
+          ctx.save();
+          // For each cloud, draw multiple overlapping gradients at its "centers"
+          for (let center of cloud.centers) {
+            const x = cloud.x + center.xOffset;
+            const y = cloud.y + center.yOffset;
+            // Add subtle pulsing to the radius
+            const adjustedRadius = center.radius * (1 + 0.1 * Math.sin(cloud.time));
+            
+            const gradient = ctx.createRadialGradient(
+              x, y, 0,
+              x, y, adjustedRadius
+            );
+            gradient.addColorStop(0, cloud.color);
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, adjustedRadius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+        
+        // Draw distant stars (parallax effect)
+        for (let star of distantStars) {
           let currentSize = star.baseSize;
           if (star.flicker) {
             currentSize += star.sizeVariation * Math.sin(star.sizeTime);
@@ -322,15 +551,132 @@
             star.x, star.y, currentSize * 0.2,
             star.x, star.y, currentSize
           );
-          gradient.addColorStop(0, "rgba(255,255,255,1)");
+          gradient.addColorStop(0, "rgba(255,255,255,0.8)");
           gradient.addColorStop(1, "rgba(255,255,255,0)");
           ctx.fillStyle = gradient;
-          ctx.shadowBlur = 5;
+          ctx.shadowBlur = 3; // Less glow for distant stars
           ctx.shadowColor = "white";
           ctx.beginPath();
           ctx.arc(star.x, star.y, currentSize, 0, Math.PI * 2);
           ctx.fill();
         }
+        
+        // Draw closer/regular stars
+        for (let star of stars) {
+          let currentSize = star.baseSize;
+          if (star.flicker) {
+            currentSize += star.sizeVariation * Math.sin(star.sizeTime);
+            if (currentSize < 0) currentSize = 0;
+          }
+          
+          // Color or white based on star properties
+          let innerColor, outerColor;
+          if (star.colorHue !== null) {
+            innerColor = `hsla(${star.colorHue}, 80%, 70%, 1)`;
+            outerColor = `hsla(${star.colorHue}, 80%, 70%, 0)`;
+          } else {
+            innerColor = "rgba(255,255,255,1)";
+            outerColor = "rgba(255,255,255,0)";
+          }
+          
+          let gradient = ctx.createRadialGradient(
+            star.x, star.y, currentSize * 0.2,
+            star.x, star.y, currentSize
+          );
+          gradient.addColorStop(0, innerColor);
+          gradient.addColorStop(1, outerColor);
+          ctx.fillStyle = gradient;
+          ctx.shadowBlur = 5;
+          ctx.shadowColor = star.colorHue !== null ? innerColor : "white";
+          ctx.beginPath();
+          ctx.arc(star.x, star.y, currentSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        // Draw space dust particles
+        ctx.shadowBlur = 0; // No glow for dust
+        for (let dust of spaceDust) {
+          ctx.fillStyle = `rgba(255,255,255,${dust.opacity})`;
+          ctx.beginPath();
+          ctx.arc(dust.x, dust.y, dust.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        // Draw shooting stars
+        for (let star of shootingStars) {
+          if (star.active) {
+            ctx.save();
+            // Fade in at start and out at end
+            const fade = Math.min(star.elapsed, star.duration - star.elapsed) / 0.3;
+            const alpha = Math.min(1, fade);
+            
+            // Trail gradient
+            const gradient = ctx.createLinearGradient(
+              star.x, star.y,
+              star.x - Math.cos(star.angle) * star.length,
+              star.y - Math.sin(star.angle) * star.length
+            );
+            gradient.addColorStop(0, `rgba(255,255,255,${alpha})`);
+            gradient.addColorStop(0.3, `rgba(200,200,255,${alpha * 0.6})`);
+            gradient.addColorStop(1, 'rgba(200,200,255,0)');
+            
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = star.thickness;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "white";
+            
+            ctx.beginPath();
+            ctx.moveTo(star.x, star.y);
+            ctx.lineTo(
+              star.x - Math.cos(star.angle) * star.length,
+              star.y - Math.sin(star.angle) * star.length
+            );
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+        
+        // Draw aurora effect near the top of the screen
+        if (auroraPoints.length > 1) {
+          ctx.save();
+          // Create aurora gradient
+          const gradient = ctx.createLinearGradient(
+            canvas.width / 2, 0,
+            canvas.width / 2, canvas.height * 0.15
+          );
+          gradient.addColorStop(0, 'rgba(0, 200, 100, 0.2)'); // Green
+          gradient.addColorStop(0.5, 'rgba(20, 100, 200, 0.1)'); // Blue
+          gradient.addColorStop(1, 'rgba(0, 0, 0, 0)'); // Fade out
+          
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.moveTo(0, canvas.height);
+          
+          // Draw top curve
+          ctx.moveTo(0, auroraPoints[0].y);
+          for (let i = 0; i < auroraPoints.length - 1; i++) {
+            const xMid = (auroraPoints[i].x + auroraPoints[i+1].x) / 2;
+            const yMid = (auroraPoints[i].y + auroraPoints[i+1].y) / 2;
+            ctx.quadraticCurveTo(
+              auroraPoints[i].x, auroraPoints[i].y,
+              xMid, yMid
+            );
+          }
+          // Last curve
+          ctx.quadraticCurveTo(
+            auroraPoints[auroraPoints.length-1].x, 
+            auroraPoints[auroraPoints.length-1].y,
+            canvas.width, auroraPoints[auroraPoints.length-1].y
+          );
+          
+          // Complete the aurora shape
+          ctx.lineTo(canvas.width, 0);
+          ctx.lineTo(0, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+        
         ctx.restore();
       }
 
@@ -375,18 +721,79 @@
         return ctx.createPattern(patternCanvas, "repeat");
       }
 
+      // Planet animation state vars
+      let ringRotation = -Math.PI / 6; // Fixed rotation angle - no rotation
+      let planetGlowTime = 0; // Time for planet glow effect
+      let planetGlowSpeed = 0.3; // Reduced speed of glow pulsation for less trembling
+      
       // ----- Cronos Planet -----
       function drawCronos(ctx) {
         // Planet position & size
         const x = canvas.width * 0.75;
         const y = canvas.height * 0.5;
         const radius = 200; // Planet radius
+        
+        // Update planet animation values - reduced trembling
+        planetGlowTime += 0.016; // Approximate dt for consistent animation
+        const glowStrength = 3 + Math.sin(planetGlowTime * planetGlowSpeed) * 1.2; // Reduced oscillation
+        
+        // No rotation of rings
+        
+        // ---------- Planet Surface Features ----------
+        // Create surface details canvas
+        const surfaceCanvas = document.createElement('canvas');
+        surfaceCanvas.width = radius * 2.5;
+        surfaceCanvas.height = radius * 2.5;
+        const surfaceCtx = surfaceCanvas.getContext('2d');
+        
+        // Base planet color
+        surfaceCtx.fillStyle = "#b09b83";
+        surfaceCtx.fillRect(0, 0, surfaceCanvas.width, surfaceCanvas.height);
+        
+        // Add some large darker areas (craters and surface features)
+        for (let i = 0; i < 8; i++) {
+          const featureX = Math.random() * surfaceCanvas.width;
+          const featureY = Math.random() * surfaceCanvas.height;
+          const featureSize = Math.random() * radius * 0.8 + radius * 0.3;
+          const featureGradient = surfaceCtx.createRadialGradient(
+            featureX, featureY, 0,
+            featureX, featureY, featureSize
+          );
+          featureGradient.addColorStop(0, 'rgba(80, 70, 55, 0.4)');
+          featureGradient.addColorStop(1, 'rgba(120, 110, 95, 0)');
+          
+          surfaceCtx.fillStyle = featureGradient;
+          surfaceCtx.beginPath();
+          surfaceCtx.arc(featureX, featureY, featureSize, 0, Math.PI * 2);
+          surfaceCtx.fill();
+        }
+        
+        // Create lighter areas for highlands
+        for (let i = 0; i < 6; i++) {
+          const featureX = Math.random() * surfaceCanvas.width;
+          const featureY = Math.random() * surfaceCanvas.height;
+          const featureSize = Math.random() * radius * 0.6 + radius * 0.2;
+          const featureGradient = surfaceCtx.createRadialGradient(
+            featureX, featureY, 0,
+            featureX, featureY, featureSize
+          );
+          featureGradient.addColorStop(0, 'rgba(200, 190, 170, 0.3)');
+          featureGradient.addColorStop(1, 'rgba(200, 190, 170, 0)');
+          
+          surfaceCtx.fillStyle = featureGradient;
+          surfaceCtx.beginPath();
+          surfaceCtx.arc(featureX, featureY, featureSize, 0, Math.PI * 2);
+          surfaceCtx.fill();
+        }
+        
+        // The planet's surface pattern
+        const surfacePattern = ctx.createPattern(surfaceCanvas, 'no-repeat');
 
-        // ---------- Planet Gradient ----------
+        // ---------- Planet Gradient with Surface ----------
         const grad = ctx.createRadialGradient(x, y, radius * 0.2, x, y, radius);
         grad.addColorStop(0.2, "#c9b8a3"); // center
-        grad.addColorStop(0.8, "#b09b83");
-        grad.addColorStop(0.6, "#97856f");
+        grad.addColorStop(0.5, "#b09b83");
+        grad.addColorStop(0.8, "#97856f");
         grad.addColorStop(1, "#7f6f5a"); // outer edge
 
         // ---------- Ring Geometry ----------
@@ -404,13 +811,16 @@
         ringCtx.fillStyle = "rgba(60,50,40,0.4)";
         ringCtx.fillRect(0, 0, ringCanvas.width, ringCanvas.height);
 
-        // Scatter small black dots for dust
-        for (let i = 0; i < 30; i++) {
+        // Scatter small dots for ring dust with some color variation
+        for (let i = 0; i < 40; i++) {
           const rx = Math.random() * ringCanvas.width;
           const ry = Math.random() * ringCanvas.height;
-          ringCtx.fillStyle = "rgba(0,0,0,0.6)";
+          const dustColor = Math.random() < 0.3 ? 
+            "rgba(180,160,120,0.5)" : // Lighter dust particles
+            "rgba(0,0,0,0.6)";        // Darker dust particles
+          ringCtx.fillStyle = dustColor;
           ringCtx.beginPath();
-          ringCtx.arc(rx, ry, 1, 0, 2 * Math.PI);
+          ringCtx.arc(rx, ry, Math.random() * 1.5 + 0.5, 0, 2 * Math.PI);
           ringCtx.fill();
         }
 
@@ -431,28 +841,70 @@
         // ---------- DRAW THE RING BACK HALF ----------
         // (the portion behind the planet)
         ctx.save();
-        // Move to planet center & tilt the ring
+        // Move to planet center & tilt the ring - now with animation
         ctx.translate(x, y);
-        ctx.rotate(-Math.PI / 6);
+        ctx.rotate(ringRotation);
         // e.g. 0..Math.PI is the "back half" after rotation
         drawDonutArc(0, Math.PI);
         ctx.restore();
 
         // ---------- DRAW THE PLANET ----------
         ctx.save();
+        
+        // Draw planet glow
+        const glowGradient = ctx.createRadialGradient(
+          x, y, radius * 0.9,
+          x, y, radius * 1.5
+        );
+        glowGradient.addColorStop(0, 'rgba(180,160,140,0.2)');
+        glowGradient.addColorStop(1, 'rgba(180,160,140,0)');
+        
+        ctx.fillStyle = glowGradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Draw the main planet with pattern
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, 2 * Math.PI);
         ctx.fill();
+        
+        // Apply the surface pattern to the planet
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.translate(x - radius * 1.25, y - radius * 1.25);
+        ctx.fillStyle = surfacePattern;
+        ctx.beginPath();
+        ctx.arc(radius * 1.25, radius * 1.25, radius, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Draw atmosphere highlight
+        ctx.translate(-x + radius * 1.25, -y + radius * 1.25);
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        const highlight = ctx.createRadialGradient(
+          x - radius * 0.3, y - radius * 0.3, 0,
+          x, y, radius
+        );
+        highlight.addColorStop(0, 'rgba(240,230,215,0.15)');
+        highlight.addColorStop(0.6, 'rgba(240,230,215,0.03)');
+        highlight.addColorStop(1, 'rgba(240,230,215,0)');
+        ctx.fillStyle = highlight;
+        ctx.fill();
+        
         ctx.restore();
 
         // ---------- DRAW THE RING FRONT HALF ----------
         // (the portion in front of the planet)
         ctx.save();
         ctx.translate(x, y);
-        ctx.rotate(-Math.PI / 6);
+        ctx.rotate(ringRotation);
         // front half is Math.PI..2*Math.PI
         drawDonutArc(Math.PI, 2 * Math.PI);
+        ctx.restore();
+        
+        // No ring shadow on the planet as requested
         ctx.restore();
       }
 
@@ -1239,6 +1691,65 @@
 
 
 
+      // Function to draw the distant pulsar
+      function drawPulsar(ctx) {
+        if (!pulsarActive) return;
+        
+        // Update pulsar animation
+        pulsarTime += 0.016; // Approx 60fps
+        const pulseScale = 0.5 + Math.sin(pulsarTime * 2) * 0.3;
+        const pulseAlpha = 0.2 + Math.sin(pulsarTime * 3) * 0.1;
+        
+        // Draw pulsar with pulsing effect
+        ctx.save();
+        
+        // Outer glow
+        const outerRadius = pulsarRadius * (1.5 + pulseScale);
+        const gradient = ctx.createRadialGradient(
+          pulsarX, pulsarY, pulsarRadius * 0.2,
+          pulsarX, pulsarY, outerRadius
+        );
+        
+        gradient.addColorStop(0, pulsarColor + (pulseAlpha + 0.1) + ')');
+        gradient.addColorStop(0.4, pulsarColor + (pulseAlpha * 0.6) + ')');
+        gradient.addColorStop(1, pulsarColor + '0)');
+        
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(pulsarX, pulsarY, outerRadius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Core
+        ctx.beginPath();
+        ctx.arc(pulsarX, pulsarY, pulsarRadius * pulseScale, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(200, 240, 255, ' + (pulseAlpha + 0.3) + ')';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(100, 200, 255, 0.8)';
+        ctx.fill();
+        
+        // Light rays (occasionally)
+        if (Math.sin(pulsarTime * 1.5) > 0.7) {
+          const numRays = 4;
+          const rayLength = pulsarRadius * 4 * pulseScale;
+          
+          ctx.strokeStyle = 'rgba(180, 230, 255, ' + (pulseAlpha * 0.4) + ')';
+          ctx.lineWidth = 1;
+          
+          for (let i = 0; i < numRays; i++) {
+            const angle = (i / numRays) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(pulsarX, pulsarY);
+            ctx.lineTo(
+              pulsarX + Math.cos(angle) * rayLength,
+              pulsarY + Math.sin(angle) * rayLength
+            );
+            ctx.stroke();
+          }
+        }
+        
+        ctx.restore();
+      }
+      
       function drawBigComets(ctx) {
         for (let bc of bigComets) {
           ctx.save();
@@ -1285,11 +1796,30 @@
 
 
       // Main Draw
+      // Initialize pulsar position
+      function initPulsar() {
+        // Position near the top-left or bottom-left corner
+        pulsarX = Math.random() * canvas.width * 0.2 + 60;
+        pulsarY = Math.random() < 0.5 ? 
+                 Math.random() * canvas.height * 0.2 + 60 : 
+                 canvas.height - (Math.random() * canvas.height * 0.2 + 60);
+        
+        // Random variations in appearance
+        pulsarRadius = Math.random() * 10 + 20;
+        pulsarColor = Math.random() < 0.3 ? 
+                     'rgba(220, 150, 70, ' :  // Orange pulsar
+                     'rgba(100, 200, 255, ';  // Blue pulsar
+      }
+      
+      // Call initialization on startup
+      initPulsar();
+      
       function draw() {
         ctx.fillStyle = "black";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         drawStarfield(ctx);
+        drawPulsar(ctx);
         drawCronos(ctx);
 
         if (gameState === "menu") {
