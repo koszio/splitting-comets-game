@@ -1105,16 +1105,34 @@
       const cachedRockPattern = generateRockPattern();
 
       function spawnBigComet() {
-        const angle = DIAGONAL_ANGLES[Math.floor(Math.random() * DIAGONAL_ANGLES.length)];
-        let x, y;
-        if (angle === Math.PI / 4 || angle === 7 * Math.PI / 4) {
-          x = -BASE_COMET_RADIUS * BIG_COMET_SCALE;
+        // Choose starting position that will cross closer to center screen
+        // Use either top/bottom or left/right edges
+        let x, y, angle;
+        
+        if (Math.random() < 0.5) {
+          // Spawn from left or right edge
+          x = Math.random() < 0.5 ? -BASE_COMET_RADIUS * BIG_COMET_SCALE : canvas.width + BASE_COMET_RADIUS * BIG_COMET_SCALE;
+          
+          // Calculate y to aim toward center-ish area (with some variation)
+          const targetY = canvas.height * (0.3 + Math.random() * 0.4); // Target 30-70% of screen height
           y = randomRange(0, canvas.height);
+          
+          // Calculate angle toward target point near center
+          angle = Math.atan2(targetY - y, (canvas.width/2) - x);
         } else {
-          x = canvas.width + BASE_COMET_RADIUS * BIG_COMET_SCALE;
-          y = randomRange(0, canvas.height);
+          // Spawn from top or bottom edge
+          y = Math.random() < 0.5 ? -BASE_COMET_RADIUS * BIG_COMET_SCALE : canvas.height + BASE_COMET_RADIUS * BIG_COMET_SCALE;
+          
+          // Calculate x to aim toward center-ish area (with some variation)
+          const targetX = canvas.width * (0.3 + Math.random() * 0.4); // Target 30-70% of screen width
+          x = randomRange(0, canvas.width);
+          
+          // Calculate angle toward target point near center
+          angle = Math.atan2((canvas.height/2) - y, targetX - x);
         }
-        const speed = randomRange(BIG_COMET_SPEED_MIN, BIG_COMET_SPEED_MAX);
+        
+        // Slow down big comets for longer screen time
+        const speed = randomRange(BIG_COMET_SPEED_MIN * 0.7, BIG_COMET_SPEED_MAX * 0.7);
         const vx = Math.cos(angle) * speed;
         const vy = Math.sin(angle) * speed;
         let radius = BASE_COMET_RADIUS * BIG_COMET_SCALE;
@@ -1186,9 +1204,9 @@
           }
           ctx.fillStyle = bc.pattern;  // Use the rocky pattern here
           ctx.fill();
-          // Use the big comet's color for its outline
-          ctx.strokeStyle = bc.color;
-          ctx.lineWidth = 3;
+          // Use a subtle, semi-transparent darker outline
+          ctx.strokeStyle = "rgba(50,30,20,0.3)";
+          ctx.lineWidth = 1.5;
           ctx.stroke();
           ctx.restore();
         }
