@@ -936,7 +936,7 @@
         shipGrad.addColorStop(0, shipFill);
         shipGrad.addColorStop(1, "#111");
 
-        // Body
+        // Body - keeping the original shape
         ctx.beginPath();
         ctx.moveTo(spaceship.size, 0);
         ctx.lineTo(spaceship.size * 0.2, spaceship.size * 0.7);
@@ -946,6 +946,32 @@
         ctx.fillStyle = shipGrad;
         ctx.fill();
         ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Add side gun 1 (top)
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.5, -spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.9, -spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.9, -spaceship.size * 0.6);
+        ctx.lineTo(spaceship.size * 0.5, -spaceship.size * 0.5);
+        ctx.closePath();
+        ctx.fillStyle = "#555";
+        ctx.fill();
+        ctx.strokeStyle = "#ccc";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Add side gun 2 (bottom)
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.5, spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.9, spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.9, spaceship.size * 0.6);
+        ctx.lineTo(spaceship.size * 0.5, spaceship.size * 0.5);
+        ctx.closePath();
+        ctx.fillStyle = "#555";
+        ctx.fill();
+        ctx.strokeStyle = "#ccc";
         ctx.lineWidth = 2;
         ctx.stroke();
 
@@ -1096,10 +1122,12 @@
         // Use more segments for a smoother, rounder shape (12 -> 18)
         let shape = generateCometShape(18);
         
-        // Make big comets even more round
+        // Make big comets much more round with minimal variation
         shape.forEach(v => {
-          // Reduce variation for roundness (0.3 -> 0.2)
-          v.factor = 1 + (v.factor - 1) * 0.2;
+          // Minimal variation for near-perfect roundness (0.2 -> 0.05)
+          v.factor = 1 + (v.factor - 1) * 0.05;
+          // Greatly reduce frequency for slower rotation
+          v.frequency = v.frequency * 0.3;
         });
         
         let big = {
@@ -1114,8 +1142,8 @@
           trail: [],
           trailTimer: 0,
           morph: true,
-          // Add faster rotation for big comets
-          rotationSpeed: randomRange(1.5, 2.5)
+          // Slow rotation for big comets
+          rotationSpeed: randomRange(0.3, 0.5)
         };
         bigComets.push(big);
       }
@@ -1493,23 +1521,31 @@
         // Shooting
         lastBulletTime += dt * 1000;
         if (lastBulletTime > BULLET_INTERVAL) {
-          // Fire triple bullets each time
+          // Fire triple bullets from different gun positions
           const noseX = spaceship.x + Math.cos(spaceship.angle) * spaceship.size;
           const noseY = spaceship.y + Math.sin(spaceship.angle) * spaceship.size;
           const perpX = Math.cos(spaceship.angle + Math.PI / 2);
           const perpY = Math.sin(spaceship.angle + Math.PI / 2);
-          const holeOffset = spaceship.size / 4;
+          
+          // Positions for each gun
+          const topGunX = spaceship.x + Math.cos(spaceship.angle) * (spaceship.size * 0.8) + perpX * (spaceship.size * 0.4);
+          const topGunY = spaceship.y + Math.sin(spaceship.angle) * (spaceship.size * 0.8) + perpY * (spaceship.size * 0.4);
+          
+          const bottomGunX = spaceship.x + Math.cos(spaceship.angle) * (spaceship.size * 0.8) - perpX * (spaceship.size * 0.4);
+          const bottomGunY = spaceship.y + Math.sin(spaceship.angle) * (spaceship.size * 0.8) - perpY * (spaceship.size * 0.4);
 
-          const leftAngle = spaceship.angle - randomRange(0.1, 0.15);
+          // Slight angle variation for more natural shot
+          const topAngle = spaceship.angle + randomRange(-0.05, 0.05);
           const centerAngle = spaceship.angle + randomRange(-0.03, 0.03);
-          const rightAngle = spaceship.angle + randomRange(0.1, 0.15);
+          const bottomAngle = spaceship.angle + randomRange(-0.05, 0.05);
 
+          // Bullet spawn positions from each gun
           const spawnPositions = [
-            { x: noseX + perpX * holeOffset, y: noseY + perpY * holeOffset },
-            { x: noseX, y: noseY },
-            { x: noseX - perpX * holeOffset, y: noseY - perpY * holeOffset }
+            { x: topGunX, y: topGunY },        // Top gun
+            { x: noseX, y: noseY },            // Center gun 
+            { x: bottomGunX, y: bottomGunY }   // Bottom gun
           ];
-          const bulletAngles = [leftAngle, centerAngle, rightAngle];
+          const bulletAngles = [topAngle, centerAngle, bottomAngle];
           for (let i = 0; i < 3; i++) {
             const pos = spawnPositions[i];
             const angle = bulletAngles[i];
