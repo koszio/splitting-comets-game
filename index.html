@@ -48,11 +48,9 @@
       let musicEnabled = true; // Track music state
       let soundEnabled = true; // Track sound effects state
 
-      // Function to toggle music on/off (only affects background music)
+      // Function to toggle music on/off
       function toggleMusic() {
         musicEnabled = !musicEnabled;
-        console.log("Music toggled:", musicEnabled ? "ON" : "OFF");
-        
         if (musicEnabled) {
           // Resume music based on current game state
           if (gameState === "menu" || gameState === "settings") {
@@ -66,31 +64,9 @@
         }
       }
       
-      // Function to toggle just sound effects
-      function toggleSoundEffects() {
-        // Toggle the mute state of all sound effect elements
-        const newMuteState = !powerUpSound.muted;
-        
-        // Apply to all sound effects
-        powerUpSound.muted = newMuteState;
-        victorySound.muted = newMuteState;
-        defeatSound.muted = newMuteState;
-        
-        // Apply to sound pools
-        for (let i = 0; i < bulletSoundPool.length; i++) {
-          bulletSoundPool[i].muted = newMuteState;
-        }
-        for (let i = 0; i < hitSoundPool.length; i++) {
-          hitSoundPool[i].muted = newMuteState;
-        }
-        
-        console.log("Sound effects toggled:", newMuteState ? "OFF" : "ON");
-      }
-      
       // Function to toggle all sounds (music and effects)
       function toggleAllSounds() {
         soundEnabled = !soundEnabled;
-        console.log("All sounds toggled:", soundEnabled ? "ON" : "OFF");
         
         if (!soundEnabled) {
           // Turn off music
@@ -103,11 +79,11 @@
           defeatSound.muted = true;
           
           // Mute sound pools
-          for (let i = 0; i < bulletSoundPool.length; i++) {
-            bulletSoundPool[i].muted = true;
+          for (let sound of bulletSoundPool) {
+            sound.muted = true;
           }
-          for (let i = 0; i < hitSoundPool.length; i++) {
-            hitSoundPool[i].muted = true;
+          for (let sound of hitSoundPool) {
+            sound.muted = true;
           }
         } else {
           // Unmute all sound effects
@@ -116,22 +92,14 @@
           defeatSound.muted = false;
           
           // Unmute sound pools
-          for (let i = 0; i < bulletSoundPool.length; i++) {
-            bulletSoundPool[i].muted = false;
+          for (let sound of bulletSoundPool) {
+            sound.muted = false;
           }
-          for (let i = 0; i < hitSoundPool.length; i++) {
-            hitSoundPool[i].muted = false;
+          for (let sound of hitSoundPool) {
+            sound.muted = false;
           }
           
-          // Restore music
-          musicEnabled = true;
-          
-          // Restart appropriate music
-          if (gameState === "menu" || gameState === "settings") {
-            startMenuMusic();
-          } else if (gameState === "playing") {
-            startGameplayMusic();
-          }
+          // Note: music remains off until toggled separately
         }
       }
 
@@ -165,7 +133,6 @@
         } else if (musicEnabled && bgMusic.paused) {
           bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
         }
-        console.log("Gameplay music function called, music enabled:", musicEnabled);
       }
 
       // Add error handling for music loading
@@ -174,7 +141,6 @@
       };
 
       let gameState = "menu";
-      let prevGameState = "menu"; // Track previous state for returning from settings
       
       // Auto-start menu music when the page loads
       document.addEventListener('DOMContentLoaded', function() {
@@ -342,13 +308,16 @@
 
       function generateStonePattern() {
         const baseColors = [
-          "#8B4513", // SaddleBrown
+        "#8B4513", // Saddle Brown
           "#A0522D", // Sienna
-          "#556B2F", // DarkOliveGreen
-          "#6B8E23", // OliveDrab
-          "#2F4F4F", // DarkSlateGray
-          "#800000", // Maroon
-          "#4B0082"  // Indigo
+          "#6B4423", // Deep Brown
+          "#8B5742", // Light Brown
+          "#654321", // Dark Brown
+          "#704214", // Rustic Brown
+          "#5C4033", // Rich Brown
+          "#4A3728", // Dark Chocolate
+          "#6F4E37", // Coffee
+          "#7B3F00"  // Chocolate
         ];
         // Pick a random base color
         const baseColor = baseColors[Math.floor(Math.random() * baseColors.length)];
@@ -519,29 +488,16 @@
         // Music toggle with 'M' key (in any game state)
         if (e.key.toLowerCase() === "m" || e.code === "KeyM") {
           toggleMusic();
-          
-          // Also toggle sound effects if in gameplay
-          if (gameState === "playing") {
-            toggleSoundEffects();
-          }
         }
         
         // Toggle all sounds with 'S' key in settings screen
-        if (gameState === "settings" && (e.key === "s" || e.key === "S" || e.code === "KeyS")) {
+        if (gameState === "settings" && (e.key.toLowerCase() === "s" || e.code === "KeyS")) {
           toggleAllSounds();
         }
         
         // Open settings with Escape key during gameplay
         if (gameState === "playing" && (e.key === "Escape" || e.keyCode === 27)) {
-          prevGameState = "playing";
           gameState = "settings";
-          console.log("Opened settings from gameplay");
-        }
-        
-        // Quick mute all sounds with 'S' key during gameplay
-        if (gameState === "playing" && (e.key === "s" || e.key === "S" || e.code === "KeyS")) {
-          toggleAllSounds();
-          console.log("Quick mute during gameplay");
         }
         
         if (gameState === "menu") {
@@ -552,21 +508,13 @@
             score = 0;
             gameTime = 0;
             winTriggered = false;
-            console.log("Game started");
             startGameplayMusic();
           } else if (e.key.toLowerCase() === "s" || e.code === "KeyS") {
-            prevGameState = "menu";
             gameState = "settings";
           }
         } else if (gameState === "settings" && (e.key === "Escape" || e.keyCode === 27)) {
-          // Return to previous screen (playing or menu)
-          // We'll store the previous state in a variable
-          if (prevGameState === "playing") {
-            gameState = "playing";
-          } else {
-            gameState = "menu";
-            startMenuMusic();
-          }
+          gameState = "menu";
+          startMenuMusic();
         } else if ((gameState === "gameover" || gameState === "win") &&
           (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13)) {
           // Stop victory/defeat sounds before restarting
@@ -681,8 +629,10 @@
         let shape = [];
         for (let i = 0; i < segments; i++) {
           let angle = i * 2 * Math.PI / segments;
-          let factor = 1 + (Math.random() * 0.6 - 0.3);
-          let frequency = Math.random() * 2 + 1; // ~1..3
+          // Make comets more round by reducing the factor variation (0.6 -> 0.3)
+          let factor = 1 + (Math.random() * 0.3 - 0.15);
+          // Increase frequency to make them rotate faster (multiply by 2)
+          let frequency = (Math.random() * 2 + 1) * 2; // ~2..6
           let phase = Math.random() * 2 * Math.PI;
           shape.push({ angle, factor, frequency, phase });
         }
@@ -693,15 +643,7 @@
       function randomRockColor() {
         const colors = [
           "#4B4B4B", // Dark gray
-          "#5C5C5C", // Medium gray
-          "#6E6E6E", // Light gray
-          "#403A3A", // Dark brown
-          "#554D4D", // Brownish-gray
-          "#3A2F2F", // Darker brown
-          "#3B3A47", // Dark bluish-gray
-          "#4C3D3D", // Reddish-brown
-          "#5A4F4F", // Muted purple-gray
-          "#524949"  // Dark grayish-brown
+       
         ];
         return colors[Math.floor(Math.random() * colors.length)];
       }
@@ -727,6 +669,9 @@
         else if (tier === 2) hp = 4;
         else hp = 3;
 
+        // Add more segments to make comets rounder (8 -> 12)
+        const segments = 12;
+        
         const comet = {
           x, y, vx, vy,
           radius,
@@ -740,9 +685,11 @@
           oldVY: vy,
           trail: [],
           trailTimer: 0,
-          shape: generateCometShape(8),
+          shape: generateCometShape(segments),
           pattern: generateStonePattern(),
-          morph: true
+          morph: true,
+          // Add rotation speed
+          rotationSpeed: randomRange(1, 3)
         };
         comets.push(comet);
       }
@@ -1067,7 +1014,9 @@
             let v0 = c.shape[0];
             let factor0 = v0.factor;
             if (c.morph) {
-              factor0 += 0.1 * Math.sin(gameTime * v0.frequency + v0.phase);
+              // Apply rotation speed if available (for new comets)
+              const rotSpeed = c.rotationSpeed || 1;
+              factor0 += 0.1 * Math.sin(gameTime * v0.frequency * rotSpeed + v0.phase);
             }
             ctx.moveTo(
               c.x + c.radius * factor0 * Math.cos(v0.angle),
@@ -1079,7 +1028,9 @@
               let v = c.shape[i];
               let f = v.factor;
               if (c.morph) {
-                f += 0.1 * Math.sin(gameTime * v.frequency + v.phase);
+                // Apply rotation speed if available (for new comets)
+                const rotSpeed = c.rotationSpeed || 1;
+                f += 0.1 * Math.sin(gameTime * v.frequency * rotSpeed + v.phase);
               }
               ctx.lineTo(
                 c.x + c.radius * f * Math.cos(v.angle),
@@ -1092,8 +1043,9 @@
           }
           ctx.fillStyle = c.pattern;
           ctx.fill();
-          ctx.strokeStyle = "rgba(120,255,255,0.8)";
-          ctx.lineWidth = 1;
+          // Use the comet's color for its outline, with some opacity
+          ctx.strokeStyle = c.color;
+          ctx.lineWidth = 2;
           ctx.stroke();
           ctx.restore();
         }
@@ -1109,11 +1061,12 @@
         pctx.fillStyle = "#4a2c2a";
         pctx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
         // Add random speckles to simulate rock:
-        for (let i = 0; i < 30; i++) {
+        // Reduced number of speckles for a smoother, more uniform look
+        for (let i = 0; i < 20; i++) {
           let rx = Math.random() * patternCanvas.width;
           let ry = Math.random() * patternCanvas.height;
-          let r = Math.random() * 2 + 0.5;
-          pctx.fillStyle = "rgba(30,15,15,0.7)";
+          let r = Math.random() * 1.5 + 0.5; // Smaller variations in speckle size
+          pctx.fillStyle = "rgba(30,15,15,0.5)"; // More transparent speckles
           pctx.beginPath();
           pctx.arc(rx, ry, r, 0, 2 * Math.PI);
           pctx.fill();
@@ -1139,11 +1092,16 @@
         const vx = Math.cos(angle) * speed;
         const vy = Math.sin(angle) * speed;
         let radius = BASE_COMET_RADIUS * BIG_COMET_SCALE;
-        // Use 24 segments for a smoother, rounder shape
-        let shape = generateCometShape(12);
+        
+        // Use more segments for a smoother, rounder shape (12 -> 18)
+        let shape = generateCometShape(18);
+        
+        // Make big comets even more round
         shape.forEach(v => {
-          v.factor = 1 + (v.factor - 1) * 0.3;
+          // Reduce variation for roundness (0.3 -> 0.2)
+          v.factor = 1 + (v.factor - 1) * 0.2;
         });
+        
         let big = {
           x, y, vx, vy,
           radius,
@@ -1155,7 +1113,9 @@
           pattern: generateRockPattern(),
           trail: [],
           trailTimer: 0,
-          morph: true
+          morph: true,
+          // Add faster rotation for big comets
+          rotationSpeed: randomRange(1.5, 2.5)
         };
         bigComets.push(big);
       }
@@ -1171,7 +1131,9 @@
             let v0 = bc.shape[0];
             let factor0 = v0.factor;
             if (bc.morph) {
-              factor0 += 0.1 * Math.sin(gameTime * v0.frequency + v0.phase);
+              // Apply rotation speed to big comets too
+              const rotSpeed = bc.rotationSpeed || 1.5;
+              factor0 += 0.1 * Math.sin(gameTime * v0.frequency * rotSpeed + v0.phase);
             }
             ctx.moveTo(
               bc.x + bc.radius * factor0 * Math.cos(v0.angle),
@@ -1181,7 +1143,9 @@
               let v = bc.shape[i];
               let f = v.factor;
               if (bc.morph) {
-                f += 0.1 * Math.sin(gameTime * v.frequency + v.phase);
+                // Apply rotation speed to big comets too
+                const rotSpeed = bc.rotationSpeed || 1.5;
+                f += 0.1 * Math.sin(gameTime * v.frequency * rotSpeed + v.phase);
               }
               ctx.lineTo(
                 bc.x + bc.radius * f * Math.cos(v.angle),
@@ -1194,8 +1158,9 @@
           }
           ctx.fillStyle = bc.pattern;  // Use the rocky pattern here
           ctx.fill();
-          ctx.strokeStyle = "rgba(30,30,30,0.8)"; // Use a dark stroke if desired
-          ctx.lineWidth = 1;
+          // Use the big comet's color for its outline
+          ctx.strokeStyle = bc.color;
+          ctx.lineWidth = 3;
           ctx.stroke();
           ctx.restore();
         }
@@ -1209,61 +1174,6 @@
 
         drawStarfield(ctx);
         drawCronos(ctx);
-
-        // Draw game underneath settings if we're in settings from playing state
-        if (gameState === "settings" && prevGameState === "playing") {
-          // Draw game elements (dimmed)
-          ctx.save();
-          ctx.globalAlpha = 0.5; // Dim the game elements
-          
-          // Draw game elements
-          ctx.fillStyle = "white";
-          ctx.font = "24px sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText("Score: " + score, canvas.width / 2, 40);
-          drawHealthBar();
-          
-          // Powerups
-          for (let pu of powerUps) {
-            ctx.save();
-            ctx.translate(pu.x, pu.y);
-            let size = POWERUP_BOX_SIZE;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "#800000";
-            ctx.fillStyle = "#800000";
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = "white";
-            roundRect(ctx, -size / 2, -size / 2, size, size, 6);
-            ctx.restore();
-          }
-          
-          // Spaceship
-          drawSpaceship();
-          
-          // Bullets
-          ctx.fillStyle = "white";
-          for (let b of bullets) {
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          
-          // Normal Comets
-          drawNormalComets();
-          
-          // Big Comets
-          drawBigComets(ctx);
-          
-          // Explosion Particles
-          for (let p of smallExplosionParticles) {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.fill();
-          }
-          
-          ctx.restore();
-        }
 
         if (gameState === "menu") {
           ctx.fillStyle = "white";
@@ -1283,32 +1193,15 @@
           return;
         }
         if (gameState === "settings") {
-          // Draw semi-transparent overlay for settings menu
-          ctx.save();
-          ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-          ctx.fillRect(canvas.width/4, canvas.height/4, canvas.width/2, canvas.height/2);
-          ctx.strokeStyle = "white";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(canvas.width/4, canvas.height/4, canvas.width/2, canvas.height/2);
-          
-          // Draw settings content
           ctx.fillStyle = "white";
-          ctx.font = "36px sans-serif";
+          ctx.font = "48px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("Settings", canvas.width / 2, canvas.height / 2 - 80);
+          ctx.fillText("Settings", canvas.width / 2, canvas.height / 2 - 50);
           ctx.font = "24px sans-serif";
-          ctx.fillText("Press ESC to return", canvas.width / 2, canvas.height / 2 - 30);
+          ctx.fillText("Press ESC to return", canvas.width / 2, canvas.height / 2);
           
           // Music toggle option
-          ctx.fillText("Press M to toggle music: " + (musicEnabled ? "ON" : "OFF"), canvas.width / 2, canvas.height / 2 + 20);
-          
-          // All sound toggle option
-          ctx.fillText("Press S to toggle all sounds: " + (soundEnabled ? "ON" : "OFF"), canvas.width / 2, canvas.height / 2 + 60);
-          
-          // Instructions
-          ctx.font = "18px sans-serif";
-          ctx.fillText("During gameplay, press ESC to access this menu", canvas.width / 2, canvas.height / 2 + 120);
-          ctx.restore();
+          ctx.fillText("Press M to toggle music: " + (musicEnabled ? "ON" : "OFF"), canvas.width / 2, canvas.height / 2 + 40);
           return;
         }
         if (gameState === "win") {
@@ -1436,11 +1329,13 @@
         // always update starfield
         updateStarfield(dt);
         
+
         // Update ship hit flash timer
         if (spaceship.hitFlashTimer > 0) {
           spaceship.hitFlashTimer -= dt;
           if (spaceship.hitFlashTimer < 0) spaceship.hitFlashTimer = 0;
         }
+
 
         // if in menu/settings/gameover/win, do minimal
         if (gameState === "menu" || gameState === "settings" ||
@@ -1473,13 +1368,9 @@
           if (Math.hypot(dx, dy) < (spaceship.size / 2 + pu.radius)) {
             // Refill HP
             spaceship.hitPoints = Math.min(5, spaceship.hitPoints + 3);
-            
-            // Play power-up sound if sound is enabled
-            if (soundEnabled) {
-              powerUpSound.volume = 0.3;
-              powerUpSound.play().catch(err => console.error("Error playing powerup sound:", err));
-            }
-            
+            powerUpSound.volume = 0.3;
+
+            powerUpSound.play().catch(err => console.error("Error playing powerup sound:", err));
             powerUps.splice(i, 1); // Remove the power-up after collection
             continue;
 
@@ -1495,11 +1386,7 @@
           winTriggered = true;
           gameState = "win";
           bgMusic.pause(); // Stop the gameplay music
-          
-          // Play victory sound if sound is enabled
-          if (soundEnabled) {
-            victorySound.play().catch(err => console.error("Error playing victory sound:", err));
-          }
+          victorySound.play().catch(err => console.error("Error playing victory sound:", err));
         }
 
         // Movement/Collisions
@@ -1534,11 +1421,7 @@
               createHugeExplosion(spaceship.x, spaceship.y);
               gameState = "gameover";
               bgMusic.pause(); // Stop the gameplay music
-              
-              // Play defeat sound if sound is enabled
-              if (soundEnabled) {
-                defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
-              }
+              defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
               return;
             }
           }
@@ -1568,11 +1451,7 @@
               createHugeExplosion(spaceship.x, spaceship.y);
               gameState = "gameover";
               bgMusic.pause(); // Stop the gameplay music
-              
-              // Play defeat sound if sound is enabled
-              if (soundEnabled) {
-                defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
-              }
+              defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
               return;
             }
           }
@@ -1643,13 +1522,9 @@
             };
             bullets.push(bullet);
           }
-          
-          // Play bullet sound if sound is enabled
-          if (soundEnabled) {
-            bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-            bulletSoundPool[nextBulletSoundIndex].play();
-            nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
-          }
+          bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+          bulletSoundPool[nextBulletSoundIndex].play();
+          nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
           lastBulletTime = 0;
           // Sparks
           const numSparks = Math.floor(randomRange(1, 3));
