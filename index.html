@@ -51,44 +51,19 @@
       // Function to toggle music on/off
       function toggleMusic() {
         musicEnabled = !musicEnabled;
-        soundEnabled = musicEnabled; // Link sound effects to music toggle
         
         if (musicEnabled) {
           // Resume music based on current game state
-          if (gameState === "menu" || gameState === "settings") {
+          if (gameState === GAME_STATE.MAIN_MENU || gameState === GAME_STATE.SETTINGS || 
+              gameState === GAME_STATE.DIFFICULTY_SELECT || gameState === GAME_STATE.HOW_TO_PLAY || 
+              gameState === GAME_STATE.HIGH_SCORES) {
             startMenuMusic();
-          } else if (gameState === "playing") {
+          } else if (gameState === GAME_STATE.PLAYING) {
             startGameplayMusic();
-          }
-          
-          // Unmute all sound effects
-          powerUpSound.muted = false;
-          victorySound.muted = false;
-          defeatSound.muted = false;
-          
-          // Unmute sound pools
-          for (let sound of bulletSoundPool) {
-            sound.muted = false;
-          }
-          for (let sound of hitSoundPool) {
-            sound.muted = false;
           }
         } else {
           // Pause music
           bgMusic.pause();
-          
-          // Mute all sound effects
-          powerUpSound.muted = true;
-          victorySound.muted = true;
-          defeatSound.muted = true;
-          
-          // Mute sound pools
-          for (let sound of bulletSoundPool) {
-            sound.muted = true;
-          }
-          for (let sound of hitSoundPool) {
-            sound.muted = true;
-          }
         }
       }
       
@@ -97,10 +72,6 @@
         soundEnabled = !soundEnabled;
         
         if (!soundEnabled) {
-          // Turn off music
-          musicEnabled = false;
-          bgMusic.pause();
-          
           // Mute all sound effects
           powerUpSound.muted = true;
           victorySound.muted = true;
@@ -126,8 +97,6 @@
           for (let sound of hitSoundPool) {
             sound.muted = false;
           }
-          
-          // Note: music remains off until toggled separately
         }
       }
 
@@ -168,7 +137,19 @@
         console.error("Error loading music file:", bgMusic.src);
       };
 
-      let gameState = "menu";
+      // Game states
+      const GAME_STATE = {
+        MAIN_MENU: "mainMenu",
+        DIFFICULTY_SELECT: "difficultySelect",
+        SETTINGS: "settings",
+        HOW_TO_PLAY: "howToPlay",
+        HIGH_SCORES: "highScores",
+        PLAYING: "playing",
+        GAME_OVER: "gameOver",
+        WIN: "win"
+      };
+      
+      let gameState = GAME_STATE.MAIN_MENU;
       
       // Auto-start menu music when the page loads
       document.addEventListener('DOMContentLoaded', function() {
@@ -194,15 +175,19 @@
       }
       let nextBulletSoundIndex = 0;
 
-      // Create a pool for hit sounds (pool size 5) at lower volume
-      const HIT_SOUND_POOL_SIZE = 500;
+      // Create a much smaller pool for hit sounds at lower volume
+      const HIT_SOUND_POOL_SIZE = 3;
       const hitSoundPool = [];
       for (let i = 0; i < HIT_SOUND_POOL_SIZE; i++) {
         let a = new Audio(hitSoundSrc);
-        a.volume = 0.2;
+        a.volume = 0.1; // Reduced volume
         hitSoundPool.push(a);
       }
       let nextHitSoundIndex = 0;
+      
+      // Add throttling for hit sounds
+      let lastHitSoundTime = 0;
+      const HIT_SOUND_THROTTLE = 150; // Minimum milliseconds between hit sounds
 
       // ----- BACKGROUND MUSIC -----
       // Background music is now started automatically on page load
@@ -220,6 +205,355 @@
         initStarfield();
       });
       canvas.focus();
+      
+      // ----- Menu Background System -----
+      let menuBgLoaded = false;
+      let menuBgOffset = {x: 0, y: 0}; // For slow panning motion
+      let menuBgCanvas, menuBgCtx;
+      
+      // Create a separate canvas for the menu background
+      function initMenuBackground() {
+        menuBgCanvas = document.createElement('canvas');
+        menuBgCanvas.width = canvas.width;
+        menuBgCanvas.height = canvas.height;
+        menuBgCtx = menuBgCanvas.getContext('2d');
+        
+        // Draw the static menu background
+        drawMenuBackground();
+        menuBgLoaded = true;
+      }
+      
+      // Draw the menu background components
+      function drawMenuBackground() {
+        // Reset the canvas
+        menuBgCtx.clearRect(0, 0, menuBgCanvas.width, menuBgCanvas.height);
+        
+        // 1. Deep Space Background gradient
+        const bgGradient = menuBgCtx.createRadialGradient(
+          menuBgCanvas.width/2, menuBgCanvas.height/2, 10,
+          menuBgCanvas.width/2, menuBgCanvas.height/2, menuBgCanvas.height
+        );
+        bgGradient.addColorStop(0, '#1a1a40'); // Deep blue/purple
+        bgGradient.addColorStop(0.6, '#0c0c20'); // Darker blue
+        bgGradient.addColorStop(1, '#000000'); // Black at edges
+        
+        menuBgCtx.fillStyle = bgGradient;
+        menuBgCtx.fillRect(0, 0, menuBgCanvas.width, menuBgCanvas.height);
+        
+        // 2. Nebula-like wispy clouds
+        drawNebulaWisps(menuBgCtx);
+        
+        // 3. Stars with varying sizes and colors
+        drawStarField(menuBgCtx);
+        
+        // 4. Small distant planet with rings
+        drawDistantPlanet(menuBgCtx);
+        
+        // 5. Comet field diagonally across screen
+        drawCometField(menuBgCtx);
+        
+        // 6. Subtle spaceship silhouette
+        drawShipSilhouette(menuBgCtx);
+      }
+      
+      // Draw nebula-like wisps
+      function drawNebulaWisps(ctx) {
+        ctx.save();
+        
+        // Create several nebula patches
+        for (let i = 0; i < 5; i++) {
+          // Random positions, mostly around edges
+          let x, y;
+          const edgePos = Math.random() < 0.7;
+          
+          if (edgePos) {
+            // Position near edges
+            if (Math.random() < 0.5) {
+              // Left or right edge
+              x = Math.random() < 0.5 ? canvas.width * 0.1 : canvas.width * 0.9;
+              y = canvas.height * Math.random();
+            } else {
+              // Top or bottom edge
+              x = canvas.width * Math.random();
+              y = Math.random() < 0.5 ? canvas.height * 0.1 : canvas.height * 0.9;
+            }
+          } else {
+            // Random position anywhere
+            x = canvas.width * Math.random();
+            y = canvas.height * Math.random();
+          }
+          
+          // Create nebula gradient
+          const size = Math.random() * 300 + 200;
+          const grad = ctx.createRadialGradient(
+            x, y, 0,
+            x, y, size
+          );
+          
+          // Purple/blue nebula colors with low opacity
+          const hue = 240 + Math.random() * 60; // Blue to purple
+          grad.addColorStop(0, `hsla(${hue}, 70%, 30%, 0.08)`);
+          grad.addColorStop(0.5, `hsla(${hue}, 60%, 20%, 0.05)`);
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        ctx.restore();
+      }
+      
+      // Draw starfield
+      function drawStarField(ctx) {
+        ctx.save();
+        
+        // Draw around 500 stars of varying sizes and colors
+        for (let i = 0; i < 500; i++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const size = Math.random() * 2 + 0.5;
+          
+          // Occasionally use colored stars
+          let color;
+          if (Math.random() < 0.1) {
+            // Create some colored stars
+            const hue = Math.random() < 0.5 ? 
+              Math.floor(Math.random() * 60) : // Yellowish
+              Math.floor(Math.random() * 30) + 200; // Blueish
+            color = `hsla(${hue}, 80%, 80%, 0.8)`;
+          } else {
+            // White stars
+            color = 'rgba(255, 255, 255, 0.8)';
+          }
+          
+          // Draw the star
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          
+          // Add glow to brighter stars
+          if (size > 1.5) {
+            ctx.beginPath();
+            ctx.arc(x, y, size * 2, 0, Math.PI * 2);
+            const grad = ctx.createRadialGradient(
+              x, y, size/2,
+              x, y, size * 2
+            );
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = grad;
+            ctx.fill();
+          }
+        }
+        
+        ctx.restore();
+      }
+      
+      // Draw a distant planet with rings
+      function drawDistantPlanet(ctx) {
+        ctx.save();
+        
+        // Planet position in upper corner
+        const x = canvas.width * 0.15;
+        const y = canvas.height * 0.2;
+        const radius = canvas.height * 0.08; // Small planet
+        
+        // Planet gradient
+        const planetGrad = ctx.createRadialGradient(
+          x - radius * 0.2, y - radius * 0.2, radius * 0.1,
+          x, y, radius
+        );
+        planetGrad.addColorStop(0, '#4a6fa3'); // Lighter bluish
+        planetGrad.addColorStop(0.6, '#2c5289'); // Medium blue
+        planetGrad.addColorStop(1, '#1c3b6f'); // Darker blue
+        
+        // Draw planet
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = planetGrad;
+        ctx.fill();
+        
+        // Planet rings
+        ctx.beginPath();
+        ctx.ellipse(x, y, radius * 2, radius * 0.5, Math.PI/6, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(180, 190, 220, 0.3)';
+        ctx.lineWidth = radius * 0.1;
+        ctx.stroke();
+        
+        // Ring shadow
+        ctx.beginPath();
+        ctx.ellipse(x, y, radius * 1.8, radius * 0.45, Math.PI/6, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(100, 120, 180, 0.15)';
+        ctx.lineWidth = radius * 0.3;
+        ctx.stroke();
+        
+        ctx.restore();
+      }
+      
+      // Draw comet field diagonally
+      function drawCometField(ctx) {
+        ctx.save();
+        
+        // Create diagonal path for comets (lower left to upper right)
+        const startX = -canvas.width * 0.2;
+        const startY = canvas.height * 1.2;
+        const endX = canvas.width * 1.2;
+        const endY = -canvas.height * 0.2;
+        
+        // Comets along the path
+        const numComets = 18; // Number of comets in the field
+        
+        for (let i = 0; i < numComets; i++) {
+          // Position along the diagonal path
+          const t = i / (numComets - 1);
+          const x = startX + (endX - startX) * t;
+          const y = startY + (endY - startY) * t;
+          
+          // Randomize position slightly
+          const offsetX = (Math.random() - 0.5) * canvas.width * 0.3;
+          const offsetY = (Math.random() - 0.5) * canvas.height * 0.3;
+          
+          const cometX = x + offsetX;
+          const cometY = y + offsetY;
+          
+          // Random comet size, larger in the center, smaller at ends
+          const centerOffset = Math.abs(t - 0.5);
+          const sizeMultiplier = 1 - centerOffset;
+          const radius = (10 + Math.random() * 25) * sizeMultiplier;
+          
+          // Create comet shape
+          ctx.beginPath();
+          
+          // Comet body
+          ctx.arc(cometX, cometY, radius, 0, Math.PI * 2);
+          
+          // Tail length based on size
+          const tailLength = radius * (3 + Math.random() * 2);
+          
+          // Tail direction (mostly upper left to lower right)
+          const angle = Math.PI * 0.75 + (Math.random() - 0.5) * 0.5;
+          
+          // Draw the tail
+          ctx.moveTo(cometX, cometY);
+          ctx.lineTo(
+            cometX + Math.cos(angle) * tailLength,
+            cometY + Math.sin(angle) * tailLength
+          );
+          
+          // Set comet color with blue cyan outlines
+          ctx.fillStyle = 'rgba(30, 30, 50, 0.7)';
+          ctx.fill();
+          
+          // Add blue/cyan outline
+          ctx.strokeStyle = 'rgba(100, 200, 255, 0.3)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Add glow effect for bigger comets
+          if (radius > 20) {
+            ctx.beginPath();
+            ctx.arc(cometX, cometY, radius * 1.5, 0, Math.PI * 2);
+            
+            const glowGrad = ctx.createRadialGradient(
+              cometX, cometY, radius * 0.8,
+              cometX, cometY, radius * 1.5
+            );
+            glowGrad.addColorStop(0, 'rgba(100, 200, 255, 0.1)');
+            glowGrad.addColorStop(1, 'rgba(100, 200, 255, 0)');
+            
+            ctx.fillStyle = glowGrad;
+            ctx.fill();
+          }
+        }
+        
+        ctx.restore();
+      }
+      
+      // Draw subtle spaceship silhouette
+      function drawShipSilhouette(ctx) {
+        ctx.save();
+        
+        // Ship position at bottom center
+        const x = canvas.width / 2;
+        const y = canvas.height * 0.85;
+        const size = canvas.height * 0.05; // Very small
+        
+        // Very subtle, almost invisible
+        ctx.globalAlpha = 0.15;
+        
+        // Simple ship silhouette
+        ctx.beginPath();
+        ctx.moveTo(x, y - size); // Top
+        ctx.lineTo(x + size * 0.7, y + size * 0.5); // Bottom right
+        ctx.lineTo(x - size * 0.7, y + size * 0.5); // Bottom left
+        ctx.closePath();
+        
+        // Very subtle gradient
+        const shipGrad = ctx.createLinearGradient(
+          x, y - size,
+          x, y + size
+        );
+        shipGrad.addColorStop(0, 'rgba(200, 220, 255, 0.3)');
+        shipGrad.addColorStop(1, 'rgba(100, 150, 200, 0.1)');
+        
+        ctx.fillStyle = shipGrad;
+        ctx.fill();
+        
+        // Add very faint engine glow
+        ctx.beginPath();
+        ctx.arc(x, y + size * 0.5, size * 0.3, 0, Math.PI * 2);
+        
+        const glowGrad = ctx.createRadialGradient(
+          x, y + size * 0.5, 0,
+          x, y + size * 0.5, size * 0.6
+        );
+        glowGrad.addColorStop(0, 'rgba(100, 180, 255, 0.4)');
+        glowGrad.addColorStop(1, 'rgba(100, 180, 255, 0)');
+        
+        ctx.fillStyle = glowGrad;
+        ctx.fill();
+        
+        ctx.restore();
+      }
+      
+      // Update the menu background (subtle panning)
+      function updateMenuBackground(dt) {
+        if (!menuBgLoaded) return;
+        
+        // Very slow panning motion (5-10 pixels per minute)
+        const panSpeed = 0.15; // pixels per second
+        menuBgOffset.x += panSpeed * dt;
+        menuBgOffset.y += panSpeed * 0.7 * dt; // Move slightly slower vertically
+        
+        // Reset when moved too far
+        if (menuBgOffset.x > 100 || menuBgOffset.y > 100) {
+          menuBgOffset.x = 0;
+          menuBgOffset.y = 0;
+        }
+      }
+      
+      // Draw the menu background on the main canvas
+      function renderMenuBackground() {
+        if (!menuBgLoaded) return;
+        
+        // Draw with slight offset for slow panning
+        ctx.save();
+        // Apply 60% opacity
+        ctx.globalAlpha = 0.7;
+        ctx.drawImage(
+          menuBgCanvas, 
+          -menuBgOffset.x, -menuBgOffset.y, 
+          canvas.width + menuBgOffset.x, canvas.height + menuBgOffset.y
+        );
+        ctx.restore();
+      }
+      
+      // Initialize the menu background on window load or resize
+      window.addEventListener('load', initMenuBackground);
+      window.addEventListener('resize', initMenuBackground);
 
       // ----- Global Constants -----
       const SHIP_ROT_SPEED = 6;       // radians/sec
@@ -231,6 +565,12 @@
 
       const SHIP_SIZE = 30;      // spaceship size (pixels)
       const SHIP_ACCEL = 800;     // pixels/sec²
+      
+      // Triple Shot Power-up Constants
+      const TRIPLE_SHOT_DURATION = 20;  // Seconds the power-up lasts
+      const TRIPLE_SHOT_POWERUP_COLOR = "#1e90ff"; // Dodger blue color
+      const ENHANCED_SHOT_MULTIPLIER = 6; // For Infinity mode when reaching 150% spawn rate
+      const TRIPLE_SHOT_SPAWN_TIME = 3; // Seconds before big comets to spawn power-up
 
       // Normal Comets – speeds: 400 to 700
       const COMET_SPEED_MIN = 400;
@@ -254,12 +594,17 @@
       const BIG_COMET_SPEED_MAX = 200;
       const BIG_COMET_COLOR = "#cd7f32";
       const BIG_COMET_SCALE = 5.5;
+      const BIG_COMET_HEALTH = 1000; // Number of bullet hits required to break
+      const BIG_COMET_BREAKUP_PIECES = 20; // Number of tier 2 comets to spawn on explosion
 
       // Power‑Up Constants
       const POWERUP_SPAWN_INTERVAL = 15;
       const POWERUP_LIFETIME = 15;
-      const POWERUP_BOX_SIZE = 60;
-      const POWERUP_RADIUS = POWERUP_BOX_SIZE / 2;
+      const POWERUP_SIZE = 45; // Core size of power-ups (increased from 30)
+      const POWERUP_RADIUS = POWERUP_SIZE; // For collision detection
+      const POWERUP_BLINK_SPEED = 5; // Blinking effect speed for power-ups
+      const POWERUP_PULSE_SPEED = 2; // Pulsation speed for the glow effect
+      const POWERUP_ROTATION_SPEED = 1; // Rotation speed for the orbital particles
 
       // Pulsar animation variables
       let pulsarActive = true;
@@ -271,11 +616,47 @@
       
       let powerUps = [];
       let powerUpSpawnTimer = 0;
+      let tripleShootPowerUpTimer = 0;
+      let tripleShootPowerUpSpawned = false;
 
+      // ----- Difficulty Settings -----
+      const DIFFICULTY = {
+        EASY: "easy",
+        MEDIUM: "medium",
+        HARD: "hard",
+        INFINITY: "infinity"
+      };
+      
+      // Game duration in seconds for each difficulty
+      const GAME_DURATION = {
+        [DIFFICULTY.EASY]: 90,
+        [DIFFICULTY.MEDIUM]: 110,
+        [DIFFICULTY.HARD]: 120,
+        [DIFFICULTY.INFINITY]: Infinity
+      };
+      
+      // Comet spawn rate multipliers for each difficulty
+      const SPAWN_RATE_MULTIPLIER = {
+        [DIFFICULTY.EASY]: 0.7,  // 70% of base rate
+        [DIFFICULTY.MEDIUM]: 1.0, // Base rate (100%)
+        [DIFFICULTY.HARD]: 1.1,  // 110% of base rate
+        [DIFFICULTY.INFINITY]: 1.0 // Starts at base rate, increases over time
+      };
+      
       // ----- Game State & Timer -----
+      let currentDifficulty = DIFFICULTY.MEDIUM; // Default difficulty
       let score = 0;
       let gameTime = 0;
       let winTriggered = false;
+      let infinityModeTime = 0; // Tracks time in infinity mode
+      let infinityModeSpawnMultiplier = 1.0; // Starting multiplier for infinity mode
+      
+      // Menu selection tracking
+      let selectedMainMenuItem = 0;
+      let selectedDifficultyItem = 1; // Default to Medium
+      let selectedSettingsItem = 0;
+      let selectedPauseMenuItem = 0; // For pause menu
+      let previousGameState = null; // To track navigation between screens
 
       // Spaceship
       let spaceship = {
@@ -286,7 +667,9 @@
         angle: 0,
         size: SHIP_SIZE,
         hitPoints: 5,
-        hitFlashTimer: 0
+        hitFlashTimer: 0,
+        tripleShot: false,
+        tripleShotTimer: 0
       };
 
       let bullets = [];
@@ -930,8 +1313,8 @@
         ctx.closePath();
         ctx.fill();
         
-        // Draw sound waves if sound is enabled (tied to music enabled)
-        if (soundEnabled) {
+        // Draw sound waves if sound is enabled - check both music and sound effects
+        if (musicEnabled && soundEnabled) {
           // First wave
           ctx.beginPath();
           ctx.arc(x + iconSize*2/3, y + iconSize/2, iconSize/3, -Math.PI/4, Math.PI/4);
@@ -942,7 +1325,7 @@
           ctx.arc(x + iconSize*2/3, y + iconSize/2, iconSize*2/3, -Math.PI/4, Math.PI/4);
           ctx.stroke();
         } else {
-          // Draw X over the speaker when sound is off
+          // Draw X over the speaker when either sound or music is off
           ctx.beginPath();
           ctx.moveTo(x + iconSize/3, y + iconSize/4);
           ctx.lineTo(x + iconSize, y + iconSize*3/4);
@@ -972,14 +1355,29 @@
       }
 
       function spawnPowerUp() {
-        let loc = getSpawnLocation();
+        let loc = getPowerUpSpawnLocation(); // Use the central spawn location
         return {
           x: loc.x,
           y: loc.y,
-          vx: randomRange(-50, 50),
-          vy: randomRange(-50, 50),
+          vx: randomRange(-40, 40), // Slightly slower movement
+          vy: randomRange(-40, 40),
           lifetime: 10,
-          radius: POWERUP_RADIUS
+          radius: POWERUP_RADIUS,
+          type: "health" // Default type is health
+        };
+      }
+      
+      function spawnTripleShotPowerUp() {
+        let loc = getPowerUpSpawnLocation(); // Use the central spawn location
+        return {
+          x: loc.x,
+          y: loc.y,
+          vx: randomRange(-40, 40), // Slightly slower movement
+          vy: randomRange(-40, 40),
+          lifetime: TRIPLE_SHOT_DURATION, // Power-up exists for 20 seconds before disappearing
+          radius: POWERUP_RADIUS,
+          type: "tripleShot",
+          enhanced: currentDifficulty === DIFFICULTY.INFINITY && infinityModeSpawnMultiplier >= 1.5
         };
       }
 
@@ -991,10 +1389,81 @@
       function updateBigComets(dt) {
         for (let i = bigComets.length - 1; i >= 0; i--) {
           let bc = bigComets[i];
-          bc.x += bc.vx * dt;
-          bc.y += bc.vy * dt;
+          
+          // Update hit flash timer
+          if (bc.hitFlashTimer > 0) {
+            bc.hitFlashTimer -= dt;
+            if (bc.hitFlashTimer < 0) bc.hitFlashTimer = 0;
+          }
+          
+          // Update shake effect with higher frequency for more damage
+          if (bc.shakeTimer > 0) {
+            bc.shakeTimer -= dt;
+            
+            // Adjust frequency based on damage - much higher frequency
+            const shakeFrequency = 10 + (bc.hitCount / BIG_COMET_HEALTH) * 50; // Increase from 10 to 60 Hz
+            
+            // Use sine waves with increasing frequency for more natural vibration
+            const time = performance.now() / 1000; // Current time in seconds
+            
+            // Apply shake with higher frequency but MUCH smaller amplitude as damage increases
+            // Cap the maximum shake distance to a small value
+            const maxShakeDistance = Math.min(bc.shakeAmount, 8); // Never shake more than 8 pixels
+            const dampingFactor = Math.max(0.15, 1 - (bc.hitCount / BIG_COMET_HEALTH)); // More damping
+            
+            // Use multiple sine waves at different frequencies for more chaotic vibration
+            bc.shakeX = (
+              Math.sin(time * shakeFrequency) * 0.6 + 
+              Math.sin(time * shakeFrequency * 1.3) * 0.4
+            ) * maxShakeDistance * dampingFactor;
+            bc.shakeY = Math.cos(time * shakeFrequency * 1.3) * maxShakeDistance * dampingFactor * 0.8; // Y-shake is slightly less
+            
+            // Gradually reduce shake amount
+            bc.shakeAmount *= 0.98;
+            
+            if (bc.shakeTimer <= 0) {
+              bc.shakeTimer = 0;
+              bc.shakeX = 0;
+              bc.shakeY = 0;
+            }
+          }
+          
+          // Apply movement with reduced speed based on hit count
+          // The more hits, the slower it moves
+          const speedFactor = Math.max(0.2, 1 - (bc.hitCount / BIG_COMET_HEALTH) * 0.8);
+          bc.x += bc.vx * dt * speedFactor;
+          bc.y += bc.vy * dt * speedFactor;
+          
+          // Remove if out of bounds
           if (bc.x < -bc.radius || bc.x > canvas.width + bc.radius ||
-            bc.y < -bc.radius || bc.y > canvas.height + bc.radius) {
+              bc.y < -bc.radius || bc.y > canvas.height + bc.radius) {
+            bigComets.splice(i, 1);
+          }
+          
+          // Check if it should explode
+          if (bc.hitPoints <= 0) {
+            // Create a huge explosion
+            createHugeExplosion(bc.x, bc.y);
+            
+            // Spawn tier 2 comets
+            for (let j = 0; j < BIG_COMET_BREAKUP_PIECES; j++) {
+              const angle = Math.random() * Math.PI * 2;
+              const distance = bc.radius * 0.5 * Math.random();
+              const speed = randomRange(COMET_SPEED_MIN, COMET_SPEED_MAX);
+              
+              spawnComet(
+                2, // Tier 2 comets
+                bc.x + Math.cos(angle) * distance,
+                bc.y + Math.sin(angle) * distance,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed
+              );
+            }
+            
+            // Award score
+            score += 100;
+            
+            // Remove the big comet
             bigComets.splice(i, 1);
           }
         }
@@ -1015,39 +1484,313 @@
       window.addEventListener("keydown", (e) => {
         // Music toggle with 'M' key (in any game state)
         if (e.key.toLowerCase() === "m" || e.code === "KeyM") {
-          toggleMusic();
+          // Get the current state before toggling
+          const wasMusicEnabled = musicEnabled;
+          const wasSoundEnabled = soundEnabled;
+          
+          // Set both to the same state (both on or both off)
+          if (wasMusicEnabled || wasSoundEnabled) {
+            // If either was on, turn both off
+            musicEnabled = false;
+            soundEnabled = false;
+            // Apply changes
+            bgMusic.pause();
+            
+            // Mute all sound effects
+            powerUpSound.muted = true;
+            victorySound.muted = true;
+            defeatSound.muted = true;
+            
+            // Mute sound pools
+            for (let sound of bulletSoundPool) {
+              sound.muted = true;
+            }
+            for (let sound of hitSoundPool) {
+              sound.muted = true;
+            }
+          } else {
+            // If both were off, turn both on
+            musicEnabled = true;
+            soundEnabled = true;
+            
+            // Resume appropriate music
+            if (gameState === GAME_STATE.MAIN_MENU || gameState === GAME_STATE.SETTINGS || 
+                gameState === GAME_STATE.DIFFICULTY_SELECT || gameState === GAME_STATE.HOW_TO_PLAY || 
+                gameState === GAME_STATE.HIGH_SCORES) {
+              startMenuMusic();
+            } else if (gameState === GAME_STATE.PLAYING) {
+              startGameplayMusic();
+            }
+            
+            // Unmute all sound effects
+            powerUpSound.muted = false;
+            victorySound.muted = false;
+            defeatSound.muted = false;
+            
+            // Unmute sound pools
+            for (let sound of bulletSoundPool) {
+              sound.muted = false;
+            }
+            for (let sound of hitSoundPool) {
+              sound.muted = false;
+            }
+          }
         }
         
-        // Open settings with Escape key during gameplay
-        if (gameState === "playing" && (e.key === "Escape" || e.keyCode === 27)) {
-          gameState = "settings";
+        // Open pause menu with Escape key during gameplay
+        if (gameState === GAME_STATE.PLAYING && (e.key === "Escape" || e.keyCode === 27)) {
+          gameState = GAME_STATE.PAUSE_MENU;
+          // Keep game music playing but at lower volume
+          if (musicEnabled && !bgMusic.paused) {
+            bgMusic.volume = 0.05;
+          }
         }
         
-        if (gameState === "menu") {
+        // Handle pause menu navigation
+        else if (gameState === GAME_STATE.PAUSE_MENU) {
+          if (e.key === "ArrowUp" || e.keyCode === 38) {
+            // Navigate up in pause menu
+            selectedPauseMenuItem = (selectedPauseMenuItem - 1 + 4) % 4;
+          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
+            // Navigate down in pause menu
+            selectedPauseMenuItem = (selectedPauseMenuItem + 1) % 4;
+          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
+            // Select current pause menu item
+            switch(selectedPauseMenuItem) {
+              case 0: // Resume Game
+                gameState = GAME_STATE.PLAYING;
+                // Restore music volume
+                if (musicEnabled && !bgMusic.paused) {
+                  bgMusic.volume = 0.1;
+                }
+                break;
+              case 1: // Settings
+                previousGameState = GAME_STATE.PAUSE_MENU; // Remember we came from pause menu
+                gameState = GAME_STATE.SETTINGS;
+                break;
+              case 2: // How to Play
+                previousGameState = GAME_STATE.PAUSE_MENU; // Remember we came from pause menu
+                gameState = GAME_STATE.HOW_TO_PLAY;
+                break;
+              case 3: // Exit to Main Menu
+                // Confirm exit dialog
+                if (confirm("Are you sure you want to exit? Your progress will be lost.")) {
+                  // Reset the game state manually
+                  
+                  // Clear all game objects
+                  bullets = [];
+                  sparks = [];
+                  comets = [];
+                  bigComets = [];
+                  smallExplosionParticles = [];
+                  powerUps = [];
+                  
+                  // Reset spaceship
+                  spaceship.x = canvas.width / 2;
+                  spaceship.y = canvas.height / 2;
+                  spaceship.vx = 0;
+                  spaceship.vy = 0;
+                  spaceship.angle = 0;
+                  spaceship.hitPoints = 5;
+                  spaceship.tripleShot = false;
+                  
+                  // Reset game parameters
+                  // Keep the score for display on main menu
+                  // score = 0; 
+                  gameTime = 0;
+                  winTriggered = false;
+                  
+                  // Keep the current difficulty selection
+                  // currentDifficulty = DIFFICULTY.MEDIUM;
+                  
+                  // Reset menu positions but keep difficulty selection
+                  selectedMainMenuItem = 0;
+                  // Keep the selected difficulty item
+                  // selectedDifficultyItem = 1;
+                  selectedPauseMenuItem = 0;
+                  selectedSettingsItem = 0;
+                  
+                  // Set game state directly to main menu (not difficulty select)
+                  previousGameState = null;
+                  gameState = GAME_STATE.MAIN_MENU;
+                  
+                  // Start menu music
+                  startMenuMusic();
+                } else {
+                  // If canceled, stay in pause menu
+                  gameState = GAME_STATE.PAUSE_MENU;
+                }
+                break;
+            }
+          } else if (e.key === "Escape" || e.keyCode === 27) {
+            // Resume game with Escape key
+            gameState = GAME_STATE.PLAYING;
+            // Restore music volume
+            if (musicEnabled && !bgMusic.paused) {
+              bgMusic.volume = 0.1;
+            }
+          }
+        }
+        
+        // Main Menu navigation
+        if (gameState === GAME_STATE.MAIN_MENU) {
           startMenuMusic();
           
-          if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
-            gameState = "playing";
+          if (e.key === "ArrowUp" || e.keyCode === 38) {
+            // Navigate up in main menu
+            selectedMainMenuItem = (selectedMainMenuItem - 1 + 4) % 4;
+          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
+            // Navigate down in main menu
+            selectedMainMenuItem = (selectedMainMenuItem + 1) % 4;
+          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
+            // Select current menu item
+            switch(selectedMainMenuItem) {
+              case 0: // Play Game
+                gameState = GAME_STATE.DIFFICULTY_SELECT;
+                break;
+              case 1: // Settings
+                gameState = GAME_STATE.SETTINGS;
+                break;
+              case 2: // How to Play
+                gameState = GAME_STATE.HOW_TO_PLAY;
+                break;
+              case 3: // High Scores
+                gameState = GAME_STATE.HIGH_SCORES;
+                break;
+            }
+          }
+        } 
+        // Difficulty select screen
+        else if (gameState === GAME_STATE.DIFFICULTY_SELECT) {
+          if (e.key === "ArrowUp" || e.keyCode === 38) {
+            // Navigate up in difficulty menu
+            selectedDifficultyItem = (selectedDifficultyItem - 1 + 4) % 4;
+            // Update the current difficulty based on selection
+            switch(selectedDifficultyItem) {
+              case 0: currentDifficulty = DIFFICULTY.EASY; break;
+              case 1: currentDifficulty = DIFFICULTY.MEDIUM; break;
+              case 2: currentDifficulty = DIFFICULTY.HARD; break;
+              case 3: currentDifficulty = DIFFICULTY.INFINITY; break;
+            }
+          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
+            // Navigate down in difficulty menu
+            selectedDifficultyItem = (selectedDifficultyItem + 1) % 4;
+            // Update the current difficulty based on selection
+            switch(selectedDifficultyItem) {
+              case 0: currentDifficulty = DIFFICULTY.EASY; break;
+              case 1: currentDifficulty = DIFFICULTY.MEDIUM; break;
+              case 2: currentDifficulty = DIFFICULTY.HARD; break;
+              case 3: currentDifficulty = DIFFICULTY.INFINITY; break;
+            }
+          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
+            // Start the game with selected difficulty
+            gameState = GAME_STATE.PLAYING;
             score = 0;
             gameTime = 0;
             winTriggered = false;
+            
+            // Reset infinity mode time and multiplier
+            infinityModeTime = 0;
+            infinityModeSpawnMultiplier = 1.0;
+            
             startGameplayMusic();
-          } else if (e.key.toLowerCase() === "s" || e.code === "KeyS") {
-            gameState = "settings";
+          } else if (e.key === "Escape" || e.keyCode === 27) {
+            // Back to main menu
+            gameState = GAME_STATE.MAIN_MENU;
           }
-        } else if (gameState === "settings" && (e.key === "Escape" || e.keyCode === 27)) {
-          gameState = "menu";
-          startMenuMusic();
-        } else if ((gameState === "gameover" || gameState === "win") &&
-          (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13)) {
-          // Stop victory/defeat sounds before restarting
+        } 
+        // Settings screen
+        else if (gameState === GAME_STATE.SETTINGS) {
+          if (e.key === "ArrowUp" || e.keyCode === 38) {
+            // Navigate up in settings menu
+            selectedSettingsItem = (selectedSettingsItem - 1 + 2) % 2;
+          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
+            // Navigate down in settings menu
+            selectedSettingsItem = (selectedSettingsItem + 1) % 2;
+          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
+            // Toggle the selected setting
+            if (selectedSettingsItem === 0) {
+              // Toggle music
+              toggleMusic();
+            } else if (selectedSettingsItem === 1) {
+              // Toggle sound effects
+              toggleAllSounds();
+            }
+            
+            // Stop sound from affecting infinity mode multiplier
+            // Reset to default values if we accidentally started changing them
+            if (currentDifficulty === DIFFICULTY.INFINITY) {
+              // Only reset if we're in settings and not actively playing
+              if (gameState !== GAME_STATE.PLAYING) {
+                infinityModeSpawnMultiplier = 1.0;
+              }
+            }
+          } else if (e.key === "Escape" || e.keyCode === 27) {
+            // Return to previous screen (either game or main menu)
+            if (previousGameState === GAME_STATE.PAUSE_MENU) {
+              // Return to game if we came from pause menu
+              gameState = GAME_STATE.PLAYING;
+              // Restore gameplay music and volume
+              if (musicEnabled) {
+                // First check if we need to change the track
+                if (currentMusicTrack !== "gameplay") {
+                  startGameplayMusic();
+                } else {
+                  // Just restore volume if track is already correct
+                  bgMusic.volume = 0.1;
+                }
+              }
+            } else {
+              // Return to main menu if we came from there
+              gameState = previousGameState || GAME_STATE.MAIN_MENU;
+              // Ensure menu music is playing if returning to main menu
+              if (musicEnabled && (previousGameState === GAME_STATE.MAIN_MENU || !previousGameState)) {
+                if (currentMusicTrack !== "menu") {
+                  startMenuMusic();
+                }
+              }
+            }
+          }
+        } 
+        // How to Play screen
+        else if (gameState === GAME_STATE.HOW_TO_PLAY || gameState === GAME_STATE.HIGH_SCORES) {
+          if (e.key === "Escape" || e.keyCode === 27 || e.key === "b" || e.code === "KeyB") {
+            // Return to previous screen (either game or main menu)
+            if (previousGameState === GAME_STATE.PAUSE_MENU) {
+              // Return to gameplay if we came from pause menu
+              gameState = GAME_STATE.PLAYING;
+              // Restore gameplay music and volume
+              if (musicEnabled) {
+                // First check if we need to change the track
+                if (currentMusicTrack !== "gameplay") {
+                  startGameplayMusic();
+                } else {
+                  // Just restore volume if track is already correct
+                  bgMusic.volume = 0.1;
+                }
+              }
+            } else {
+              // Otherwise return to main menu
+              gameState = GAME_STATE.MAIN_MENU;
+              // Ensure menu music is playing
+              if (musicEnabled && currentMusicTrack !== "menu") {
+                startMenuMusic();
+              }
+            }
+          }
+        } 
+        // Game over or win screens
+        else if ((gameState === GAME_STATE.GAME_OVER || gameState === GAME_STATE.WIN) &&
+          (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13 || 
+           e.key === "Escape" || e.keyCode === 27)) {
+          // Stop any sounds before restarting
           victorySound.pause();
           victorySound.currentTime = 0;
           defeatSound.pause();
           defeatSound.currentTime = 0;
           
           restartGame();
-          gameState = "menu";
+          gameState = GAME_STATE.MAIN_MENU;
           startMenuMusic();
         }
         
@@ -1242,6 +1985,50 @@
         } while (isInSameQuadrant(loc.x, loc.y, spaceship.x, spaceship.y));
         return loc;
       }
+      
+      // Special function for power-up spawn locations closer to the middle
+      function getPowerUpSpawnLocation() {
+        // Define central area of the screen (20-80% of width and height)
+        const minX = canvas.width * 0.2;
+        const maxX = canvas.width * 0.8;
+        const minY = canvas.height * 0.2;
+        const maxY = canvas.height * 0.8;
+        
+        // Calculate a random position within this area
+        const x = randomRange(minX, maxX);
+        const y = randomRange(minY, maxY);
+        
+        // Make sure it's not too close to the player's ship
+        const minDistanceFromShip = SHIP_SIZE * 5; // Keep some distance from ship
+        const dx = x - spaceship.x;
+        const dy = y - spaceship.y;
+        const distanceFromShip = Math.sqrt(dx*dx + dy*dy);
+        
+        // If too close to ship, try again with a different position
+        if (distanceFromShip < minDistanceFromShip) {
+          return getPowerUpSpawnLocation(); // Recursively try again
+        }
+        
+        return { x, y };
+      }
+      
+      // Create bullet impact effect when bullets hit comets
+      function createBulletImpact(x, y) {
+        const count = 8; // Fewer particles than a small explosion
+        for (let i = 0; i < count; i++) {
+          let angle = Math.random() * Math.PI * 2;
+          let speed = randomRange(30, 100); // Lower speed than explosion
+          smallExplosionParticles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            lifetime: randomRange(0.1, 0.3), // Shorter lifetime  
+            size: randomRange(1, 3), // Smaller particles
+            color: randomRange(0, 1) > 0.5 ? "orange" : "yellow" // Mix of colors
+          });
+        }
+      }
 
       // -------------- PLACEHOLDERS FILLED BELOW -------------- //
 
@@ -1413,8 +2200,16 @@
 
 
       function restartGame() {
-        gameState = "menu";
+        // Go directly to main menu, not difficulty select
+        gameState = GAME_STATE.MAIN_MENU;
         startMenuMusic();
+        
+        // Keep the difficulty selected for next game
+        // but reset infinity mode parameters
+        infinityModeTime = 0;
+        infinityModeSpawnMultiplier = 1.0;
+        
+        // Reset spaceship
         spaceship.x = canvas.width / 2;
         spaceship.y = canvas.height / 2;
         spaceship.vx = 0;
@@ -1422,20 +2217,34 @@
         spaceship.angle = 0;
         spaceship.hitPoints = 5;
         spaceship.hitFlashTimer = 0;
+        spaceship.tripleShot = false;
+        spaceship.tripleShotTimer = 0;
+        
+        // Clear all game objects
         bullets = [];
         sparks = [];
         comets = [];
         bigComets = [];
         smallExplosionParticles = [];
+        
+        // Reset timers
         lastBulletTime = 0;
         cometSpawnTimer = 0;
         bigCometSpawnTimer = 0;
         powerUps = [];
         powerUpSpawnTimer = 0;
-        score = 0;
+        tripleShootPowerUpTimer = 0;
+        tripleShootPowerUpSpawned = false;
+        
+        // Score and game state
+        // Don't reset score so player can see their previous score
         gameTime = 0;
         winTriggered = false;
-        // Spawn an initial comet
+        
+        // Reset any navigation state
+        previousGameState = null;
+        
+        // Spawn an initial comet for menu background
         spawnComet();
         initStarfield();
       }
@@ -1675,8 +2484,8 @@
           x, y, vx, vy,
           radius,
           color: BIG_COMET_COLOR,
-          hitPoints: Infinity,
-          indestructible: true,
+          hitPoints: BIG_COMET_HEALTH,
+          indestructible: false,
           shape: shape,
           // Generate a unique rock pattern for each comet
           pattern: generateRockPattern(),
@@ -1684,7 +2493,14 @@
           trailTimer: 0,
           morph: true,
           // Slow rotation for big comets
-          rotationSpeed: randomRange(0.3, 0.5)
+          rotationSpeed: randomRange(0.3, 0.5),
+          // Properties for hit effects
+          hitFlashTimer: 0,
+          hitCount: 0,
+          shakeAmount: 0,
+          shakeTimer: 0,
+          shakeX: 0,
+          shakeY: 0
         };
         bigComets.push(big);
       }
@@ -1754,6 +2570,74 @@
         for (let bc of bigComets) {
           ctx.save();
           ctx.globalAlpha = 1.0;
+          
+          // Create a simple pattern for the comet
+          // We'll create it once and cache it with the comet
+          if (!bc.simplePattern) {
+            const patternSize = 100;
+            const patternCanvas = document.createElement('canvas');
+            patternCanvas.width = patternSize;
+            patternCanvas.height = patternSize;
+            const patternCtx = patternCanvas.getContext('2d');
+            
+            // Fill with base color
+            patternCtx.fillStyle = "#704020";
+            patternCtx.fillRect(0, 0, patternSize, patternSize);
+            
+            // Create a simple grid pattern
+            patternCtx.strokeStyle = "#603010";
+            patternCtx.lineWidth = 1;
+            
+            // Draw horizontal lines
+            const lineSpacing = 10;
+            for (let y = 0; y < patternSize; y += lineSpacing) {
+              patternCtx.beginPath();
+              patternCtx.moveTo(0, y);
+              patternCtx.lineTo(patternSize, y);
+              patternCtx.stroke();
+            }
+            
+            // Draw vertical lines
+            for (let x = 0; x < patternSize; x += lineSpacing) {
+              patternCtx.beginPath();
+              patternCtx.moveTo(x, 0);
+              patternCtx.lineTo(x, patternSize);
+              patternCtx.stroke();
+            }
+            
+            // Add some random darker spots
+            for (let i = 0; i < 30; i++) {
+              const spotX = Math.random() * patternSize;
+              const spotY = Math.random() * patternSize;
+              const spotRadius = 2 + Math.random() * 5;
+              
+              patternCtx.fillStyle = 'rgba(40, 20, 10, 0.5)';
+              patternCtx.beginPath();
+              patternCtx.arc(spotX, spotY, spotRadius, 0, Math.PI * 2);
+              patternCtx.fill();
+            }
+            
+            // Add a few lighter spots
+            for (let i = 0; i < 20; i++) {
+              const spotX = Math.random() * patternSize;
+              const spotY = Math.random() * patternSize;
+              const spotRadius = 1 + Math.random() * 3;
+              
+              patternCtx.fillStyle = 'rgba(150, 100, 50, 0.5)';
+              patternCtx.beginPath();
+              patternCtx.arc(spotX, spotY, spotRadius, 0, Math.PI * 2);
+              patternCtx.fill();
+            }
+            
+            // Store the pattern with the comet
+            bc.simplePattern = ctx.createPattern(patternCanvas, 'repeat');
+          }
+          
+          // Apply shake effect if active
+          const drawX = bc.x + (bc.shakeX || 0);
+          const drawY = bc.y + (bc.shakeY || 0);
+          
+          // Draw comet outline with potential hit flash
           ctx.beginPath();
           if (bc.shape && bc.shape.length > 0) {
             let v0 = bc.shape[0];
@@ -1764,8 +2648,8 @@
               factor0 += 0.1 * Math.sin(gameTime * v0.frequency * rotSpeed + v0.phase);
             }
             ctx.moveTo(
-              bc.x + bc.radius * factor0 * Math.cos(v0.angle),
-              bc.y + bc.radius * factor0 * Math.sin(v0.angle)
+              drawX + bc.radius * factor0 * Math.cos(v0.angle),
+              drawY + bc.radius * factor0 * Math.sin(v0.angle)
             );
             for (let i = 1; i < bc.shape.length; i++) {
               let v = bc.shape[i];
@@ -1776,20 +2660,110 @@
                 f += 0.1 * Math.sin(gameTime * v.frequency * rotSpeed + v.phase);
               }
               ctx.lineTo(
-                bc.x + bc.radius * f * Math.cos(v.angle),
-                bc.y + bc.radius * f * Math.sin(v.angle)
+                drawX + bc.radius * f * Math.cos(v.angle),
+                drawY + bc.radius * f * Math.sin(v.angle)
               );
             }
             ctx.closePath();
           } else {
-            ctx.arc(bc.x, bc.y, bc.radius, 0, Math.PI * 2);
+            ctx.arc(drawX, drawY, bc.radius, 0, Math.PI * 2);
           }
-          ctx.fillStyle = bc.pattern;  // Use the rocky pattern here
+          
+          // Add hit flash effect
+          if (bc.hitFlashTimer > 0) {
+            // White flash overlay
+            ctx.fillStyle = `rgba(255, 255, 255, ${bc.hitFlashTimer * 5})`;
+            ctx.fill();
+          }
+          
+          // Apply the pattern with rotation
+          ctx.save();
+          
+          // Create a transform matrix for the pattern
+          ctx.translate(drawX, drawY);
+          // Very slow pattern rotation - faster when damaged
+          const rotationSpeed = 0.01 * (1 + (bc.hitCount / BIG_COMET_HEALTH));
+          ctx.rotate(gameTime * rotationSpeed); 
+          ctx.translate(-drawX, -drawY);
+          
+          // Fill with pattern
+          ctx.fillStyle = bc.simplePattern;
           ctx.fill();
-          // Use a subtle, semi-transparent darker outline
-          ctx.strokeStyle = "rgba(50,30,20,0.3)";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
+          
+          ctx.restore();
+          
+          // Add a subtle 3D effect with gradient overlay
+          ctx.globalCompositeOperation = 'overlay';
+          const gradient = ctx.createRadialGradient(
+            drawX - bc.radius * 0.3, drawY - bc.radius * 0.3, 0,
+            drawX, drawY, bc.radius
+          );
+          
+          // Change gradient colors based on damage - more gradual with higher health
+          const damageRatio = bc.hitCount / BIG_COMET_HEALTH;
+          
+          // Create a more dynamic gradient for the higher health
+          if (damageRatio > 0.9) {
+            // Critically damaged - bright red glow
+            gradient.addColorStop(0, 'rgba(255, 100, 50, 0.4)');
+            gradient.addColorStop(0.7, 'rgba(220, 30, 30, 0.25)');
+            gradient.addColorStop(1, 'rgba(120, 0, 0, 0.3)');
+          } else if (damageRatio > 0.7) {
+            // Severely damaged - red
+            gradient.addColorStop(0, 'rgba(255, 150, 100, 0.3)');
+            gradient.addColorStop(0.7, 'rgba(200, 50, 50, 0.2)');
+            gradient.addColorStop(1, 'rgba(100, 0, 0, 0.3)');
+          } else if (damageRatio > 0.4) {
+            // Moderately damaged - orange tint
+            gradient.addColorStop(0, 'rgba(255, 200, 100, 0.25)');
+            gradient.addColorStop(0.7, 'rgba(150, 100, 50, 0.15)');
+            gradient.addColorStop(1, 'rgba(100, 50, 0, 0.3)');
+          } else if (damageRatio > 0.1) {
+            // Slightly damaged - yellowish
+            gradient.addColorStop(0, 'rgba(255, 240, 150, 0.2)');
+            gradient.addColorStop(0.7, 'rgba(150, 140, 80, 0.15)');
+            gradient.addColorStop(1, 'rgba(80, 70, 20, 0.3)');
+          } else {
+            // Normal
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
+            gradient.addColorStop(0.7, 'rgba(100, 100, 100, 0.1)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+          }
+          
+          // Use the same path that's already defined (no new circle)
+          ctx.fillStyle = gradient;
+          ctx.fill();
+          
+          // Display health indicator when damaged
+          if (bc.hitCount > 0) {
+            const healthBarWidth = bc.radius * 1.5;
+            const healthBarHeight = bc.radius * 0.15;
+            const healthPercent = bc.hitPoints / BIG_COMET_HEALTH; // Show percentage of total health
+            
+            ctx.globalCompositeOperation = 'source-over';
+            
+            // Draw health bar background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(
+              drawX - healthBarWidth/2,
+              drawY - bc.radius - 20,
+              healthBarWidth,
+              healthBarHeight
+            );
+            
+            // Draw health bar
+            ctx.fillStyle = 'rgba(255, 50, 50, 0.8)';
+            ctx.fillRect(
+              drawX - healthBarWidth/2,
+              drawY - bc.radius - 20,
+              healthBarWidth * healthPercent,
+              healthBarHeight
+            );
+          }
+          
+          // Reset composite operation
+          ctx.globalCompositeOperation = 'source-over';
+          
           ctx.restore();
         }
       }
@@ -1814,50 +2788,633 @@
       // Call initialization on startup
       initPulsar();
       
+      // Draw the Main Menu
+      function drawMainMenu() {
+        // Game Title
+        ctx.fillStyle = "white";
+        ctx.font = "48px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Splitting Comets", canvas.width / 2, canvas.height / 4);
+        
+        // Menu options
+        const menuY = canvas.height / 2 - 40;
+        const menuSpacing = 50;
+        const buttonWidth = 200;
+        const buttonHeight = 40;
+        
+        const menuOptions = [
+          { text: "Play Game" },
+          { text: "Settings" },
+          { text: "How to Play" },
+          { text: "Scoreboard" }
+        ];
+        
+        for (let i = 0; i < menuOptions.length; i++) {
+          const option = menuOptions[i];
+          const y = menuY + i * menuSpacing;
+          
+          // Button background - semi-transparent with rounded corners
+          const cornerRadius = 8;
+          
+          // Create button path with rounded corners
+          ctx.beginPath();
+          ctx.moveTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2 - cornerRadius, y);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y, canvas.width/2 + buttonWidth/2, y + cornerRadius);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y + buttonHeight, canvas.width/2 + buttonWidth/2 - cornerRadius, y + buttonHeight);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y + buttonHeight);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y + buttonHeight, canvas.width/2 - buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2, y + cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y, canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.closePath();
+          
+          // Fill with different colors based on selection
+          if (i === selectedMainMenuItem) {
+            // Selected button - light blue with glow
+            // No global shadow blur that affects the entire canvas
+            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
+            
+            // Draw a focused glow just for this button instead of using shadowBlur
+            const glowSize = 5;
+            ctx.save();
+            
+            // Draw multiple expanding shapes with decreasing opacity for glow effect
+            for (let g = 0; g < 3; g++) {
+              const expandSize = g * 2;
+              const opacity = 0.2 - (g * 0.06);
+              
+              ctx.fillStyle = `rgba(52, 152, 219, ${opacity})`;
+              ctx.beginPath();
+              ctx.moveTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
+              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y - expandSize);
+              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize, canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize + cornerRadius);
+              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize - cornerRadius);
+              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize, canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y + buttonHeight + expandSize);
+              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y + buttonHeight + expandSize);
+              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize, canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize - cornerRadius);
+              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize + cornerRadius);
+              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize, canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
+              ctx.closePath();
+              ctx.fill();
+            }
+            
+            ctx.restore();
+            
+            // Main button fill
+            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
+          } else {
+            // Unselected button - dark gray, semi-transparent
+            ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+          }
+          
+          ctx.fill();
+          
+          // Button border
+          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Button text
+          ctx.fillStyle = "white";
+          ctx.font = "24px sans-serif";
+          ctx.fillText(option.text, canvas.width/2, y + 28);
+        }
+        
+        // Show previous score if any
+        if (score > 0) {
+          ctx.fillStyle = "#FFD700"; // Gold color
+          ctx.font = "20px sans-serif";
+          ctx.fillText(`Previous Score: ${score}`, canvas.width / 2, canvas.height - 60);
+        }
+        
+        // Instructions with subtle backdrop at bottom
+        const instructY = canvas.height - 70;
+        const instructHeight = 60;
+        
+        // Draw semi-transparent backdrop for instructions
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(0, instructY, canvas.width, instructHeight);
+        
+        // Navigation instructions
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.font = "16px sans-serif";
+        ctx.fillText("↑/↓: Navigate menu   ENTER: Select", canvas.width / 2, instructY + 20);
+        
+        // Show sound status
+        const musicStatus = musicEnabled ? "ON" : "OFF";
+        const soundFxStatus = soundEnabled ? "ON" : "OFF";
+        ctx.fillText(`Music: ${musicStatus}   Sound FX: ${soundFxStatus}`, canvas.width / 2, instructY + 45);
+        
+        // Draw music icon
+        drawMusicIcon();
+      }
+      
+      // Draw the Difficulty Selection screen
+      function drawDifficultySelect() {
+        ctx.fillStyle = "white";
+        ctx.font = "36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Select Difficulty", canvas.width / 2, canvas.height / 4);
+        
+        const diffY = canvas.height / 2 - 80;
+        const diffSpacing = 70;
+        const buttonWidth = 250;
+        const buttonHeight = 50;
+        
+        const difficulties = [
+          { 
+            name: "Easy", 
+            desc: "For beginners - the calm before the storm", 
+            value: DIFFICULTY.EASY 
+          },
+          { 
+            name: "Medium", 
+            desc: "The classic challenge - cosmic chaos awaits", 
+            value: DIFFICULTY.MEDIUM 
+          },
+          { 
+            name: "Hard", 
+            desc: "For veterans - an asteroid hell", 
+            value: DIFFICULTY.HARD 
+          },
+          { 
+            name: "Infinity", 
+            desc: "Endless void - how long can you survive?", 
+            value: DIFFICULTY.INFINITY 
+          }
+        ];
+        
+        for (let i = 0; i < difficulties.length; i++) {
+          const diff = difficulties[i];
+          const y = diffY + i * diffSpacing;
+          
+          // Button background - semi-transparent with rounded corners
+          const cornerRadius = 8;
+          
+          // Create button path with rounded corners
+          ctx.beginPath();
+          ctx.moveTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2 - cornerRadius, y);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y, canvas.width/2 + buttonWidth/2, y + cornerRadius);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y + buttonHeight, canvas.width/2 + buttonWidth/2 - cornerRadius, y + buttonHeight);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y + buttonHeight);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y + buttonHeight, canvas.width/2 - buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2, y + cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y, canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.closePath();
+          
+          // Fill with different colors based on selection
+          if (i === selectedDifficultyItem) {
+            // Selected button - light blue with glow
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "rgba(52, 152, 219, 0.7)";
+            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
+          } else {
+            // Unselected button - dark gray, semi-transparent
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+          }
+          
+          ctx.fill();
+          
+          // Button border
+          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Button text
+          ctx.fillStyle = "white";
+          ctx.font = "24px sans-serif";
+          ctx.fillText(diff.name, canvas.width/2, y + 30);
+          
+          // Description text - slightly smaller and more ethereal
+          ctx.fillStyle = "rgba(200, 200, 220, 0.8)";
+          ctx.font = "italic 14px sans-serif";
+          ctx.fillText(diff.desc, canvas.width/2, y + diffSpacing - 15);
+        }
+        
+        // Instructions with subtle backdrop
+        const instructY = diffY + difficulties.length * diffSpacing + 30;
+        const instructHeight = 60;
+        
+        // Draw semi-transparent backdrop for instructions
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(canvas.width/2 - 200, instructY - 15, 400, instructHeight);
+        
+        // Instruction text
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.font = "18px sans-serif";
+        ctx.fillText("↑/↓: Select difficulty   ENTER: Start game", canvas.width / 2, instructY + 10);
+        ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 40);
+      }
+      
+      // Draw the Pause Menu
+      function drawPauseMenu() {
+        // Add semi-transparent overlay on the game
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw game elements with reduced opacity to show game is paused
+        ctx.globalAlpha = 0.3;
+        
+        // Draw the ship in its current position
+        drawSpaceship();
+        
+        // Reset opacity
+        ctx.globalAlpha = 1.0;
+        
+        // Draw pause menu title
+        ctx.fillStyle = "white";
+        ctx.font = "42px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("GAME PAUSED", canvas.width / 2, canvas.height / 4);
+        
+        // Display current game status
+        let difficultyName = "";
+        switch(currentDifficulty) {
+          case DIFFICULTY.EASY: difficultyName = "Easy"; break;
+          case DIFFICULTY.MEDIUM: difficultyName = "Medium"; break;
+          case DIFFICULTY.HARD: difficultyName = "Hard"; break;
+          case DIFFICULTY.INFINITY: difficultyName = "Infinity"; break;
+        }
+        
+        ctx.font = "18px sans-serif";
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.fillText(`Difficulty: ${difficultyName}   Score: ${score}`, canvas.width / 2, canvas.height / 4 + 40);
+        
+        // Show health status
+        ctx.fillText(`Ship Health: ${spaceship.hitPoints}/5`, canvas.width / 2, canvas.height / 4 + 70);
+        
+        // Draw menu options
+        const menuY = canvas.height / 2 - 20;
+        const menuSpacing = 60;
+        const buttonWidth = 220;
+        const buttonHeight = 45;
+        
+        const menuOptions = [
+          { text: "Resume Game", desc: "Return to the battle" },
+          { text: "Settings", desc: "Adjust music and sound effects" },
+          { text: "How to Play", desc: "Review game controls and objectives" },
+          { text: "Exit to Main Menu", desc: "Your progress will be lost" }
+        ];
+        
+        for (let i = 0; i < menuOptions.length; i++) {
+          const option = menuOptions[i];
+          const y = menuY + i * menuSpacing;
+          
+          // Button background - semi-transparent with rounded corners
+          const cornerRadius = 8;
+          
+          // Create button path with rounded corners
+          ctx.beginPath();
+          ctx.moveTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2 - cornerRadius, y);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y, canvas.width/2 + buttonWidth/2, y + cornerRadius);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y + buttonHeight, canvas.width/2 + buttonWidth/2 - cornerRadius, y + buttonHeight);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y + buttonHeight);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y + buttonHeight, canvas.width/2 - buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2, y + cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y, canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.closePath();
+          
+          // Different styles for the "Exit" option to make it stand out as potentially dangerous
+          if (i === 3) { // Exit option
+            if (i === selectedPauseMenuItem) {
+              // Selected exit button - more transparent red with glow
+              ctx.shadowBlur = 10;
+              ctx.shadowColor = "rgba(231, 76, 60, 0.4)";
+              ctx.fillStyle = "rgba(231, 76, 60, 0.3)";
+            } else {
+              // Unselected exit button - darker red
+              ctx.shadowBlur = 0;
+              ctx.fillStyle = "rgba(160, 40, 30, 0.8)";
+            }
+          } else {
+            // Normal menu options
+            if (i === selectedPauseMenuItem) {
+              // Selected button - more transparent blue with subtle glow
+              ctx.shadowBlur = 10;
+              ctx.shadowColor = "rgba(52, 152, 219, 0.4)";
+              ctx.fillStyle = "rgba(52, 152, 219, 0.3)"; // More transparent
+            } else {
+              // Unselected button - dark gray, semi-transparent
+              ctx.shadowBlur = 0;
+              ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+            }
+          }
+          
+          ctx.fill();
+          
+          // Button border
+          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Button text
+          ctx.fillStyle = "white";
+          ctx.font = "22px sans-serif";
+          ctx.fillText(option.text, canvas.width/2, y + 28);
+          
+          // Description text
+          ctx.fillStyle = "rgba(200, 200, 220, 0.8)";
+          ctx.font = "italic 14px sans-serif";
+          ctx.fillText(option.desc, canvas.width/2, y + menuSpacing - 15);
+        }
+        
+        // Instructions with subtle backdrop
+        const instructY = canvas.height - 70;
+        const instructHeight = 50;
+        
+        // Draw semi-transparent backdrop for instructions
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(0, instructY, canvas.width, instructHeight);
+        
+        // Instruction text
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.font = "18px sans-serif";
+        ctx.fillText("↑/↓: Navigate menu   ENTER: Select   ESC: Resume game", canvas.width / 2, instructY + 30);
+      }
+      
+      // Draw the Settings screen
+      function drawSettings() {
+        ctx.fillStyle = "white";
+        ctx.font = "36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Settings", canvas.width / 2, canvas.height / 4);
+        
+        const settingsY = canvas.height / 2 - 40;
+        const settingsSpacing = 60;
+        const buttonWidth = 250;
+        const buttonHeight = 40;
+        
+        const settings = [
+          { 
+            text: "Toggle Music", 
+            status: musicEnabled ? "ON" : "OFF" 
+          },
+          { 
+            text: "Toggle Sound Effects", 
+            status: soundEnabled ? "ON" : "OFF" 
+          }
+        ];
+        
+        for (let i = 0; i < settings.length; i++) {
+          const setting = settings[i];
+          const y = settingsY + i * settingsSpacing;
+          
+          // Button background - semi-transparent with rounded corners
+          const cornerRadius = 8;
+          
+          // Create button path with rounded corners
+          ctx.beginPath();
+          ctx.moveTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2 - cornerRadius, y);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y, canvas.width/2 + buttonWidth/2, y + cornerRadius);
+          ctx.lineTo(canvas.width/2 + buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2, y + buttonHeight, canvas.width/2 + buttonWidth/2 - cornerRadius, y + buttonHeight);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2 + cornerRadius, y + buttonHeight);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y + buttonHeight, canvas.width/2 - buttonWidth/2, y + buttonHeight - cornerRadius);
+          ctx.lineTo(canvas.width/2 - buttonWidth/2, y + cornerRadius);
+          ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y, canvas.width/2 - buttonWidth/2 + cornerRadius, y);
+          ctx.closePath();
+          
+          // Fill with different colors based on selection
+          if (i === selectedSettingsItem) {
+            // Selected button - light blue with glow (matching main menu)
+            // No global shadow blur that affects the entire canvas
+            
+            // Draw a focused glow just for this button instead of using shadowBlur
+            const glowSize = 5;
+            ctx.save();
+            
+            // Draw multiple expanding shapes with decreasing opacity for glow effect
+            for (let g = 0; g < 3; g++) {
+              const expandSize = g * 2;
+              const opacity = 0.2 - (g * 0.06);
+              
+              ctx.fillStyle = `rgba(52, 152, 219, ${opacity})`;
+              ctx.beginPath();
+              ctx.moveTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
+              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y - expandSize);
+              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize, canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize + cornerRadius);
+              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize - cornerRadius);
+              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize, canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y + buttonHeight + expandSize);
+              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y + buttonHeight + expandSize);
+              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize, canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize - cornerRadius);
+              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize + cornerRadius);
+              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize, canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
+              ctx.closePath();
+              ctx.fill();
+            }
+            
+            ctx.restore();
+            
+            // Main button fill
+            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
+          } else {
+            // Unselected button - dark gray, semi-transparent
+            ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+          }
+          
+          ctx.fill();
+          
+          // Button border
+          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Button text
+          ctx.fillStyle = "white";
+          ctx.font = "20px sans-serif";
+          ctx.fillText(setting.text, canvas.width/2 - 50, y + 25);
+          
+          // Status indicator (ON/OFF) - with pill-shaped background
+          const statusWidth = 60;
+          const statusHeight = 26;
+          const statusX = canvas.width/2 + 60;
+          const statusY = y + 25 - statusHeight/2;
+          
+          // Draw pill background
+          ctx.beginPath();
+          ctx.moveTo(statusX + statusHeight/2, statusY);
+          ctx.lineTo(statusX + statusWidth - statusHeight/2, statusY);
+          ctx.arc(statusX + statusWidth - statusHeight/2, statusY + statusHeight/2, statusHeight/2, -Math.PI/2, Math.PI/2);
+          ctx.lineTo(statusX + statusHeight/2, statusY + statusHeight);
+          ctx.arc(statusX + statusHeight/2, statusY + statusHeight/2, statusHeight/2, Math.PI/2, -Math.PI/2);
+          ctx.closePath();
+          
+          // Different color for ON/OFF - using the same blue as the main theme
+          ctx.fillStyle = setting.status === "ON" ? 
+                         "rgba(52, 152, 219, 0.7)" : // Blue for ON (matching other buttons)
+                         "rgba(149, 165, 166, 0.5)"; // Gray for OFF
+          ctx.fill();
+          
+          // Status text
+          ctx.fillStyle = "white";
+          ctx.font = "bold 16px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(setting.status, statusX + statusWidth/2, y + 25);
+          ctx.textAlign = "center"; // Reset text alignment
+        }
+        
+        // Instructions with subtle backdrop
+        const instructY = settingsY + settings.length * settingsSpacing + 30;
+        const instructHeight = 60;
+        
+        // Draw semi-transparent backdrop for instructions
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(canvas.width/2 - 200, instructY - 15, 400, instructHeight);
+        
+        // Instruction text
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.font = "18px sans-serif";
+        ctx.fillText("↑/↓: Select option   ENTER: Toggle setting", canvas.width / 2, instructY + 10);
+        ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 40);
+      }
+      
+      // Draw the How to Play screen
+      function drawHowToPlay() {
+        ctx.fillStyle = "white";
+        ctx.font = "36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("How to Play", canvas.width / 2, canvas.height / 6);
+        
+        const instructionsY = canvas.height / 4;
+        const lineHeight = 30;
+        
+        // Game instructions
+        ctx.font = "18px sans-serif";
+        ctx.textAlign = "left";
+        const instructions = [
+          "Controls:",
+          "• Arrow Keys: Move your spaceship",
+          "• Space: Quick brake",
+          "",
+          "Objectives:",
+          "• Destroy comets by shooting them",
+          "• Avoid collisions with comets",
+          "• Collect power-ups to enhance your ship",
+          "",
+          "Power-ups:",
+          "• Red (HP): Restores health",
+          "• Blue (3X): Triple shot - fires 3x bullets",
+          "  (Triple shot power-ups appear before big comets)",
+          "",
+          "Enemy Types:",
+          "• Regular Comets: Break into smaller pieces",
+          "• Big Comets: Require multiple hits to destroy"
+        ];
+        
+        ctx.fillStyle = "#CCC";
+        for (let i = 0; i < instructions.length; i++) {
+          const line = instructions[i];
+          const x = canvas.width / 2 - 200;
+          const y = instructionsY + i * lineHeight;
+          
+          if (line === "") continue; // Skip empty lines
+          
+          if (line.endsWith(":")) {
+            // Section headers
+            ctx.fillStyle = "#FFD700"; // Gold
+            ctx.font = "bold 20px sans-serif";
+          } else {
+            // Regular instructions
+            ctx.fillStyle = "#CCC";
+            ctx.font = "18px sans-serif";
+          }
+          
+          ctx.fillText(line, x, y);
+        }
+        
+        // Instructions with subtle backdrop at bottom
+        const instructY = canvas.height - 70;
+        const instructHeight = 50;
+        
+        // Draw semi-transparent backdrop for instructions
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(0, instructY, canvas.width, instructHeight);
+        
+        // Return instruction
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.textAlign = "center";
+        ctx.font = "18px sans-serif";
+        ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 30);
+      }
+      
+      // Draw the Scoreboard screen (placeholder)
+      function drawHighScores() {
+        ctx.fillStyle = "white";
+        ctx.font = "36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Scoreboard", canvas.width / 2, canvas.height / 4);
+        
+        // Placeholder for high scores
+        ctx.fillStyle = "#CCC";
+        ctx.font = "20px sans-serif";
+        ctx.fillText("Your recent score: " + score, canvas.width / 2, canvas.height / 2);
+        
+        // Instructions with subtle backdrop at bottom
+        const instructY = canvas.height - 70;
+        const instructHeight = 50;
+        
+        // Draw semi-transparent backdrop for instructions
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(0, instructY, canvas.width, instructHeight);
+        
+        // Return instruction
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.font = "18px sans-serif";
+        ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 30);
+      }
+      
+      // Main draw function
       function draw() {
         ctx.fillStyle = "black";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        drawStarfield(ctx);
-        drawPulsar(ctx);
-        drawCronos(ctx);
-
-        if (gameState === "menu") {
-          ctx.fillStyle = "white";
-          ctx.font = "48px sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText("Splitting Comets", canvas.width / 2, canvas.height / 2 - 50);
-          ctx.font = "24px sans-serif";
-          ctx.fillText("Press ENTER to start", canvas.width / 2, canvas.height / 2);
-          ctx.fillText("Press S for settings", canvas.width / 2, canvas.height / 2 + 40);
-          ctx.fillText("Press M to toggle sound", canvas.width / 2, canvas.height / 2 + 80);
-          ctx.fillText("Score: " + score, canvas.width / 2, 40);
+        // For menu screens, use the dedicated menu background
+        const isMenuScreen = 
+          gameState === GAME_STATE.MAIN_MENU || 
+          gameState === GAME_STATE.DIFFICULTY_SELECT ||
+          gameState === GAME_STATE.SETTINGS ||
+          gameState === GAME_STATE.HOW_TO_PLAY ||
+          gameState === GAME_STATE.HIGH_SCORES;
           
-          // Show sound status
-          const soundStatus = soundEnabled ? "ON" : "OFF";
-          ctx.font = "18px sans-serif";
-          ctx.fillText("Sound: " + soundStatus, canvas.width / 2, canvas.height / 2 + 120);
-          
-          // Draw speaker icon on menu screen too
-          drawMusicIcon();
-          return;
+        if (isMenuScreen) {
+          // Use the menu background instead of the game background
+          renderMenuBackground();
+        } else {
+          // For gameplay and other screens, use the regular background
+          drawStarfield(ctx);
+          drawPulsar(ctx);
+          drawCronos(ctx);
         }
-        if (gameState === "settings") {
-          ctx.fillStyle = "white";
-          ctx.font = "48px sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText("Settings", canvas.width / 2, canvas.height / 2 - 50);
-          ctx.font = "24px sans-serif";
-          ctx.fillText("Press ESC to return", canvas.width / 2, canvas.height / 2);
-          
-          // Sound toggle option
-          ctx.fillText("Press M to toggle all sounds: " + (soundEnabled ? "ON" : "OFF"), canvas.width / 2, canvas.height / 2 + 40);
-          
-          // Draw speaker icon on settings screen too
-          drawMusicIcon();
-          return;
+        
+        // Draw the appropriate screen based on game state
+        switch(gameState) {
+          case GAME_STATE.MAIN_MENU:
+            drawMainMenu();
+            return;
+          case GAME_STATE.DIFFICULTY_SELECT:
+            drawDifficultySelect();
+            return;
+          case GAME_STATE.SETTINGS:
+            drawSettings();
+            return;
+          case GAME_STATE.HOW_TO_PLAY:
+            drawHowToPlay();
+            return;
+          case GAME_STATE.HIGH_SCORES:
+            drawHighScores();
+            return;
+          case GAME_STATE.PAUSE_MENU:
+            drawPauseMenu();
+            return;
         }
-        if (gameState === "win") {
+        if (gameState === GAME_STATE.WIN) {
           // draw any leftover explosion particles
           for (let p of smallExplosionParticles) {
             ctx.beginPath();
@@ -1868,12 +3425,23 @@
           ctx.fillStyle = "lime";
           ctx.font = "48px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("WIN!", canvas.width / 2, canvas.height / 2);
+          ctx.fillText("VICTORY!", canvas.width / 2, canvas.height / 2 - 50);
+          
+          // Show difficulty
+          let difficultyName = "";
+          switch(currentDifficulty) {
+            case DIFFICULTY.EASY: difficultyName = "Easy"; break;
+            case DIFFICULTY.MEDIUM: difficultyName = "Medium"; break;
+            case DIFFICULTY.HARD: difficultyName = "Hard"; break;
+          }
+          
           ctx.font = "24px sans-serif";
-          ctx.fillText("Score: " + score, canvas.width / 2, 40);
+          ctx.fillText(`Mode: ${difficultyName}`, canvas.width / 2, canvas.height / 2);
+          ctx.fillText("Press ENTER to return to menu", canvas.width / 2, canvas.height / 2 + 40);
+          ctx.fillText(`Score: ${score}`, canvas.width / 2, 40);
           return;
         }
-        if (gameState === "gameover") {
+        if (gameState === GAME_STATE.GAME_OVER) {
           for (let p of smallExplosionParticles) {
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -1883,10 +3451,29 @@
           ctx.fillStyle = "red";
           ctx.font = "48px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
+          ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 50);
+          
+          // Show difficulty and time survived
+          let difficultyName = "";
+          switch(currentDifficulty) {
+            case DIFFICULTY.EASY: difficultyName = "Easy"; break;
+            case DIFFICULTY.MEDIUM: difficultyName = "Medium"; break;
+            case DIFFICULTY.HARD: difficultyName = "Hard"; break;
+            case DIFFICULTY.INFINITY: difficultyName = "Infinity"; break;
+          }
+          
           ctx.font = "24px sans-serif";
-          ctx.fillText("Press ENTER to restart", canvas.width / 2, canvas.height / 2 + 40);
-          ctx.fillText("Score: " + score, canvas.width / 2, 40);
+          ctx.fillText(`Mode: ${difficultyName}`, canvas.width / 2, canvas.height / 2);
+          
+          // For Infinity mode, show how long the player survived
+          if (currentDifficulty === DIFFICULTY.INFINITY) {
+            const minutes = Math.floor(gameTime / 60);
+            const seconds = Math.floor(gameTime % 60);
+            ctx.fillText(`Survived: ${minutes}m ${seconds}s`, canvas.width / 2, canvas.height / 2 + 30);
+          }
+          
+          ctx.fillText("Press ENTER to restart", canvas.width / 2, canvas.height / 2 + 70);
+          ctx.fillText(`Score: ${score}`, canvas.width / 2, 40);
           return;
         }
 
@@ -1894,6 +3481,38 @@
         ctx.font = "24px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText("Score: " + score, canvas.width / 2, 40);
+        
+        // Show difficulty and game time
+        let difficultyName = "";
+        switch(currentDifficulty) {
+          case DIFFICULTY.EASY: difficultyName = "Easy"; break;
+          case DIFFICULTY.MEDIUM: difficultyName = "Medium"; break;
+          case DIFFICULTY.HARD: difficultyName = "Hard"; break;
+          case DIFFICULTY.INFINITY: difficultyName = "Infinity"; break;
+        }
+        
+        ctx.font = "16px sans-serif";
+        ctx.fillText(difficultyName, canvas.width / 2, 65);
+        
+        // Show time remaining for timed modes or time survived for infinity
+        if (currentDifficulty === DIFFICULTY.INFINITY) {
+          const minutes = Math.floor(gameTime / 60);
+          const seconds = Math.floor(gameTime % 60);
+          ctx.fillText(`Survived: ${minutes}m ${seconds.toString().padStart(2, '0')}s`, canvas.width / 2, 85);
+          
+          // Show spawn rate increase indicator in infinity mode - only during actual gameplay
+          if (infinityModeSpawnMultiplier > 1.0 && gameState === GAME_STATE.PLAYING) {
+            ctx.fillStyle = "yellow";
+            ctx.fillText(`Spawn Rate: ${(infinityModeSpawnMultiplier * 100).toFixed(0)}%`, canvas.width / 2, 105);
+          }
+        } else {
+          // Show time remaining for timed modes
+          const timeRemaining = Math.max(0, GAME_DURATION[currentDifficulty] - gameTime);
+          const minutes = Math.floor(timeRemaining / 60);
+          const seconds = Math.floor(timeRemaining % 60);
+          ctx.fillText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`, canvas.width / 2, 85);
+        }
+        
         drawHealthBar();
         drawMusicIcon();
 
@@ -1901,25 +3520,171 @@
         for (let pu of powerUps) {
           ctx.save();
           ctx.translate(pu.x, pu.y);
-          let size = POWERUP_BOX_SIZE;
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = "#800000";
-          ctx.fillStyle = "#800000";
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = "white";
-          roundRect(ctx, -size / 2, -size / 2, size, size, 6);
+          
+          // Different colors for different power-up types
+          let coreColor, glowColor, particleColor, iconText;
+          
+          if (pu.type === "tripleShot") {
+            coreColor = "#3080ff"; // Bright blue core
+            glowColor = "#80c0ff"; // Light blue glow
+            particleColor = "#00ccff"; // Cyan particles
+            iconText = pu.enhanced ? "6X" : "3X";
+          } else {
+            // Default health power-up
+            coreColor = "#ff3030"; // Bright red core
+            glowColor = "#ff8080"; // Light red glow
+            particleColor = "#ff0000"; // Red particles
+            iconText = "HP";
+          }
+          
+          // Calculate animation values
+          // Pulse effect for the glow
+          const pulseAmount = 0.3 + 0.3 * Math.sin(gameTime * POWERUP_PULSE_SPEED);
+          // Rotation angle for orbiting particles
+          const rotationAngle = gameTime * POWERUP_ROTATION_SPEED;
+          
+          // Warning effect for power-ups with short lifetime
+          let warningEffect = 1;
+          if (pu.lifetime < 5) {
+            warningEffect = 0.5 + 0.5 * Math.sin(gameTime * 10); // Faster blinking when about to expire
+          }
+          
+          // 1. Draw the outer glow
+          const outerGlowRadius = POWERUP_SIZE * (1.5 + pulseAmount);
+          const glowGradient = ctx.createRadialGradient(
+            0, 0, POWERUP_SIZE * 0.5,
+            0, 0, outerGlowRadius
+          );
+          
+          glowGradient.addColorStop(0, `${glowColor}80`); // 50% opacity
+          glowGradient.addColorStop(1, `${glowColor}00`); // 0% opacity
+          
           ctx.beginPath();
-          ctx.moveTo(-size / 2, -size / 2);
-          ctx.lineTo(0, -size);
-          ctx.lineTo(size / 2, -size / 2);
-          ctx.closePath();
-          ctx.fillStyle = "white";
+          ctx.arc(0, 0, outerGlowRadius, 0, Math.PI * 2);
+          ctx.fillStyle = glowGradient;
           ctx.fill();
-          ctx.font = "bold 14px Arial";
-          ctx.fillStyle = "#000";
+          
+          // 2. Draw orbiting particles
+          const numParticles = 6;
+          const orbitRadius = POWERUP_SIZE * (1.2 + pulseAmount * 0.5);
+          ctx.fillStyle = `rgba(${hexToRgb(particleColor)}, ${0.8 * warningEffect})`;
+          
+          for (let i = 0; i < numParticles; i++) {
+            const angle = rotationAngle + (i / numParticles) * Math.PI * 2;
+            const pX = Math.cos(angle) * orbitRadius;
+            const pY = Math.sin(angle) * orbitRadius;
+            const pSize = POWERUP_SIZE * 0.15 * (1 + 0.5 * Math.sin(gameTime * 3 + i));
+            
+            ctx.beginPath();
+            ctx.arc(pX, pY, pSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add small trails to particles
+            const trailLength = pSize * 2;
+            const trailWidth = pSize * 0.7;
+            
+            // Create a trail gradient
+            const trailGradient = ctx.createLinearGradient(
+              pX, pY,
+              pX - Math.cos(angle) * trailLength,
+              pY - Math.sin(angle) * trailLength
+            );
+            
+            trailGradient.addColorStop(0, `rgba(${hexToRgb(particleColor)}, ${0.6 * warningEffect})`);
+            trailGradient.addColorStop(1, `rgba(${hexToRgb(particleColor)}, 0)`);
+            
+            ctx.beginPath();
+            ctx.moveTo(pX, pY);
+            ctx.lineTo(
+              pX - Math.cos(angle) * trailLength,
+              pY - Math.sin(angle) * trailLength - trailWidth/2
+            );
+            ctx.lineTo(
+              pX - Math.cos(angle) * trailLength,
+              pY - Math.sin(angle) * trailLength + trailWidth/2
+            );
+            ctx.closePath();
+            ctx.fillStyle = trailGradient;
+            ctx.fill();
+          }
+          
+          // 3. Draw the core with a soft glow
+          const coreSize = POWERUP_SIZE * (0.8 + pulseAmount * 0.2);
+          const coreGradient = ctx.createRadialGradient(
+            0, 0, 0,
+            0, 0, coreSize
+          );
+          
+          coreGradient.addColorStop(0, `rgba(255, 255, 255, ${0.9 * warningEffect})`); // White center
+          coreGradient.addColorStop(0.6, `rgba(${hexToRgb(coreColor)}, ${0.8 * warningEffect})`);
+          coreGradient.addColorStop(1, `rgba(${hexToRgb(coreColor)}, ${0.6 * warningEffect})`);
+          
+          ctx.beginPath();
+          ctx.arc(0, 0, coreSize, 0, Math.PI * 2);
+          ctx.fillStyle = coreGradient;
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = glowColor;
+          ctx.fill();
+          
+          // 4. Draw the icon text
+          // Add blinking effect based on power-up type
+          let textOpacity = warningEffect;
+          if (pu.type === "tripleShot") {
+            textOpacity *= 0.6 + 0.4 * Math.sin(gameTime * POWERUP_BLINK_SPEED);
+          }
+          
+          ctx.font = `bold ${POWERUP_SIZE * 0.5}px Arial`;
+          ctx.fillStyle = `rgba(255, 255, 255, ${textOpacity})`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText("PuP", 0, 0);
+          ctx.shadowBlur = 5;
+          ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+          ctx.fillText(iconText, 0, 0);
+          
+          ctx.restore();
+        }
+        
+        // Helper function to convert hex to rgb
+        function hexToRgb(hex) {
+          // Remove the hash if it exists
+          hex = hex.replace(/^#/, '');
+          
+          // Parse the hex values
+          const bigint = parseInt(hex, 16);
+          const r = (bigint >> 16) & 255;
+          const g = (bigint >> 8) & 255;
+          const b = bigint & 255;
+          
+          return `${r}, ${g}, ${b}`;
+        }
+        
+        // Display triple shot timer if active
+        if (spaceship.tripleShot) {
+          const timerWidth = 80;
+          const timerHeight = 6;
+          const timeLeft = spaceship.tripleShotTimer / TRIPLE_SHOT_DURATION;
+          
+          ctx.save();
+          // Position below health bar
+          const x = canvas.width - 120;
+          const y = 45;
+          
+          // Timer background
+          ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+          ctx.fillRect(x, y, timerWidth, timerHeight);
+          
+          // Timer fill
+          ctx.fillStyle = TRIPLE_SHOT_POWERUP_COLOR;
+          ctx.fillRect(x, y, timerWidth * timeLeft, timerHeight);
+          
+          // Timer text - show 6X for enhanced shots in infinity mode
+          const shotText = (currentDifficulty === DIFFICULTY.INFINITY && 
+                           infinityModeSpawnMultiplier >= 1.5) ? "6X Shot" : "3X Shot";
+          ctx.font = "12px Arial";
+          ctx.fillStyle = "white";
+          ctx.textAlign = "center";
+          ctx.fillText(shotText, x + timerWidth/2, y - 5);
+          
           ctx.restore();
         }
 
@@ -1971,6 +3736,19 @@
       function gameLoop(now) {
         const dt = (now - lastLoopTime) / 1000;
         lastLoopTime = now;
+        
+        // Update menu background if in menu screens
+        const isMenuScreen = 
+          gameState === GAME_STATE.MAIN_MENU || 
+          gameState === GAME_STATE.DIFFICULTY_SELECT ||
+          gameState === GAME_STATE.SETTINGS ||
+          gameState === GAME_STATE.HOW_TO_PLAY ||
+          gameState === GAME_STATE.HIGH_SCORES;
+        
+        if (isMenuScreen) {
+          updateMenuBackground(dt);
+        }
+        
         updateExplosionParticles(dt);
         update(dt);
         draw();
@@ -1989,18 +3767,41 @@
           spaceship.hitFlashTimer -= dt;
           if (spaceship.hitFlashTimer < 0) spaceship.hitFlashTimer = 0;
         }
+        
+        // Update triple shot timer
+        if (spaceship.tripleShot) {
+          spaceship.tripleShotTimer -= dt;
+          if (spaceship.tripleShotTimer <= 0) {
+            spaceship.tripleShot = false;
+          }
+        }
 
 
-        // if in menu/settings/gameover/win, do minimal
-        if (gameState === "menu" || gameState === "settings" ||
-          gameState === "gameover" || gameState === "win") {
+        // if not in playing state, do minimal
+        if (gameState !== GAME_STATE.PLAYING) {
           return;
         }
 
         // Increase global time so comet morph can happen
         gameTime += dt;
 
-        // Power-ups
+        // Triple shot timer is now updated earlier in the update cycle
+        
+        // Check if we should spawn a triple shot power-up before big comets
+        if (!tripleShootPowerUpSpawned && bigComets.length === 0) {
+          tripleShootPowerUpTimer += dt;
+          // Spawn triple shot power-up TRIPLE_SHOT_SPAWN_TIME seconds before next big comet
+          if (BIG_COMET_SPAWN_INTERVAL - bigCometSpawnTimer <= TRIPLE_SHOT_SPAWN_TIME && tripleShootPowerUpTimer >= 2) {
+            powerUps.push(spawnTripleShotPowerUp());
+            tripleShootPowerUpSpawned = true;
+            tripleShootPowerUpTimer = 0;
+          }
+        } else if (bigComets.length > 0) {
+          // Reset flag when big comets are present
+          tripleShootPowerUpSpawned = false;
+        }
+
+        // Regular power-ups
         powerUpSpawnTimer += dt;
         if (powerUpSpawnTimer >= POWERUP_SPAWN_INTERVAL) {
           powerUps.push(spawnPowerUp());
@@ -2020,10 +3821,18 @@
           const dx = spaceship.x - pu.x;
           const dy = spaceship.y - pu.y;
           if (Math.hypot(dx, dy) < (spaceship.size / 2 + pu.radius)) {
-            // Refill HP
-            spaceship.hitPoints = Math.min(5, spaceship.hitPoints + 3);
+            // Apply power-up effect based on type
+            if (pu.type === "health") {
+              // Refill HP
+              spaceship.hitPoints = Math.min(5, spaceship.hitPoints + 3);
+            } else if (pu.type === "tripleShot") {
+              // Activate triple shot or enhanced shot in infinity mode
+              spaceship.tripleShot = true;
+              spaceship.tripleShotTimer = TRIPLE_SHOT_DURATION;
+            }
+            
+            // Play power-up sound
             powerUpSound.volume = 0.3;
-
             powerUpSound.play().catch(err => console.error("Error playing powerup sound:", err));
             powerUps.splice(i, 1); // Remove the power-up after collection
             continue;
@@ -2033,12 +3842,53 @@
           }
         }
 
-        // Win condition if survive 90s and no comets left
-        let spawnAllowed = gameTime < 90;
-        if (gameTime >= 60 && comets.length === 0 && !winTriggered) {
+        // Win condition based on current difficulty
+        const gameDuration = GAME_DURATION[currentDifficulty];
+        let spawnAllowed = gameTime < gameDuration;
+        
+        // In infinity mode, always allow spawning
+        if (currentDifficulty === DIFFICULTY.INFINITY) {
+          spawnAllowed = true;
+          
+          // Only update infinity mode while actually playing the game
+          if (gameState === GAME_STATE.PLAYING) {
+            // Update infinity mode timer
+            infinityModeTime += dt;
+            
+            // Every 2 minutes (120 seconds), increase spawn rate by 5%
+            const twoMinutesPassed = Math.floor(infinityModeTime / 120);
+            const newMultiplier = 1.0 + (twoMinutesPassed * 0.05);
+            
+            // Only update if it's changed to avoid constant reassignment
+            if (newMultiplier !== infinityModeSpawnMultiplier) {
+              infinityModeSpawnMultiplier = newMultiplier;
+              console.log(`Infinity mode: Spawn rate now ${(infinityModeSpawnMultiplier * 100).toFixed(0)}% of base`);
+            }
+          }
+        }
+        
+        // Victory condition for timed modes
+        if (currentDifficulty !== DIFFICULTY.INFINITY && 
+            gameTime >= gameDuration && !winTriggered) {
+          // Make all comets explode
+          for (let i = comets.length - 1; i >= 0; i--) {
+            createSmallExplosion(comets[i].x, comets[i].y);
+            score += 10; // Award score for each comet
+          }
+          comets = []; // Clear all comets
+          
+          // Make all big comets explode too
+          for (let i = bigComets.length - 1; i >= 0; i--) {
+            createHugeExplosion(bigComets[i].x, bigComets[i].y);
+            score += 100; // Award score for each big comet
+          }
+          bigComets = []; // Clear all big comets
+          
+          // Create a celebratory explosion at the player's ship
           createHugeExplosion(spaceship.x, spaceship.y);
+          
           winTriggered = true;
-          gameState = "win";
+          gameState = GAME_STATE.WIN;
           bgMusic.pause(); // Stop the gameplay music
           victorySound.play().catch(err => console.error("Error playing victory sound:", err));
         }
@@ -2073,7 +3923,7 @@
               bullets = [];
               sparks = [];
               createHugeExplosion(spaceship.x, spaceship.y);
-              gameState = "gameover";
+              gameState = GAME_STATE.GAME_OVER;
               bgMusic.pause(); // Stop the gameplay music
               defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
               return;
@@ -2103,7 +3953,7 @@
               bullets = [];
               sparks = [];
               createHugeExplosion(spaceship.x, spaceship.y);
-              gameState = "gameover";
+              gameState = GAME_STATE.GAME_OVER;
               bgMusic.pause(); // Stop the gameplay music
               defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
               return;
@@ -2147,7 +3997,7 @@
         // Shooting
         lastBulletTime += dt * 1000;
         if (lastBulletTime > BULLET_INTERVAL) {
-          // Fire triple bullets from different gun positions
+          // Fire bullets from different gun positions
           const noseX = spaceship.x + Math.cos(spaceship.angle) * spaceship.size;
           const noseY = spaceship.y + Math.sin(spaceship.angle) * spaceship.size;
           const perpX = Math.cos(spaceship.angle + Math.PI / 2);
@@ -2160,29 +4010,62 @@
           const bottomGunX = spaceship.x + Math.cos(spaceship.angle) * (spaceship.size * 0.8) - perpX * (spaceship.size * 0.4);
           const bottomGunY = spaceship.y + Math.sin(spaceship.angle) * (spaceship.size * 0.8) - perpY * (spaceship.size * 0.4);
 
-          // Slight angle variation for more natural shot
-          const topAngle = spaceship.angle + randomRange(-0.05, 0.05);
-          const centerAngle = spaceship.angle + randomRange(-0.03, 0.03);
-          const bottomAngle = spaceship.angle + randomRange(-0.05, 0.05);
-
           // Bullet spawn positions from each gun
           const spawnPositions = [
             { x: topGunX, y: topGunY },        // Top gun
             { x: noseX, y: noseY },            // Center gun 
             { x: bottomGunX, y: bottomGunY }   // Bottom gun
           ];
-          const bulletAngles = [topAngle, centerAngle, bottomAngle];
-          for (let i = 0; i < 3; i++) {
-            const pos = spawnPositions[i];
-            const angle = bulletAngles[i];
-            const bullet = {
-              x: pos.x,
-              y: pos.y,
-              vx: Math.cos(angle) * BULLET_SPEED + spaceship.vx,
-              vy: Math.sin(angle) * BULLET_SPEED + spaceship.vy,
-              radius: BULLET_RADIUS
-            };
-            bullets.push(bullet);
+          
+          // Determine how many bullets to fire based on power-up
+          let bulletsPerGun = 1;
+          
+          if (spaceship.tripleShot) {
+            // In infinity mode with high spawn rate, use enhanced shot
+            if (currentDifficulty === DIFFICULTY.INFINITY && 
+                infinityModeSpawnMultiplier >= 1.5) {
+              bulletsPerGun = ENHANCED_SHOT_MULTIPLIER;
+            } else {
+              bulletsPerGun = 3; // Normal triple shot
+            }
+          }
+          
+          // Fire from each gun position
+          for (let gunIndex = 0; gunIndex < spawnPositions.length; gunIndex++) {
+            const pos = spawnPositions[gunIndex];
+            
+            // Fire multiple bullets from each gun if triple shot is active
+            for (let bulletIndex = 0; bulletIndex < bulletsPerGun; bulletIndex++) {
+              // Compute angle with variation
+              let angleVariation;
+              
+              if (bulletsPerGun === 1) {
+                // Normal mode - slight random variation
+                angleVariation = (gunIndex === 1) ? 
+                  randomRange(-0.03, 0.03) : // Center gun - less variation
+                  randomRange(-0.05, 0.05);  // Side guns - more variation
+              } else {
+                // Triple shot mode - spread pattern
+                // Calculate spread based on bullet index (-0.12, 0, 0.12 radians)
+                const spreadFactor = 0.12; // About 7 degrees
+                angleVariation = (bulletIndex - 1) * spreadFactor;
+                // Add a tiny random variation for natural feel
+                angleVariation += randomRange(-0.01, 0.01);
+              }
+              
+              // Final bullet angle
+              const angle = spaceship.angle + angleVariation;
+              
+              // Create and add the bullet
+              const bullet = {
+                x: pos.x,
+                y: pos.y,
+                vx: Math.cos(angle) * BULLET_SPEED + spaceship.vx,
+                vy: Math.sin(angle) * BULLET_SPEED + spaceship.vy,
+                radius: BULLET_RADIUS
+              };
+              bullets.push(bullet);
+            }
           }
           bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
           bulletSoundPool[nextBulletSoundIndex].play();
@@ -2272,13 +4155,23 @@
             let dy = b.y - c.y;
             if (Math.hypot(dx, dy) < c.radius) {
               bulletHit = true;
-              // bullet sound
+              // Throttled bullet hit sound
               if (soundEnabled) {
-                hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                hitSoundPool[nextHitSoundIndex].play();
-                nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+                const now = performance.now();
+                // Only play sound if enough time has passed since last hit sound
+                // and last bullet in HP (more satisfying on final hit)
+                if ((now - lastHitSoundTime > HIT_SOUND_THROTTLE) || (c.hitPoints === 1)) {
+                  hitSoundPool[nextHitSoundIndex].currentTime = 0;
+                  hitSoundPool[nextHitSoundIndex].play();
+                  nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+                  lastHitSoundTime = now;
+                }
               }
               c.hitPoints--;
+              
+              // Create bullet impact effect for visual feedback
+              createBulletImpact(b.x, b.y);
+              
               // slow effect if tier 3
               if (c.tier === 3 && c.slowEffectTimer === 0) {
                 c.vx *= 0.66;
@@ -2325,7 +4218,36 @@
               let dy = b.y - bc.y;
               if (Math.hypot(dx, dy) < bc.radius) {
                 bulletHit = true;
-                // big comets are indestructible
+                
+                // Reduce hit points
+                bc.hitPoints--;
+                bc.hitCount++;
+                
+                // Set flash timer for visual feedback
+                bc.hitFlashTimer = 0.1;
+                
+                // Create bullet impact visual effect at the bullet's position
+                createBulletImpact(b.x, b.y);
+                
+                // Increase shake frequency but reduce distance based on damage
+                // Smaller shake amplitude but higher frequency as damage increases
+                bc.shakeAmount = 3 + (bc.hitCount / BIG_COMET_HEALTH) * 8;
+                bc.shakeTimer = 0.2 + (bc.hitCount / BIG_COMET_HEALTH) * 0.4; // Longer shake duration with damage
+                
+                // Play hit sound
+                if (soundEnabled) {
+                  const now = performance.now();
+                  // Only play sound occasionally or on milestone hits
+                  if ((now - lastHitSoundTime > HIT_SOUND_THROTTLE * 2) || 
+                      (bc.hitPoints % 500 === 0) || // Every 500 hits
+                      (bc.hitPoints <= 200)) {      // Last 200 hits
+                    hitSoundPool[nextHitSoundIndex].currentTime = 0;
+                    hitSoundPool[nextHitSoundIndex].play();
+                    nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+                    lastHitSoundTime = now;
+                  }
+                }
+                
                 break;
               }
             }
@@ -2340,21 +4262,44 @@
 
         checkBigCometCollisions();
 
-        // spawn new comets over time if < 90s
+        // spawn new comets over time based on difficulty
         if (spawnAllowed) {
           cometSpawnTimer += dt;
-          if (cometSpawnTimer > randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX)) {
-            // scale spawn count based on area
+          
+          // Get base spawn interval
+          let spawnInterval = randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX);
+          
+          // Apply difficulty multiplier (higher multiplier = lower rate)
+          let difficultyMultiplier;
+          if (currentDifficulty === DIFFICULTY.INFINITY) {
+            // For infinity mode, use the dynamic multiplier
+            difficultyMultiplier = 1 / infinityModeSpawnMultiplier;
+          } else {
+            // For other modes, use the fixed multiplier
+            difficultyMultiplier = 1 / SPAWN_RATE_MULTIPLIER[currentDifficulty];
+          }
+          
+          // Apply the multiplier to spawn interval
+          spawnInterval *= difficultyMultiplier;
+          
+          if (cometSpawnTimer > spawnInterval) {
+            // Scale spawn count based on area
             let area = canvas.width * canvas.height;
             let scaleFactor = area / 480000;
             scaleFactor = Math.max(0.5, Math.min(2, scaleFactor));
-            let spawnCount = Math.floor(
-              (COMET_SPAWN_BATCH_MIN + Math.floor(Math.random() * (COMET_SPAWN_BATCH_MAX - COMET_SPAWN_BATCH_MIN + 1))) *
-              scaleFactor
-            );
+            
+            // Determine base spawn count
+            let baseSpawnCount = COMET_SPAWN_BATCH_MIN + 
+              Math.floor(Math.random() * (COMET_SPAWN_BATCH_MAX - COMET_SPAWN_BATCH_MIN + 1));
+            
+            // Apply difficulty modifier to spawn count
+            let spawnCount = Math.floor(baseSpawnCount * scaleFactor);
+            
+            // Spawn the comets
             for (let i = 0; i < spawnCount; i++) {
               spawnComet();
             }
+            
             cometSpawnTimer = 0;
           }
         }
