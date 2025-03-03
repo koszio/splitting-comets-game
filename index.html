@@ -1381,18 +1381,37 @@
         ctx.restore();
       }
 
-      function drawHealthBar() {
-        const barWidth = 100;
-        const barHeight = 15;
-        const margin = 20;
-        const x = canvas.width - margin - barWidth;
-        const y = margin;
+      function drawHealthBar(x, y, barWidth, barHeight) {
+        // Use default values if not provided
+        x = x || (canvas.width - 120);
+        y = y || 20;
+        barWidth = barWidth || 100;
+        barHeight = barHeight || 15;
+        
+        // Draw health bar background and border
         ctx.strokeStyle = "white";
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Draw health bar fill
         let hpFraction = spaceship.hitPoints / 5;
-        ctx.fillStyle = "red";
+        
+        // Change color based on health level
+        if (hpFraction > 0.6) {
+          ctx.fillStyle = "rgba(50, 205, 50, 0.7)"; // Green for good health
+        } else if (hpFraction > 0.3) {
+          ctx.fillStyle = "rgba(255, 165, 0, 0.7)"; // Orange for medium health
+        } else {
+          ctx.fillStyle = "rgba(255, 0, 0, 0.7)"; // Red for low health
+        }
+        
         ctx.fillRect(x, y, barWidth * hpFraction, barHeight);
+        
+        // Add "HP" label
+        ctx.fillStyle = "white";
+        ctx.font = "12px sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText("HP:", x - 5, y + barHeight/2 + 4);
       }
 
       function spawnPowerUp() {
@@ -3578,19 +3597,24 @@
           return;
         }
 
-        ctx.fillStyle = "white";
-        ctx.font = "24px sans-serif";
-        ctx.textAlign = "center";
+        // Draw top HUD panel background
+        const hudHeight = 50;
+        const hudPadding = 10;
+        ctx.fillStyle = "rgba(10, 20, 50, 0.5)";
+        ctx.strokeStyle = "rgba(80, 160, 255, 0.4)";
+        ctx.lineWidth = 1;
+        ctx.fillRect(0, 0, canvas.width, hudHeight);
+        ctx.strokeRect(0, 0, canvas.width, hudHeight);
         
-        // Display current score
-        ctx.fillText("Score: " + score, canvas.width / 2, 40);
+        // Divide HUD into sections
+        const leftSection = {x: hudPadding, width: canvas.width * 0.25, center: hudPadding + (canvas.width * 0.25)/2};
+        const centerSection = {x: canvas.width * 0.25 + hudPadding, width: canvas.width * 0.5, center: canvas.width/2};
+        const rightSection = {x: canvas.width * 0.75 + hudPadding, width: canvas.width * 0.25 - hudPadding*2, center: canvas.width * 0.75 + hudPadding + (canvas.width * 0.25 - hudPadding*2)/2};
         
-        // Display high score for current difficulty
-        const currentHighScore = highScores[currentDifficulty.toLowerCase()] || 0;
-        ctx.font = "18px sans-serif";
-        ctx.fillText("High Score: " + currentHighScore, canvas.width / 2, 70);
+        // LEFT SECTION: Music icon and difficulty
+        drawMusicIcon(); // Already positioned at top-left
         
-        // Show difficulty and game time
+        // Show difficulty
         let difficultyName = "";
         switch(currentDifficulty) {
           case DIFFICULTY.EASY: difficultyName = "Easy"; break;
@@ -3599,30 +3623,49 @@
           case DIFFICULTY.INFINITY: difficultyName = "Infinity"; break;
         }
         
+        ctx.fillStyle = "white";
         ctx.font = "16px sans-serif";
-        ctx.fillText(difficultyName, canvas.width / 2, 65);
+        ctx.textAlign = "center";
+        ctx.fillText("Difficulty: " + difficultyName, leftSection.center + 30, hudHeight/2 + 6);
         
-        // Show time remaining for timed modes or time survived for infinity
+        // CENTER SECTION: Score and high score
+        // Current score
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = "white";
+        ctx.fillText("Score: " + score, centerSection.center, hudHeight/2 - 7);
+        
+        // High score
+        const currentHighScore = highScores[currentDifficulty.toLowerCase()] || 0;
+        ctx.font = "16px sans-serif";
+        ctx.fillStyle = "#FFD700"; // Gold color
+        ctx.fillText("High Score: " + currentHighScore, centerSection.center, hudHeight/2 + 14);
+        
+        // RIGHT SECTION: Health and timer
+        // Draw timer first
+        ctx.font = "16px sans-serif";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        
         if (currentDifficulty === DIFFICULTY.INFINITY) {
           const minutes = Math.floor(gameTime / 60);
           const seconds = Math.floor(gameTime % 60);
-          ctx.fillText(`Survived: ${minutes}m ${seconds.toString().padStart(2, '0')}s`, canvas.width / 2, 85);
+          ctx.fillText(`Time: ${minutes}m ${seconds.toString().padStart(2, '0')}s`, rightSection.center, hudHeight/2 - 7);
           
-          // Show spawn rate increase indicator in infinity mode - only during actual gameplay
-          if (infinityModeSpawnMultiplier > 1.0 && gameState === GAME_STATE.PLAYING) {
+          // Show spawn rate in infinity mode
+          if (infinityModeSpawnMultiplier > 1.0) {
             ctx.fillStyle = "yellow";
-            ctx.fillText(`Spawn Rate: ${(infinityModeSpawnMultiplier * 100).toFixed(0)}%`, canvas.width / 2, 105);
+            ctx.fillText(`Spawn: ${(infinityModeSpawnMultiplier * 100).toFixed(0)}%`, rightSection.center, hudHeight/2 + 14);
           }
         } else {
           // Show time remaining for timed modes
           const timeRemaining = Math.max(0, GAME_DURATION[currentDifficulty] - gameTime);
           const minutes = Math.floor(timeRemaining / 60);
           const seconds = Math.floor(timeRemaining % 60);
-          ctx.fillText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`, canvas.width / 2, 85);
+          ctx.fillText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`, rightSection.center, hudHeight/2 + 6);
         }
         
-        drawHealthBar();
-        drawMusicIcon();
+        // Draw health bar at the top-right, below the HUD panel
+        drawHealthBar(canvas.width - 120, hudHeight + 10, 100, 15);
 
         // Power-ups
         for (let pu of powerUps) {
