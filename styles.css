@@ -1,0 +1,307 @@
+/* General Styles */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: black;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+}
+
+canvas {
+  display: block;
+  background: black;
+}
+
+/* Modal System */
+.modal-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999; /* Make sure it's on top of everything */
+}
+
+.modal-content {
+  background-color: #0a0a2a;
+  border: 2px solid #3498db;
+  border-radius: 10px;
+  padding: 30px;
+  width: 80%;
+  max-width: 500px;
+  color: white;
+  box-shadow: 0 0 20px rgba(52, 152, 219, 0.5);
+}
+
+.modal-title {
+  font-size: 24px;
+  text-align: center;
+  margin-bottom: 20px;
+  color: #3498db;
+}
+
+.modal-body {
+  margin-bottom: 25px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 16px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  border: 2px solid #2980b9;
+  background-color: rgba(20, 20, 60, 0.8);
+  color: white;
+  border-radius: 5px;
+  outline: none;
+  cursor: text; /* Show text cursor */
+  caret-color: white; /* Make cursor visible */
+  text-shadow: none; /* No text shadow to improve readability */
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5); /* Inner shadow for depth */
+  transition: all 0.2s ease;
+}
+
+.form-group small {
+  display: block;
+  font-size: 12px;
+  margin-top: 5px;
+  color: #bbb;
+  font-style: italic;
+}
+
+.form-group input:focus {
+  border-color: #3498db;
+  box-shadow: 0 0 8px rgba(52, 152, 219, 0.6), inset 0 0 5px rgba(0, 0, 0, 0.2);
+  background-color: rgba(30, 30, 80, 0.8); /* Slightly brighter when focused */
+}
+
+.modal-footer {
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn {
+  background: rgba(30, 50, 100, 0.3);
+  color: #ffffff;
+  border: 1px solid rgba(80, 160, 255, 0.5);
+  border-radius: 5px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 120px;
+  box-shadow: 0 0 6px rgba(70, 130, 240, 0.3);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.5);
+}
+
+.btn:hover {
+  background: rgba(40, 70, 130, 0.4);
+  box-shadow: 0 0 8px rgba(80, 160, 255, 0.5);
+  border-color: rgba(100, 180, 255, 0.7);
+}
+
+.btn:active {
+  transform: scale(0.98);
+  box-shadow: inset 0 0 5px rgba(20, 30, 70, 0.4);
+}
+
+.btn-alt {
+  background: rgba(30, 50, 100, 0.3);
+  border-color: rgba(80, 160, 255, 0.5);
+  box-shadow: 0 0 6px rgba(70, 130, 240, 0.3);
+}
+
+.btn-alt:hover {
+  background: rgba(40, 70, 130, 0.4);
+  box-shadow: 0 0 8px rgba(80, 160, 255, 0.5);
+  border-color: rgba(100, 180, 255, 0.7);
+}
+
+.btn-secondary {
+  background: rgba(30, 50, 100, 0.3);
+  border-color: rgba(80, 160, 255, 0.5);
+  box-shadow: 0 0 6px rgba(70, 130, 240, 0.3);
+}
+
+.btn-secondary:hover {
+  background: rgba(40, 70, 130, 0.4);
+  box-shadow: 0 0 8px rgba(80, 160, 255, 0.5);
+  border-color: rgba(100, 180, 255, 0.7);
+}
+
+.error-message {
+  color: #e74c3c;
+  text-align: center;
+  margin-top: 15px;
+  font-size: 14px;
+  min-height: 20px;
+}
+
+/* User Authentication Status */
+.auth-status-display {
+  position: absolute;
+  top: 10px;
+  left: 10px; /* Changed from right to left */
+  background-color: rgba(10, 10, 50, 0.8);
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 14px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 1000; /* Keep high z-index for visibility */
+}
+
+.authenticated {
+  color: #2ecc71;
+}
+
+.guest {
+  color: #e67e22;
+}
+
+#logoutBtn {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  background-color: rgba(231, 76, 60, 0.5);
+  border: none;
+  color: white;
+}
+
+#logoutBtn:hover {
+  background-color: rgba(231, 76, 60, 0.8);
+}
+
+#loginLink {
+  font-size: 12px;
+  background-color: rgba(52, 152, 219, 0.5);
+  color: white;
+  text-decoration: none;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+#loginLink:hover {
+  background-color: rgba(52, 152, 219, 0.8);
+}
+
+/* Leaderboard Styles */
+.leaderboard {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  color: white;
+}
+
+.leaderboard th {
+  background-color: rgba(52, 152, 219, 0.3);
+  padding: 8px;
+  text-align: left;
+  border-bottom: 2px solid #3498db;
+}
+
+.leaderboard td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(52, 152, 219, 0.2);
+}
+
+.leaderboard tr:nth-child(even) {
+  background-color: rgba(52, 152, 219, 0.1);
+}
+
+.leaderboard tr:hover {
+  background-color: rgba(52, 152, 219, 0.2);
+}
+
+/* Highlight current player's score */
+.leaderboard tr.current-player {
+  background-color: rgba(46, 204, 113, 0.2);
+}
+
+.leaderboard tr.current-player:hover {
+  background-color: rgba(46, 204, 113, 0.3);
+}
+
+/* Verified score indicator */
+.score-verified {
+  display: inline-block;
+  background-color: #2ecc71;
+  color: white;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  margin-left: 5px;
+}
+
+/* Tab System for Leaderboard */
+.tab-container {
+  display: flex;
+  margin-bottom: 15px;
+}
+
+.tab {
+  padding: 8px 15px;
+  background-color: rgba(52, 152, 219, 0.1);
+  border: 1px solid #3498db;
+  border-radius: 5px 5px 0 0;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+.tab.active {
+  background-color: rgba(52, 152, 219, 0.3);
+  border-bottom: none;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Leaderboard Filter Controls */
+.leaderboard-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  color: #bbb;
+}
+
+.filter-select {
+  padding: 5px;
+  background-color: rgba(20, 20, 60, 0.5);
+  color: white;
+  border: 1px solid #3498db;
+  border-radius: 3px;
+}

@@ -18,6 +18,12 @@
       background: black;
     }
   </style>
+  <!-- Firebase App (the core Firebase SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <!-- Add Firebase Firestore -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <!-- Include the scores.js file with Firebase code -->
+  <script src="scores.js"></script>
 </head>
 
 <body>
@@ -150,6 +156,41 @@
       };
       
       let gameState = GAME_STATE.MAIN_MENU;
+      
+      // Variables to track high scores
+      let highScores = {
+        easy: 0,
+        medium: 0,
+        hard: 0,
+        infinity: 0
+      };
+      
+      // Load high scores from Firebase when the game starts
+      function loadHighScores() {
+        // Load high score for each difficulty
+        getHighScore("easy").then(result => {
+          highScores.easy = result.score;
+          console.log("Loaded easy high score:", highScores.easy);
+        });
+        
+        getHighScore("medium").then(result => {
+          highScores.medium = result.score;
+          console.log("Loaded medium high score:", highScores.medium);
+        });
+        
+        getHighScore("hard").then(result => {
+          highScores.hard = result.score;
+          console.log("Loaded hard high score:", highScores.hard);
+        });
+        
+        getHighScore("infinity").then(result => {
+          highScores.infinity = result.score;
+          console.log("Loaded infinity high score:", highScores.infinity);
+        });
+      }
+      
+      // Load high scores at startup
+      loadHighScores();
       
       // Auto-start menu music when the page loads
       document.addEventListener('DOMContentLoaded', function() {
@@ -1656,6 +1697,8 @@
                 break;
               case 3: // High Scores
                 gameState = GAME_STATE.HIGH_SCORES;
+                // Refresh high scores when entering the scoreboard
+                loadHighScores();
                 break;
             }
           }
@@ -2203,6 +2246,9 @@
         // Go directly to main menu, not difficulty select
         gameState = GAME_STATE.MAIN_MENU;
         startMenuMusic();
+        
+        // Reload high scores from Firebase
+        loadHighScores();
         
         // Keep the difficulty selected for next game
         // but reset infinity mode parameters
@@ -2829,55 +2875,28 @@
           ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y, canvas.width/2 - buttonWidth/2 + cornerRadius, y);
           ctx.closePath();
           
-          // Fill with different colors based on selection
+          // Exactly matching settings menu style
           if (i === selectedMainMenuItem) {
-            // Selected button - light blue with glow
-            // No global shadow blur that affects the entire canvas
-            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
-            
-            // Draw a focused glow just for this button instead of using shadowBlur
-            const glowSize = 5;
-            ctx.save();
-            
-            // Draw multiple expanding shapes with decreasing opacity for glow effect
-            for (let g = 0; g < 3; g++) {
-              const expandSize = g * 2;
-              const opacity = 0.2 - (g * 0.06);
-              
-              ctx.fillStyle = `rgba(52, 152, 219, ${opacity})`;
-              ctx.beginPath();
-              ctx.moveTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
-              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y - expandSize);
-              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize, canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize + cornerRadius);
-              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize - cornerRadius);
-              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize, canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y + buttonHeight + expandSize);
-              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y + buttonHeight + expandSize);
-              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize, canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize - cornerRadius);
-              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize + cornerRadius);
-              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize, canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
-              ctx.closePath();
-              ctx.fill();
-            }
-            
-            ctx.restore();
-            
-            // Main button fill
-            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
+            // Selected button styling
+            ctx.fillStyle = "rgba(0, 150, 255, 0.4)";    // Brighter blue when selected
+            ctx.strokeStyle = "rgba(0, 191, 255, 0.8)";  // Bright blue border
+            ctx.lineWidth = 2;
           } else {
-            // Unselected button - dark gray, semi-transparent
-            ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+            // Unselected button styling
+            ctx.fillStyle = "rgba(0, 100, 255, 0.2)";    // Darker blue when not selected
+            ctx.strokeStyle = "rgba(0, 150, 255, 0.4)";  // Darker blue border
+            ctx.lineWidth = 1;
           }
           
           ctx.fill();
-          
-          // Button border
-          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
-          ctx.lineWidth = 1;
           ctx.stroke();
           
-          // Button text
-          ctx.fillStyle = "white";
+          // Setting text just like settings menu
+          ctx.textAlign = "center";
           ctx.font = "24px sans-serif";
+          ctx.fillStyle = "white";  // Always white text for better visibility
+          ctx.shadowBlur = 0;
+          
           ctx.fillText(option.text, canvas.width/2, y + 28);
         }
         
@@ -2965,34 +2984,42 @@
           ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y, canvas.width/2 - buttonWidth/2 + cornerRadius, y);
           ctx.closePath();
           
-          // Fill with different colors based on selection
+          // Exactly matching settings menu style
           if (i === selectedDifficultyItem) {
-            // Selected button - light blue with glow
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "rgba(52, 152, 219, 0.7)";
-            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
+            // Selected button styling
+            ctx.fillStyle = "rgba(0, 150, 255, 0.4)";    // Brighter blue when selected
+            ctx.strokeStyle = "rgba(0, 191, 255, 0.8)";  // Bright blue border
+            ctx.lineWidth = 2;
           } else {
-            // Unselected button - dark gray, semi-transparent
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+            // Unselected button styling
+            ctx.fillStyle = "rgba(0, 100, 255, 0.2)";    // Darker blue when not selected
+            ctx.strokeStyle = "rgba(0, 150, 255, 0.4)";  // Darker blue border
+            ctx.lineWidth = 1;
           }
           
           ctx.fill();
-          
-          // Button border
-          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
-          ctx.lineWidth = 1;
           ctx.stroke();
           
-          // Button text
-          ctx.fillStyle = "white";
+          // Setting text just like settings menu
+          ctx.textAlign = "center";
           ctx.font = "24px sans-serif";
+          ctx.fillStyle = "white";  // Always white text for better visibility
+          ctx.shadowBlur = 0;
+          
           ctx.fillText(diff.name, canvas.width/2, y + 30);
           
           // Description text - slightly smaller and more ethereal
-          ctx.fillStyle = "rgba(200, 200, 220, 0.8)";
+          ctx.shadowBlur = 0; // No glow on description text
+          ctx.fillStyle = "rgba(180, 200, 240, 0.8)";
           ctx.font = "italic 14px sans-serif";
-          ctx.fillText(diff.desc, canvas.width/2, y + diffSpacing - 15);
+          ctx.fillText(diff.desc, canvas.width/2, y + diffSpacing - 25);
+          
+          // Display high score for this difficulty
+          const diffValue = diff.value.toLowerCase();
+          const highScore = highScores[diffValue] || 0;
+          ctx.fillStyle = "rgba(255, 215, 0, 0.8)"; // Gold color
+          ctx.font = "12px sans-serif";
+          ctx.fillText("High Score: " + highScore, canvas.width/2, y + diffSpacing - 5);
         }
         
         // Instructions with subtle backdrop
@@ -3080,42 +3107,43 @@
           ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2, y, canvas.width/2 - buttonWidth/2 + cornerRadius, y);
           ctx.closePath();
           
-          // Different styles for the "Exit" option to make it stand out as potentially dangerous
+          // Styles matching the settings menu
           if (i === 3) { // Exit option
             if (i === selectedPauseMenuItem) {
-              // Selected exit button - more transparent red with glow
-              ctx.shadowBlur = 10;
-              ctx.shadowColor = "rgba(231, 76, 60, 0.4)";
-              ctx.fillStyle = "rgba(231, 76, 60, 0.3)";
+              // Selected exit button with red tint
+              ctx.fillStyle = "rgba(255, 70, 70, 0.4)";    // Bright red when selected
+              ctx.strokeStyle = "rgba(255, 70, 70, 0.8)";  // Bright red border
+              ctx.lineWidth = 2;
             } else {
-              // Unselected exit button - darker red
-              ctx.shadowBlur = 0;
-              ctx.fillStyle = "rgba(160, 40, 30, 0.8)";
+              // Unselected exit button with red tint
+              ctx.fillStyle = "rgba(200, 50, 50, 0.2)";    // Darker red when not selected
+              ctx.strokeStyle = "rgba(200, 50, 50, 0.4)";  // Darker red border
+              ctx.lineWidth = 1;
             }
           } else {
-            // Normal menu options
+            // Normal menu options matching settings style
             if (i === selectedPauseMenuItem) {
-              // Selected button - more transparent blue with subtle glow
-              ctx.shadowBlur = 10;
-              ctx.shadowColor = "rgba(52, 152, 219, 0.4)";
-              ctx.fillStyle = "rgba(52, 152, 219, 0.3)"; // More transparent
+              // Selected button styling
+              ctx.fillStyle = "rgba(0, 150, 255, 0.4)";    // Brighter blue when selected
+              ctx.strokeStyle = "rgba(0, 191, 255, 0.8)";  // Bright blue border
+              ctx.lineWidth = 2;
             } else {
-              // Unselected button - dark gray, semi-transparent
-              ctx.shadowBlur = 0;
-              ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+              // Unselected button styling
+              ctx.fillStyle = "rgba(0, 100, 255, 0.2)";    // Darker blue when not selected
+              ctx.strokeStyle = "rgba(0, 150, 255, 0.4)";  // Darker blue border
+              ctx.lineWidth = 1;
             }
           }
           
           ctx.fill();
-          
-          // Button border
-          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
-          ctx.lineWidth = 1;
           ctx.stroke();
           
-          // Button text
-          ctx.fillStyle = "white";
+          // Setting text just like settings menu - clean white
+          ctx.textAlign = "center";
           ctx.font = "22px sans-serif";
+          ctx.fillStyle = "white";  // Always white text for better visibility
+          ctx.shadowBlur = 0;
+          
           ctx.fillText(option.text, canvas.width/2, y + 28);
           
           // Description text
@@ -3145,9 +3173,9 @@
         ctx.textAlign = "center";
         ctx.fillText("Settings", canvas.width / 2, canvas.height / 4);
         
-        const settingsY = canvas.height / 2 - 40;
+        const settingsY = canvas.height / 2 - 60;
         const settingsSpacing = 60;
-        const buttonWidth = 250;
+        const buttonWidth = 350;  // Width for "Sound Effects"
         const buttonHeight = 40;
         
         const settings = [
@@ -3165,7 +3193,7 @@
           const setting = settings[i];
           const y = settingsY + i * settingsSpacing;
           
-          // Button background - semi-transparent with rounded corners
+          // Button background
           const cornerRadius = 8;
           
           // Create button path with rounded corners
@@ -3183,96 +3211,35 @@
           
           // Fill with different colors based on selection
           if (i === selectedSettingsItem) {
-            // Selected button - light blue with glow (matching main menu)
-            // No global shadow blur that affects the entire canvas
-            
-            // Draw a focused glow just for this button instead of using shadowBlur
-            const glowSize = 5;
-            ctx.save();
-            
-            // Draw multiple expanding shapes with decreasing opacity for glow effect
-            for (let g = 0; g < 3; g++) {
-              const expandSize = g * 2;
-              const opacity = 0.2 - (g * 0.06);
-              
-              ctx.fillStyle = `rgba(52, 152, 219, ${opacity})`;
-              ctx.beginPath();
-              ctx.moveTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
-              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y - expandSize);
-              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize, canvas.width/2 + buttonWidth/2 + expandSize, y - expandSize + cornerRadius);
-              ctx.lineTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize - cornerRadius);
-              ctx.quadraticCurveTo(canvas.width/2 + buttonWidth/2 + expandSize, y + buttonHeight + expandSize, canvas.width/2 + buttonWidth/2 + expandSize - cornerRadius, y + buttonHeight + expandSize);
-              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y + buttonHeight + expandSize);
-              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize, canvas.width/2 - buttonWidth/2 - expandSize, y + buttonHeight + expandSize - cornerRadius);
-              ctx.lineTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize + cornerRadius);
-              ctx.quadraticCurveTo(canvas.width/2 - buttonWidth/2 - expandSize, y - expandSize, canvas.width/2 - buttonWidth/2 - expandSize + cornerRadius, y - expandSize);
-              ctx.closePath();
-              ctx.fill();
-            }
-            
-            ctx.restore();
-            
-            // Main button fill
-            ctx.fillStyle = "rgba(52, 152, 219, 0.7)";
+            ctx.fillStyle = "rgba(0, 150, 255, 0.4)";    // Brighter blue when selected
+            ctx.strokeStyle = "rgba(0, 191, 255, 0.8)";  // Bright blue border
+            ctx.lineWidth = 2;
           } else {
-            // Unselected button - dark gray, semi-transparent
-            ctx.fillStyle = "rgba(40, 40, 40, 0.8)";
+            ctx.fillStyle = "rgba(0, 100, 255, 0.2)";    // Darker blue when not selected
+            ctx.strokeStyle = "rgba(0, 150, 255, 0.4)";  // Darker blue border
+            ctx.lineWidth = 1;
           }
-          
           ctx.fill();
-          
-          // Button border
-          ctx.strokeStyle = "rgba(150, 150, 150, 0.5)";
-          ctx.lineWidth = 1;
           ctx.stroke();
           
-          // Button text
-          ctx.fillStyle = "white";
+          // Setting text and status with better contrast
+          ctx.fillStyle = "white";  // Always white text for better visibility
           ctx.font = "20px sans-serif";
-          ctx.fillText(setting.text, canvas.width/2 - 50, y + 25);
+          ctx.textAlign = "right";
+          ctx.fillText(setting.text, canvas.width/2 - 20, y + 25);
           
-          // Status indicator (ON/OFF) - with pill-shaped background
-          const statusWidth = 60;
-          const statusHeight = 26;
-          const statusX = canvas.width/2 + 60;
-          const statusY = y + 25 - statusHeight/2;
-          
-          // Draw pill background
-          ctx.beginPath();
-          ctx.moveTo(statusX + statusHeight/2, statusY);
-          ctx.lineTo(statusX + statusWidth - statusHeight/2, statusY);
-          ctx.arc(statusX + statusWidth - statusHeight/2, statusY + statusHeight/2, statusHeight/2, -Math.PI/2, Math.PI/2);
-          ctx.lineTo(statusX + statusHeight/2, statusY + statusHeight);
-          ctx.arc(statusX + statusHeight/2, statusY + statusHeight/2, statusHeight/2, Math.PI/2, -Math.PI/2);
-          ctx.closePath();
-          
-          // Different color for ON/OFF - using the same blue as the main theme
-          ctx.fillStyle = setting.status === "ON" ? 
-                         "rgba(52, 152, 219, 0.7)" : // Blue for ON (matching other buttons)
-                         "rgba(149, 165, 166, 0.5)"; // Gray for OFF
-          ctx.fill();
-          
-          // Status text
-          ctx.fillStyle = "white";
-          ctx.font = "bold 16px sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(setting.status, statusX + statusWidth/2, y + 25);
-          ctx.textAlign = "center"; // Reset text alignment
+          // ON/OFF text
+          ctx.textAlign = "left";
+          ctx.fillText(setting.status, canvas.width/2 + 20, y + 25);
         }
         
-        // Instructions with subtle backdrop
+        // Instructions
         const instructY = settingsY + settings.length * settingsSpacing + 30;
-        const instructHeight = 60;
-        
-        // Draw semi-transparent backdrop for instructions
-        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-        ctx.fillRect(canvas.width/2 - 200, instructY - 15, 400, instructHeight);
-        
-        // Instruction text
         ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
         ctx.font = "18px sans-serif";
-        ctx.fillText("↑/↓: Select option   ENTER: Toggle setting", canvas.width / 2, instructY + 10);
-        ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 40);
+        ctx.textAlign = "center";
+        ctx.fillText("↑/↓: Select option   ENTER: Toggle setting", canvas.width/2, instructY + 10);
+        ctx.fillText("ESC: Return to main menu", canvas.width/2, instructY + 40);
       }
       
       // Draw the How to Play screen
@@ -3351,10 +3318,113 @@
         ctx.textAlign = "center";
         ctx.fillText("Scoreboard", canvas.width / 2, canvas.height / 4);
         
-        // Placeholder for high scores
-        ctx.fillStyle = "#CCC";
+        // Draw a score table for all difficulties
+        const tableTop = canvas.height / 3;
+        const tableWidth = 500;
+        const tableHeight = 280;
+        const tableLeft = (canvas.width - tableWidth) / 2;
+        
+        // Draw table background
+        ctx.fillStyle = "rgba(20, 30, 60, 0.4)";
+        ctx.strokeStyle = "rgba(80, 160, 255, 0.5)";
+        ctx.lineWidth = 2;
+        
+        // Draw rounded rectangle for table
+        const cornerRadius = 10;
+        ctx.beginPath();
+        ctx.moveTo(tableLeft + cornerRadius, tableTop);
+        ctx.lineTo(tableLeft + tableWidth - cornerRadius, tableTop);
+        ctx.quadraticCurveTo(tableLeft + tableWidth, tableTop, tableLeft + tableWidth, tableTop + cornerRadius);
+        ctx.lineTo(tableLeft + tableWidth, tableTop + tableHeight - cornerRadius);
+        ctx.quadraticCurveTo(tableLeft + tableWidth, tableTop + tableHeight, tableLeft + tableWidth - cornerRadius, tableTop + tableHeight);
+        ctx.lineTo(tableLeft + cornerRadius, tableTop + tableHeight);
+        ctx.quadraticCurveTo(tableLeft, tableTop + tableHeight, tableLeft, tableTop + tableHeight - cornerRadius);
+        ctx.lineTo(tableLeft, tableTop + cornerRadius);
+        ctx.quadraticCurveTo(tableLeft, tableTop, tableLeft + cornerRadius, tableTop);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Table title with a stylish touch
+        ctx.fillStyle = "#FFD700"; // Gold color for the main title
+        ctx.font = "bold 26px sans-serif";
+        ctx.fillText("★ TOP PLAYERS ★", canvas.width / 2, tableTop + 40);
+        
+        // Subtitle
+        ctx.fillStyle = "rgba(200, 220, 255, 0.9)";
         ctx.font = "20px sans-serif";
-        ctx.fillText("Your recent score: " + score, canvas.width / 2, canvas.height / 2);
+        ctx.fillText("High Scores by Difficulty", canvas.width / 2, tableTop + 70);
+        
+        // Difficulty names and values
+        const difficulties = [
+          { name: "Easy", value: "easy" },
+          { name: "Medium", value: "medium" },
+          { name: "Hard", value: "hard" },
+          { name: "Infinity", value: "infinity" }
+        ];
+        
+        // Draw column headers
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        const colWidth = tableWidth / (difficulties.length + 2); // +2 for Player column and Score row header
+        
+        // Create a header row
+        const headerY = tableTop + 110;
+        const scoreRowY = tableTop + 160; // Increased spacing for better separation
+        
+        // Draw column headers
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(150, 200, 255, 0.9)"; // Soft blue for headers
+        
+        // Player column header
+        ctx.fillText("Player", tableLeft + colWidth, headerY);
+        
+        // Difficulty column headers
+        for (let i = 0; i < difficulties.length; i++) {
+          const x = tableLeft + colWidth * (i + 2); // +2 to account for Player column
+          ctx.fillText(difficulties[i].name, x, headerY);
+        }
+        
+        // Draw a subtle separator line
+        ctx.strokeStyle = "rgba(80, 160, 255, 0.3)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tableLeft + 20, headerY + 15);
+        ctx.lineTo(tableLeft + tableWidth - 20, headerY + 15);
+        ctx.stroke();
+        
+        // Draw scores row
+        ctx.textAlign = "center";
+        ctx.font = "22px sans-serif";
+        
+        // Add player name in the first column (will be filled later with actual user name)
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.fillText("Guest", tableLeft + colWidth, scoreRowY);
+        
+        for (let i = 0; i < difficulties.length; i++) {
+          const x = tableLeft + colWidth * (i + 2); // +2 to account for Player column
+          const diff = difficulties[i].value;
+          const score = highScores[diff] || 0;
+          
+          // Highlight higher scores with a gold color
+          if (score > 0) {
+            ctx.fillStyle = "#FFD700"; // Gold for scores
+          } else {
+            ctx.fillStyle = "rgba(200, 200, 200, 0.7)"; // Grey for zero scores
+          }
+          
+          ctx.fillText(score.toString(), x, scoreRowY);
+        }
+        
+        // Draw last played score if available
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(200, 200, 220, 0.8)";
+        ctx.font = "18px sans-serif";
+        
+        if (score > 0) {
+          ctx.fillText(`Your last game score: ${score} (${currentDifficulty})`, 
+                       canvas.width / 2, tableTop + tableHeight - 30);
+        }
         
         // Instructions with subtle backdrop at bottom
         const instructY = canvas.height - 70;
@@ -3367,6 +3437,7 @@
         // Return instruction
         ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
         ctx.font = "18px sans-serif";
+        ctx.textAlign = "center";
         ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 30);
       }
       
@@ -3438,7 +3509,22 @@
           ctx.font = "24px sans-serif";
           ctx.fillText(`Mode: ${difficultyName}`, canvas.width / 2, canvas.height / 2);
           ctx.fillText("Press ENTER to return to menu", canvas.width / 2, canvas.height / 2 + 40);
+          
+          // Display score and high score
           ctx.fillText(`Score: ${score}`, canvas.width / 2, 40);
+          
+          // Get high score for current difficulty
+          const currentHighScore = highScores[currentDifficulty.toLowerCase()] || 0;
+          
+          // Add message if player achieved a new high score
+          if (score > currentHighScore) {
+            ctx.fillStyle = "#FFD700"; // Gold color
+            ctx.fillText("NEW HIGH SCORE!", canvas.width / 2, 70);
+          } else {
+            ctx.font = "18px sans-serif";
+            ctx.fillStyle = "white";
+            ctx.fillText(`High Score: ${currentHighScore}`, canvas.width / 2, 70);
+          }
           return;
         }
         if (gameState === GAME_STATE.GAME_OVER) {
@@ -3473,14 +3559,36 @@
           }
           
           ctx.fillText("Press ENTER to restart", canvas.width / 2, canvas.height / 2 + 70);
+          
+          // Display score and high score
           ctx.fillText(`Score: ${score}`, canvas.width / 2, 40);
+          
+          // Get high score for current difficulty
+          const currentHighScore = highScores[currentDifficulty.toLowerCase()] || 0;
+          
+          // Add message if player achieved a new high score
+          if (score > currentHighScore) {
+            ctx.fillStyle = "#FFD700"; // Gold color
+            ctx.fillText("NEW HIGH SCORE!", canvas.width / 2, 70);
+          } else {
+            ctx.font = "18px sans-serif";
+            ctx.fillStyle = "white";
+            ctx.fillText(`High Score: ${currentHighScore}`, canvas.width / 2, 70);
+          }
           return;
         }
 
         ctx.fillStyle = "white";
         ctx.font = "24px sans-serif";
         ctx.textAlign = "center";
+        
+        // Display current score
         ctx.fillText("Score: " + score, canvas.width / 2, 40);
+        
+        // Display high score for current difficulty
+        const currentHighScore = highScores[currentDifficulty.toLowerCase()] || 0;
+        ctx.font = "18px sans-serif";
+        ctx.fillText("High Score: " + currentHighScore, canvas.width / 2, 70);
         
         // Show difficulty and game time
         let difficultyName = "";
@@ -3891,6 +3999,15 @@
           gameState = GAME_STATE.WIN;
           bgMusic.pause(); // Stop the gameplay music
           victorySound.play().catch(err => console.error("Error playing victory sound:", err));
+          
+          // Check and update high score in Firebase
+          updateHighScore(score, currentDifficulty)
+            .then(result => {
+              console.log("High score check complete:", result);
+              if (result.isNewHighScore) {
+                console.log("NEW HIGH SCORE!");
+              }
+            });
         }
 
         // Movement/Collisions
@@ -3926,6 +4043,16 @@
               gameState = GAME_STATE.GAME_OVER;
               bgMusic.pause(); // Stop the gameplay music
               defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
+              
+              // Check and update high score in Firebase
+              updateHighScore(score, currentDifficulty)
+                .then(result => {
+                  console.log("High score check complete:", result);
+                  if (result.isNewHighScore) {
+                    console.log("NEW HIGH SCORE!");
+                  }
+                });
+              
               return;
             }
           }
@@ -3956,6 +4083,16 @@
               gameState = GAME_STATE.GAME_OVER;
               bgMusic.pause(); // Stop the gameplay music
               defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
+              
+              // Check and update high score in Firebase
+              updateHighScore(score, currentDifficulty)
+                .then(result => {
+                  console.log("High score check complete:", result);
+                  if (result.isNewHighScore) {
+                    console.log("NEW HIGH SCORE!");
+                  }
+                });
+              
               return;
             }
           }

@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read and write to all collections for now
+    // This is like "test mode" but explicitly written out
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
