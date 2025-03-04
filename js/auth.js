@@ -80,6 +80,15 @@ function loginUser(email, password) {
 
 // Function to logout a user
 function logoutUser() {
+  // Check if the game is in playing state
+  if (window.gameState === "playing") {
+    console.log("Cannot logout during gameplay");
+    alert("Cannot logout during gameplay. Please pause or exit the game first.");
+    return Promise.resolve(false);
+  } 
+  
+  console.log("Current game state:", window.gameState);
+  
   return auth.signOut()
     .then(() => {
       // Clear user info from localStorage
@@ -139,7 +148,13 @@ function updateAuthUI(isLoggedIn) {
     // Update UI for logged in user
     authButton.textContent = 'Logout';
     authButton.onclick = function() {
-      logoutUser();
+      // Check if the game is in playing state
+      if (window.gameState && window.gameState === "playing") {
+        // Don't allow logout during gameplay
+        return false;
+      } else {
+        logoutUser();
+      }
     };
     
     // Display username
@@ -150,7 +165,13 @@ function updateAuthUI(isLoggedIn) {
     // Update UI for guest user
     authButton.textContent = 'Login';
     authButton.onclick = function() {
-      window.location.href = 'auth/login.html';
+      // Check if the game is in playing state
+      if (window.gameState && window.gameState === "playing") {
+        // Don't allow login during gameplay
+        return false;
+      } else {
+        window.location.href = 'auth/login.html';
+      }
     };
     
     userStatus.textContent = 'Playing as Guest';

@@ -99,6 +99,12 @@
       bgMusic.volume = 0.1;
       let musicEnabled = true; // Track music state
       let soundEnabled = true; // Track sound effects state
+      
+      // Make sure gameState is accessible to auth.js as a string
+      function updateGameState(newState) {
+        gameState = newState;
+        window.gameState = newState;
+      }
 
       // Function to toggle music on/off
       function toggleMusic() {
@@ -202,6 +208,9 @@
       };
       
       let gameState = GAME_STATE.MAIN_MENU;
+      
+      // Make gameState accessible to auth.js
+      window.gameState = gameState;
       
       // Variables to track high scores
       let highScores = {
@@ -734,9 +743,9 @@
       
       // Comet spawn rate multipliers for each difficulty
       const SPAWN_RATE_MULTIPLIER = {
-        [DIFFICULTY.EASY]: 0.7,  // 70% of base rate
+        [DIFFICULTY.EASY]: 0.4,  // 70% of base rate
         [DIFFICULTY.MEDIUM]: 1.0, // Base rate (100%)
-        [DIFFICULTY.HARD]: 1.1,  // 110% of base rate
+        [DIFFICULTY.HARD]: 1.5,  // 110% of base rate
         [DIFFICULTY.INFINITY]: 1.0 // Starts at base rate, increases over time
       };
       
@@ -1655,7 +1664,7 @@
         
         // Open pause menu with Escape key during gameplay
         if (gameState === GAME_STATE.PLAYING && (e.key === "Escape" || e.keyCode === 27)) {
-          gameState = GAME_STATE.PAUSE_MENU;
+          updateGameState(GAME_STATE.PAUSE_MENU);
           // Keep game music playing but at lower volume
           if (musicEnabled && !bgMusic.paused) {
             bgMusic.volume = 0.05;
@@ -1674,7 +1683,7 @@
             // Select current pause menu item
             switch(selectedPauseMenuItem) {
               case 0: // Resume Game
-                gameState = GAME_STATE.PLAYING;
+                updateGameState(GAME_STATE.PLAYING);
                 // Restore music volume
                 if (musicEnabled && !bgMusic.paused) {
                   bgMusic.volume = 0.1;
@@ -1728,19 +1737,19 @@
                   
                   // Set game state directly to main menu (not difficulty select)
                   previousGameState = null;
-                  gameState = GAME_STATE.MAIN_MENU;
+                  updateGameState(GAME_STATE.MAIN_MENU);
                   
                   // Start menu music
                   startMenuMusic();
                 } else {
                   // If canceled, stay in pause menu
-                  gameState = GAME_STATE.PAUSE_MENU;
+                  updateGameState(GAME_STATE.PAUSE_MENU);
                 }
                 break;
             }
           } else if (e.key === "Escape" || e.keyCode === 27) {
             // Resume game with Escape key
-            gameState = GAME_STATE.PLAYING;
+            updateGameState(GAME_STATE.PLAYING);
             // Restore music volume
             if (musicEnabled && !bgMusic.paused) {
               bgMusic.volume = 0.1;
@@ -1762,16 +1771,16 @@
             // Select current menu item
             switch(selectedMainMenuItem) {
               case 0: // Play Game
-                gameState = GAME_STATE.DIFFICULTY_SELECT;
+                updateGameState(GAME_STATE.DIFFICULTY_SELECT);
                 break;
               case 1: // Settings
-                gameState = GAME_STATE.SETTINGS;
+                updateGameState(GAME_STATE.SETTINGS);
                 break;
               case 2: // How to Play
-                gameState = GAME_STATE.HOW_TO_PLAY;
+                updateGameState(GAME_STATE.HOW_TO_PLAY);
                 break;
               case 3: // High Scores
-                gameState = GAME_STATE.HIGH_SCORES;
+                updateGameState(GAME_STATE.HIGH_SCORES);
                 // Refresh high scores when entering the scoreboard
                 loadHighScores();
                 break;
@@ -1802,7 +1811,7 @@
             }
           } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
             // Start the game with selected difficulty
-            gameState = GAME_STATE.PLAYING;
+            updateGameState(GAME_STATE.PLAYING);
             score = 0;
             gameTime = 0;
             winTriggered = false;
@@ -1847,7 +1856,7 @@
             // Return to previous screen (either game or main menu)
             if (previousGameState === GAME_STATE.PAUSE_MENU) {
               // Return to game if we came from pause menu
-              gameState = GAME_STATE.PLAYING;
+              updateGameState(GAME_STATE.PLAYING);
               // Restore gameplay music and volume
               if (musicEnabled) {
                 // First check if we need to change the track
@@ -3713,27 +3722,30 @@
         ctx.fillText("High Score: " + currentHighScore, centerSection.center, hudHeight/2 + 14);
         
         // RIGHT SECTION: Health and timer
-        // Draw timer first
+        // Draw timer closer to the center (about 1/4 from right to left)
         ctx.font = "16px sans-serif";
         ctx.fillStyle = "white";
         ctx.textAlign = "center";
         
+        // Calculate a position that's about 1/4 from the right
+        const timerX = canvas.width * 0.75;
+        
         if (currentDifficulty === DIFFICULTY.INFINITY) {
           const minutes = Math.floor(gameTime / 60);
           const seconds = Math.floor(gameTime % 60);
-          ctx.fillText(`Time: ${minutes}m ${seconds.toString().padStart(2, '0')}s`, rightSection.center, hudHeight/2 - 7);
+          ctx.fillText(`Time: ${minutes}m ${seconds.toString().padStart(2, '0')}s`, timerX, hudHeight/2 - 7);
           
           // Show spawn rate in infinity mode
           if (infinityModeSpawnMultiplier > 1.0) {
             ctx.fillStyle = "yellow";
-            ctx.fillText(`Spawn: ${(infinityModeSpawnMultiplier * 100).toFixed(0)}%`, rightSection.center, hudHeight/2 + 14);
+            ctx.fillText(`Spawn: ${(infinityModeSpawnMultiplier * 100).toFixed(0)}%`, timerX, hudHeight/2 + 14);
           }
         } else {
           // Show time remaining for timed modes
           const timeRemaining = Math.max(0, GAME_DURATION[currentDifficulty] - gameTime);
           const minutes = Math.floor(timeRemaining / 60);
           const seconds = Math.floor(timeRemaining % 60);
-          ctx.fillText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`, rightSection.center, hudHeight/2 + 6);
+          ctx.fillText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`, timerX, hudHeight/2 + 6);
         }
         
         // Draw health bar at the top-right, below the HUD panel
@@ -3983,6 +3995,30 @@
       function update(dt) {
         // always update starfield
         updateStarfield(dt);
+        
+        // Update the window.gameState to be accessible from auth.js
+        // This ensures auth.js knows the correct state
+        if (gameState === GAME_STATE.PLAYING) {
+          window.gameState = "playing";
+          
+          // Make sure the auth button is disabled while playing
+          const authButton = document.getElementById('auth-button');
+          if (authButton) {
+            authButton.disabled = true;
+            authButton.style.opacity = "0.5";
+            authButton.style.cursor = "not-allowed";
+          }
+        } else {
+          window.gameState = String(gameState);
+          
+          // Re-enable auth button when not playing
+          const authButton = document.getElementById('auth-button');
+          if (authButton) {
+            authButton.disabled = false;
+            authButton.style.opacity = "1";
+            authButton.style.cursor = "pointer";
+          }
+        }
         
 
         // Update ship hit flash timer
