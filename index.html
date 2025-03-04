@@ -17,16 +17,62 @@
       display: block;
       background: black;
     }
+    
+    /* Auth UI overlay styles */
+    .auth-overlay {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      z-index: 1000;
+      background: rgba(0, 20, 40, 0.6);
+      padding: 5px 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 150, 255, 0.3);
+    }
+    
+    #user-status {
+      margin-right: 15px;
+      font-size: 14px;
+      color: #aaa;
+      font-family: sans-serif;
+    }
+    
+    #auth-button {
+      background: rgba(0, 150, 255, 0.6);
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    
+    #auth-button:hover {
+      background: rgba(0, 180, 255, 0.8);
+    }
   </style>
   <!-- Firebase App (the core Firebase SDK) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <!-- Add Firebase Firestore -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <!-- Add Firebase Authentication -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <!-- Include the auth.js file with Firebase Authentication code -->
+  <script src="js/auth.js"></script>
   <!-- Include the scores.js file with Firebase code -->
   <script src="scores.js"></script>
 </head>
 
 <body>
+  <!-- Authentication UI overlay -->
+  <div class="auth-overlay">
+    <span id="user-status">Playing as Guest</span>
+    <button id="auth-button">Login</button>
+  </div>
+  
   <canvas id="gameCanvas" tabindex="1"></canvas>
   <script>
     (function () {
@@ -162,7 +208,13 @@
         easy: 0,
         medium: 0,
         hard: 0,
-        infinity: 0
+        infinity: 0,
+        usernames: {
+          easy: "None",
+          medium: "None",
+          hard: "None",
+          infinity: "None"
+        }
       };
       
       // Load high scores from Firebase when the game starts
@@ -170,22 +222,26 @@
         // Load high score for each difficulty
         getHighScore("easy").then(result => {
           highScores.easy = result.score;
-          console.log("Loaded easy high score:", highScores.easy);
+          highScores.usernames.easy = result.username || "None";
+          console.log("Loaded easy high score:", highScores.easy, "by", highScores.usernames.easy);
         });
         
         getHighScore("medium").then(result => {
           highScores.medium = result.score;
-          console.log("Loaded medium high score:", highScores.medium);
+          highScores.usernames.medium = result.username || "None";
+          console.log("Loaded medium high score:", highScores.medium, "by", highScores.usernames.medium);
         });
         
         getHighScore("hard").then(result => {
           highScores.hard = result.score;
-          console.log("Loaded hard high score:", highScores.hard);
+          highScores.usernames.hard = result.username || "None";
+          console.log("Loaded hard high score:", highScores.hard, "by", highScores.usernames.hard);
         });
         
         getHighScore("infinity").then(result => {
           highScores.infinity = result.score;
-          console.log("Loaded infinity high score:", highScores.infinity);
+          highScores.usernames.infinity = result.username || "None";
+          console.log("Loaded infinity high score:", highScores.infinity, "by", highScores.usernames.infinity);
         });
       }
       
@@ -3038,7 +3094,12 @@
           const highScore = highScores[diffValue] || 0;
           ctx.fillStyle = "rgba(255, 215, 0, 0.8)"; // Gold color
           ctx.font = "12px sans-serif";
-          ctx.fillText("High Score: " + highScore, canvas.width/2, y + diffSpacing - 5);
+          // Check if high score username is available
+          if (highScores.usernames && highScores.usernames[diffValue]) {
+            ctx.fillText(`High Score: ${highScore} (${highScores.usernames[diffValue]})`, canvas.width/2, y + diffSpacing - 5);
+          } else {
+            ctx.fillText("High Score: " + highScore, canvas.width/2, y + diffSpacing - 5);
+          }
         }
         
         // Instructions with subtle backdrop
@@ -3416,9 +3477,12 @@
         ctx.textAlign = "center";
         ctx.font = "22px sans-serif";
         
-        // Add player name in the first column (will be filled later with actual user name)
+        // Add player name in the first column - use current user's name if available
         ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-        ctx.fillText("Guest", tableLeft + colWidth, scoreRowY);
+        const playerName = (typeof currentUser !== 'undefined' && currentUser) 
+          ? (currentUser.username || currentUser.displayName || "Guest") 
+          : "Guest";
+        ctx.fillText(playerName, tableLeft + colWidth, scoreRowY);
         
         for (let i = 0; i < difficulties.length; i++) {
           const x = tableLeft + colWidth * (i + 2); // +2 to account for Player column
@@ -3433,6 +3497,14 @@
           }
           
           ctx.fillText(score.toString(), x, scoreRowY);
+          
+          // Show username for each high score under the score value
+          if (score > 0 && highScores.usernames && highScores.usernames[diff]) {
+            ctx.font = "14px sans-serif";
+            ctx.fillStyle = "rgba(200, 200, 255, 0.8)";
+            ctx.fillText(highScores.usernames[diff], x, scoreRowY + 25);
+            ctx.font = "22px sans-serif"; // Reset font for next score
+          }
         }
         
         // Draw last played score if available

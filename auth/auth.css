@@ -1,0 +1,152 @@
+/* Auth forms styling */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+  background: black;
+  color: white;
+  overflow: hidden;
+}
+
+.auth-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  padding: 30px;
+  border-radius: 10px;
+  background: rgba(20, 30, 60, 0.8);
+  box-shadow: 0 0 20px rgba(0, 150, 255, 0.5);
+  backdrop-filter: blur(5px);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.auth-header h1 {
+  color: white;
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #CCC;
+  font-size: 16px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 16px;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 5px rgba(0, 150, 255, 0.5);
+}
+
+.auth-footer {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.auth-links {
+  margin-top: 15px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.auth-links a {
+  color: #4d9eff;
+  text-decoration: none;
+  margin: 0 10px;
+  transition: color 0.3s ease;
+}
+
+.auth-links a:hover {
+  color: #80c0ff;
+  text-decoration: underline;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: rgba(0, 150, 255, 0.8);
+  color: white;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.btn-primary:hover {
+  background: rgba(0, 180, 255, 0.9);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #CCC;
+  border: 1px solid #CCC;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.error-message {
+  color: #ff5555;
+  margin-top: 5px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.success-message {
+  color: #55ff55;
+  margin-top: 5px;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Background stars */
+.stars {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: black;
+}
+
+.star {
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+  opacity: 0.8;
+}

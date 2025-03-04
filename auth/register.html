@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - Splitting Comets</title>
+  <link rel="stylesheet" href="auth.css">
+  <!-- Firebase App (the core Firebase SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <!-- Add Firebase Authentication -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <!-- Add Firebase Firestore -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1>Register for Splitting Comets</h1>
+      <p>Create an account to save your high scores</p>
+    </div>
+    
+    <form class="auth-form" id="register-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="Choose a username" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="Enter your email" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Create a password" required minlength="6">
+      </div>
+      
+      <div class="form-group">
+        <label for="confirm-password">Confirm Password</label>
+        <input type="password" id="confirm-password" placeholder="Confirm your password" required minlength="6">
+      </div>
+      
+      <div id="error-message" class="error-message"></div>
+      
+      <button type="submit" class="btn btn-primary">Create Account</button>
+    </form>
+    
+    <div class="auth-links">
+      <a href="login.html">Already have an account? Login here</a>
+    </div>
+  </div>
+
+  <script src="../js/auth.js"></script>
+  <script>
+    // Create animated stars background
+    function createStars() {
+      const starsContainer = document.getElementById('stars');
+      const numStars = 200;
+      
+      for (let i = 0; i < numStars; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        
+        // Random position
+        const x = Math.random() * window.innerWidth;
+        const y = Math.random() * window.innerHeight;
+        
+        // Random size
+        const size = Math.random() * 2 + 1;
+        
+        star.style.left = `${x}px`;
+        star.style.top = `${y}px`;
+        star.style.width = `${size}px`;
+        star.style.height = `${size}px`;
+        
+        // Twinkle animation
+        star.style.animation = `twinkle ${Math.random() * 3 + 2}s infinite`;
+        
+        starsContainer.appendChild(star);
+      }
+    }
+    
+    // Initialize the registration form
+    document.addEventListener('DOMContentLoaded', function() {
+      createStars();
+      
+      // Set up registration form submission
+      document.getElementById('register-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const username = document.getElementById('username').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        
+        // Check if passwords match
+        if (password !== confirmPassword) {
+          document.getElementById('error-message').textContent = 'Passwords do not match';
+          return;
+        }
+        
+        // Register function from auth.js
+        registerUser(email, password, username);
+      });
+    });
+  </script>
+</body>
+</html>

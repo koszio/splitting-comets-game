@@ -1,22 +1,18 @@
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCahej0453N9l26zjuHkXbGyMTyFTgJcw0",
-  authDomain: "splittingcomets.firebaseapp.com",
-  projectId: "splittingcomets",
-  storageBucket: "splittingcomets.firebasestorage.app",
-  messagingSenderId: "280991593341",
-  appId: "1:280991593341:web:b334e772452e026fcf1214",
-  measurementId: "G-18ESZSW9ME"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+// Firebase configuration is now in auth.js
+// Use the firebase instance that was already initialized in auth.js
 const db = firebase.firestore();
 
 // Function to check if the current score is a new high score and save it
 function updateHighScore(score, difficulty) {
   console.log(`Checking high score: ${score} points, difficulty: ${difficulty}`);
   
+  // Check if auth.js is loaded and use its function if available
+  if (typeof window.saveUserScore === 'function' && typeof currentUser !== 'undefined' && currentUser) {
+    console.log("Using auth.js saveUserScore function");
+    return window.saveUserScore(score, difficulty);
+  }
+  
+  // Fallback to original implementation if auth.js not loaded
   // Ensure difficulty is a valid string
   if (!difficulty || difficulty === "undefined") {
     difficulty = "medium"; // Default to medium difficulty
@@ -53,9 +49,20 @@ function updateHighScore(score, difficulty) {
       
       // If it's a new high score, save it
       if (isNewHighScore) {
+        // Try to get current user from auth.js
+        const username = (typeof currentUser !== 'undefined' && currentUser) 
+          ? (currentUser.username || currentUser.displayName || "Anonymous") 
+          : "Guest";
+        
+        const userId = (typeof currentUser !== 'undefined' && currentUser)
+          ? currentUser.uid
+          : "guest";
+          
         const scoreData = {
           score: score,
           difficulty: difficulty,
+          username: username,
+          userId: userId,
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           dateAchieved: new Date().toISOString()
         };
@@ -75,6 +82,12 @@ function updateHighScore(score, difficulty) {
 
 // Function to get the current high score for a difficulty level
 function getHighScore(difficulty = "medium") {
+  // Check if auth.js is loaded and use its function if available
+  if (typeof window.getHighScore === 'function' && window.getHighScore !== getHighScore) {
+    console.log("Using auth.js getHighScore function");
+    return window.getHighScore(difficulty);
+  }
+  
   const highScoreRef = db.collection('highscores').doc(`highscore_${difficulty}`);
   
   return highScoreRef.get()
@@ -84,15 +97,16 @@ function getHighScore(difficulty = "medium") {
         console.log(`Retrieved high score for ${difficulty}: ${highScoreData.score}`);
         return { 
           score: highScoreData.score, 
-          date: highScoreData.dateAchieved 
+          date: highScoreData.dateAchieved,
+          username: highScoreData.username || "Anonymous"
         };
       } else {
         console.log(`No high score found for ${difficulty}`);
-        return { score: 0, date: null };
+        return { score: 0, date: null, username: "None" };
       }
     })
     .catch(error => {
       console.error("Error getting high score:", error);
-      return { score: 0, date: null, error: error.message };
+      return { score: 0, date: null, username: "Error", error: error.message };
     });
 }
