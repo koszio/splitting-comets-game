@@ -677,6 +677,14 @@
       const TRIPLE_SHOT_POWERUP_COLOR = "#1e90ff"; // Dodger blue color
       const ENHANCED_SHOT_MULTIPLIER = 6; // For Infinity mode when reaching 150% spawn rate
       const TRIPLE_SHOT_SPAWN_TIME = 3; // Seconds before big comets to spawn power-up
+      
+      // Missile Barrage Power-up Constants
+      const MISSILE_BARRAGE_DURATION = 5; // Seconds the power-up lasts
+      const MISSILE_BARRAGE_POWERUP_COLOR = "#ffdd00"; // Yellow color
+      const MISSILE_SPAWN_FREQUENCY = 0.15; // Seconds between missile volleys
+      const MISSILE_SPEED = 900; // Pixels/sec (faster than normal bullets)
+      const MISSILE_DAMAGE = 3; // 3x normal damage
+      const MISSILE_ROTATION_SPEED = 5; // Rotation speed in radians per second
 
       // Normal Comets – speeds: 400 to 700
       const COMET_SPEED_MIN = 400;
@@ -763,6 +771,7 @@
       let selectedSettingsItem = 0;
       let selectedPauseMenuItem = 0; // For pause menu
       let previousGameState = null; // To track navigation between screens
+      let refreshButtonActive = false; // For scoreboard refresh button
 
       // Spaceship
       let spaceship = {
@@ -775,8 +784,14 @@
         hitPoints: 5,
         hitFlashTimer: 0,
         tripleShot: false,
-        tripleShotTimer: 0
+        tripleShotTimer: 0,
+        missileBarrageActive: false,
+        missileBarrageTimer: 0
       };
+      
+      // Missile barrage state variables
+      let lastMissileSpawnTime = 0;
+      let missilePatternRotation = 0; // Current rotation angle of the missile pattern
 
       let bullets = [];
       let sparks = [];
@@ -1479,16 +1494,57 @@
         ctx.fillText("HP:", x - 5, y + barHeight/2 + 4);
       }
 
+      // Helper function to check if a power-up of a specific type already exists
+      function powerUpTypeExists(type) {
+        return powerUps.some(pu => pu.type === type);
+      }
+      
       function spawnPowerUp() {
         let loc = getPowerUpSpawnLocation(); // Use the central spawn location
+        
+        // Define possible power-up types and their weights
+        const powerUpTypes = ["health", "tripleShot", "missileBarrage"];
+        let weightMap;
+        
+        if (currentDifficulty === DIFFICULTY.INFINITY) {
+          weightMap = {"health": 0.5, "tripleShot": 0.3, "missileBarrage": 0.2};
+        } else {
+          weightMap = {"health": 0.7, "tripleShot": 0.3, "missileBarrage": 0};
+        }
+        
+        // Filter out types that already exist as power-ups
+        const availableTypes = powerUpTypes.filter(type => !powerUpTypeExists(type));
+        
+        // If all types exist, default to health
+        let type = "health";
+        
+        if (availableTypes.length > 0) {
+          // Recalculate total weight and choose from available types
+          let totalWeight = 0;
+          for (const t of availableTypes) {
+            totalWeight += weightMap[t];
+          }
+          
+          const random = Math.random() * totalWeight;
+          let cumulativeWeight = 0;
+          
+          for (const t of availableTypes) {
+            cumulativeWeight += weightMap[t];
+            if (random < cumulativeWeight) {
+              type = t;
+              break;
+            }
+          }
+        }
+        
         return {
           x: loc.x,
           y: loc.y,
-          vx: randomRange(-40, 40), // Slightly slower movement
+          vx: randomRange(-40, 40),
           vy: randomRange(-40, 40),
           lifetime: 10,
           radius: POWERUP_RADIUS,
-          type: "health" // Default type is health
+          type: type
         };
       }
       
@@ -1504,6 +1560,96 @@
           type: "tripleShot",
           enhanced: currentDifficulty === DIFFICULTY.INFINITY && infinityModeSpawnMultiplier >= 1.5
         };
+      }
+      
+      // Function to spawn a missile barrage power-up (Infinity mode only)
+      function spawnMissileBarragePowerUp() {
+        let loc = getPowerUpSpawnLocation(); // Use the central spawn location
+        return {
+          x: loc.x,
+          y: loc.y,
+          vx: randomRange(-40, 40), // Slightly slower movement
+          vy: randomRange(-40, 40),
+          lifetime: 15, // Power-up exists for 15 seconds before disappearing
+          radius: POWERUP_RADIUS,
+          type: "missileBarrage"
+        };
+      }
+      
+      // Function to start missile barrage
+      function startMissileBarrage() {
+        spaceship.missileBarrageActive = true;
+        spaceship.missileBarrageTimer = MISSILE_BARRAGE_DURATION;
+        lastMissileSpawnTime = 0;
+        
+        // Play power-up activation sound
+        if (soundEnabled) {
+          powerUpSound.volume = 0.4;
+          powerUpSound.play().catch(err => console.error("Error playing powerup sound:", err));
+        }
+      }
+      
+      // Function to update missile barrage logic
+      function updateMissileBarrage(dt) {
+        if (!spaceship.missileBarrageActive) return;
+        
+        // Update missile barrage timer
+        spaceship.missileBarrageTimer -= dt;
+        lastMissileSpawnTime += dt;
+        
+        // Spawn missiles in 8 directions at set intervals
+        if (lastMissileSpawnTime >= MISSILE_SPAWN_FREQUENCY) {
+          lastMissileSpawnTime = 0;
+          spawnMissileVolley();
+        }
+        
+        // End missile barrage when timer expires
+        if (spaceship.missileBarrageTimer <= 0) {
+          spaceship.missileBarrageActive = false;
+        }
+      }
+      
+      // Function to spawn a volley of missiles in a rotating star pattern
+      function spawnMissileVolley() {
+        // Update rotation angle for this volley
+        missilePatternRotation += (Math.PI / 8); // Rotate pattern by 22.5 degrees each volley
+        
+        // Create a star pattern with 12 missiles (more missiles than before)
+        // 8 missiles in a circle + 4 missiles at 45° angles with different distances
+        for (let i = 0; i < 12; i++) {
+          // Base angle with current rotation
+          let angle;
+          let distanceMultiplier;
+          
+          if (i < 8) {
+            // First 8 missiles in a circle (45° intervals)
+            angle = missilePatternRotation + (i * Math.PI / 4);
+            distanceMultiplier = 1.0;
+          } else {
+            // Additional 4 missiles at 45° angles with longer range
+            angle = missilePatternRotation + ((i - 8) * Math.PI / 2 + Math.PI / 4);
+            distanceMultiplier = 1.2; // These missiles go a bit farther out
+          }
+          
+          // Create missile at spaceship position
+          bullets.push({
+            x: spaceship.x + Math.cos(angle) * spaceship.size * 1.2,
+            y: spaceship.y + Math.sin(angle) * spaceship.size * 1.2,
+            vx: Math.cos(angle) * MISSILE_SPEED * distanceMultiplier,
+            vy: Math.sin(angle) * MISSILE_SPEED * distanceMultiplier,
+            radius: 5, // Slightly larger than normal bullets
+            isMissile: true,
+            creation: gameTime // Track when the missile was created
+          });
+        }
+        
+        // Play missile firing sound
+        if (soundEnabled) {
+          bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+          bulletSoundPool[nextBulletSoundIndex].volume = 0.4; // Louder for missiles
+          bulletSoundPool[nextBulletSoundIndex].play();
+          nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+        }
       }
 
       // Timers
@@ -1879,31 +2025,13 @@
             }
           }
         } 
-        // How to Play screen
+        // How to Play or High Scores screens
         else if (gameState === GAME_STATE.HOW_TO_PLAY || gameState === GAME_STATE.HIGH_SCORES) {
           if (e.key === "Escape" || e.keyCode === 27 || e.key === "b" || e.code === "KeyB") {
-            // Return to previous screen (either game or main menu)
-            if (previousGameState === GAME_STATE.PAUSE_MENU) {
-              // Return to gameplay if we came from pause menu
-              gameState = GAME_STATE.PLAYING;
-              // Restore gameplay music and volume
-              if (musicEnabled) {
-                // First check if we need to change the track
-                if (currentMusicTrack !== "gameplay") {
-                  startGameplayMusic();
-                } else {
-                  // Just restore volume if track is already correct
-                  bgMusic.volume = 0.1;
-                }
-              }
-            } else {
-              // Otherwise return to main menu
-              gameState = GAME_STATE.MAIN_MENU;
-              // Ensure menu music is playing
-              if (musicEnabled && currentMusicTrack !== "menu") {
-                startMenuMusic();
-              }
-            }
+            console.log("ESC pressed in high scores or how to play screen");
+            // Go directly to main menu
+            updateGameState(GAME_STATE.MAIN_MENU);
+            startMenuMusic();
           }
         } 
         // Game over or win screens
@@ -1972,6 +2100,14 @@
         touchStartX = null;
         touchStartY = null;
       }, false);
+      
+      // Simplified click handler - temporarily disabled
+      canvas.addEventListener("click", function(e) {
+        // No button handlers for now - just log clicks in high score screen
+        if (gameState === GAME_STATE.HIGH_SCORES) {
+          console.log("High score screen clicked at:", e.clientX, e.clientY);
+        }
+      });
 
       // Utility
       function randomRange(min, max) {
@@ -2140,19 +2276,28 @@
       }
       
       // Create bullet impact effect when bullets hit comets
-      function createBulletImpact(x, y) {
-        const count = 8; // Fewer particles than a small explosion
+      function createBulletImpact(x, y, scale = 1, color = null) {
+        const count = 8 * scale; // Fewer particles than a small explosion, scaled based on parameter
         for (let i = 0; i < count; i++) {
           let angle = Math.random() * Math.PI * 2;
-          let speed = randomRange(30, 100); // Lower speed than explosion
+          let speed = randomRange(30, 100) * scale; // Lower speed than explosion, scaled
+          
+          // Allow custom color or use default colors
+          let particleColor;
+          if (color) {
+            particleColor = color;
+          } else {
+            particleColor = randomRange(0, 1) > 0.5 ? "orange" : "yellow"; // Mix of colors
+          }
+          
           smallExplosionParticles.push({
             x: x,
             y: y,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
-            lifetime: randomRange(0.1, 0.3), // Shorter lifetime  
-            size: randomRange(1, 3), // Smaller particles
-            color: randomRange(0, 1) > 0.5 ? "orange" : "yellow" // Mix of colors
+            lifetime: randomRange(0.1, 0.3) * scale, // Shorter lifetime, scaled
+            size: randomRange(1, 3) * scale, // Smaller particles, scaled
+            color: particleColor
           });
         }
       }
@@ -2349,6 +2494,10 @@
         spaceship.hitFlashTimer = 0;
         spaceship.tripleShot = false;
         spaceship.tripleShotTimer = 0;
+        spaceship.missileBarrageActive = false;
+        spaceship.missileBarrageTimer = 0;
+        
+        // Nothing to reset now that missile barrage is a pickup
         
         // Clear all game objects
         bullets = [];
@@ -3400,145 +3549,134 @@
         ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 30);
       }
       
-      // Draw the Scoreboard screen (placeholder)
+      // For future scoreboard implementation
+      // (currently using simplified placeholder)
+      
+      // Draw the Scoreboard screen with high scores from Firebase
       function drawHighScores() {
+        // Title
         ctx.fillStyle = "white";
         ctx.font = "36px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("Scoreboard", canvas.width / 2, canvas.height / 4);
+        ctx.fillText("High Scores", canvas.width/2, 80);
+
+        // Table layout constants
+        const startY = 150;
+        const rowHeight = 40;
+        const colWidth = 160;
+        const tableWidth = colWidth * 5; // 5 columns: Player + 4 difficulties
+        const tableX = (canvas.width - tableWidth) / 2;
+
+        // Draw table headers
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillStyle = "#00BFFF"; // Deep sky blue for headers
         
-        // Draw a score table for all difficulties
-        const tableTop = canvas.height / 3;
-        const tableWidth = 500;
-        const tableHeight = 280;
-        const tableLeft = (canvas.width - tableWidth) / 2;
-        
-        // Draw table background
-        ctx.fillStyle = "rgba(20, 30, 60, 0.4)";
-        ctx.strokeStyle = "rgba(80, 160, 255, 0.5)";
-        ctx.lineWidth = 2;
-        
-        // Draw rounded rectangle for table
-        const cornerRadius = 10;
-        ctx.beginPath();
-        ctx.moveTo(tableLeft + cornerRadius, tableTop);
-        ctx.lineTo(tableLeft + tableWidth - cornerRadius, tableTop);
-        ctx.quadraticCurveTo(tableLeft + tableWidth, tableTop, tableLeft + tableWidth, tableTop + cornerRadius);
-        ctx.lineTo(tableLeft + tableWidth, tableTop + tableHeight - cornerRadius);
-        ctx.quadraticCurveTo(tableLeft + tableWidth, tableTop + tableHeight, tableLeft + tableWidth - cornerRadius, tableTop + tableHeight);
-        ctx.lineTo(tableLeft + cornerRadius, tableTop + tableHeight);
-        ctx.quadraticCurveTo(tableLeft, tableTop + tableHeight, tableLeft, tableTop + tableHeight - cornerRadius);
-        ctx.lineTo(tableLeft, tableTop + cornerRadius);
-        ctx.quadraticCurveTo(tableLeft, tableTop, tableLeft + cornerRadius, tableTop);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        
-        // Table title with a stylish touch
-        ctx.fillStyle = "#FFD700"; // Gold color for the main title
-        ctx.font = "bold 26px sans-serif";
-        ctx.fillText("★ TOP PLAYERS ★", canvas.width / 2, tableTop + 40);
-        
-        // Subtitle
-        ctx.fillStyle = "rgba(200, 220, 255, 0.9)";
-        ctx.font = "20px sans-serif";
-        ctx.fillText("High Scores by Difficulty", canvas.width / 2, tableTop + 70);
-        
-        // Difficulty names and values
-        const difficulties = [
-          { name: "Easy", value: "easy" },
-          { name: "Medium", value: "medium" },
-          { name: "Hard", value: "hard" },
-          { name: "Infinity", value: "infinity" }
+        // Define and draw column headers
+        const columns = [
+            { title: "Player", x: tableX },
+            { title: "Easy", x: tableX + colWidth },
+            { title: "Medium", x: tableX + colWidth * 2 },
+            { title: "Hard", x: tableX + colWidth * 3 },
+            { title: "Infinity", x: tableX + colWidth * 4 }
         ];
-        
-        // Draw column headers
-        ctx.font = "20px sans-serif";
-        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-        const colWidth = tableWidth / (difficulties.length + 2); // +2 for Player column and Score row header
-        
-        // Create a header row
-        const headerY = tableTop + 110;
-        const scoreRowY = tableTop + 160; // Increased spacing for better separation
-        
-        // Draw column headers
-        ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(150, 200, 255, 0.9)"; // Soft blue for headers
-        
-        // Player column header
-        ctx.fillText("Player", tableLeft + colWidth, headerY);
-        
-        // Difficulty column headers
-        for (let i = 0; i < difficulties.length; i++) {
-          const x = tableLeft + colWidth * (i + 2); // +2 to account for Player column
-          ctx.fillText(difficulties[i].name, x, headerY);
-        }
-        
-        // Draw a subtle separator line
-        ctx.strokeStyle = "rgba(80, 160, 255, 0.3)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(tableLeft + 20, headerY + 15);
-        ctx.lineTo(tableLeft + tableWidth - 20, headerY + 15);
-        ctx.stroke();
-        
-        // Draw scores row
-        ctx.textAlign = "center";
-        ctx.font = "22px sans-serif";
-        
-        // Add player name in the first column - use current user's name if available
-        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-        const playerName = (typeof currentUser !== 'undefined' && currentUser) 
-          ? (currentUser.username || currentUser.displayName || "Guest") 
-          : "Guest";
-        ctx.fillText(playerName, tableLeft + colWidth, scoreRowY);
-        
-        for (let i = 0; i < difficulties.length; i++) {
-          const x = tableLeft + colWidth * (i + 2); // +2 to account for Player column
-          const diff = difficulties[i].value;
-          const score = highScores[diff] || 0;
-          
-          // Highlight higher scores with a gold color
-          if (score > 0) {
-            ctx.fillStyle = "#FFD700"; // Gold for scores
-          } else {
-            ctx.fillStyle = "rgba(200, 200, 200, 0.7)"; // Grey for zero scores
-          }
-          
-          ctx.fillText(score.toString(), x, scoreRowY);
-          
-          // Show username for each high score under the score value
-          if (score > 0 && highScores.usernames && highScores.usernames[diff]) {
-            ctx.font = "14px sans-serif";
-            ctx.fillStyle = "rgba(200, 200, 255, 0.8)";
-            ctx.fillText(highScores.usernames[diff], x, scoreRowY + 25);
-            ctx.font = "22px sans-serif"; // Reset font for next score
-          }
-        }
-        
-        // Draw last played score if available
-        ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(200, 200, 220, 0.8)";
-        ctx.font = "18px sans-serif";
-        
-        if (score > 0) {
-          ctx.fillText(`Your last game score: ${score} (${currentDifficulty})`, 
-                       canvas.width / 2, tableTop + tableHeight - 30);
-        }
-        
-        // Instructions with subtle backdrop at bottom
-        const instructY = canvas.height - 70;
-        const instructHeight = 50;
-        
-        // Draw semi-transparent backdrop for instructions
-        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-        ctx.fillRect(0, instructY, canvas.width, instructHeight);
-        
-        // Return instruction
+
+        // Draw header background
+        ctx.fillStyle = "rgba(0, 30, 60, 0.8)";
+        ctx.fillRect(tableX - 10, startY - 30, tableWidth + 20, 40);
+
+        // Draw column titles
+        ctx.fillStyle = "#00BFFF";
+        columns.forEach(col => {
+            ctx.textAlign = "center";
+            ctx.fillText(col.title, col.x + colWidth/2, startY);
+        });
+
+        // Fetch and display scores
+        firebase.firestore().collection('userScores')
+            .get()
+            .then(snapshot => {
+                let y = startY + rowHeight;
+                let rowCount = 0;
+
+                // Create a map to organize scores by user
+                const userScores = new Map();
+
+                // Collect all scores
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (!userScores.has(data.username)) {
+                        userScores.set(data.username, {
+                            easy: "---",
+                            medium: "---",
+                            hard: "---",
+                            infinity: "---"
+                        });
+                    }
+                    // Update the score for the specific difficulty
+                    userScores.get(data.username)[data.difficulty] = data.score;
+                });
+
+                // Convert to array and sort by highest total score
+                const sortedUsers = Array.from(userScores.entries())
+                    .sort((a, b) => {
+                        const totalA = Object.values(a[1]).reduce((sum, score) => 
+                            sum + (score === "---" ? 0 : parseInt(score)), 0);
+                        const totalB = Object.values(b[1]).reduce((sum, score) => 
+                            sum + (score === "---" ? 0 : parseInt(score)), 0);
+                        return totalB - totalA;
+                    });
+
+                // Draw each row
+                sortedUsers.forEach((userEntry, index) => {
+                    const [username, scores] = userEntry;
+                    
+                    // Alternate row backgrounds
+                    if (index % 2 === 0) {
+                        ctx.fillStyle = "rgba(0, 40, 80, 0.4)";
+                    } else {
+                        ctx.fillStyle = "rgba(0, 60, 120, 0.4)";
+                    }
+                    ctx.fillRect(tableX - 10, y - 25, tableWidth + 20, rowHeight);
+
+                    // Draw user data
+                    ctx.textAlign = "center";
+                    ctx.font = "18px sans-serif";
+
+                    // Username
+                    ctx.fillStyle = "white";
+                    ctx.fillText(username, tableX + colWidth/2, y);
+
+                    // Scores for each difficulty
+                    ["easy", "medium", "hard", "infinity"].forEach((diff, i) => {
+                        const score = scores[diff];
+                        ctx.fillStyle = score === "---" ? "#666" : "#FFD700";
+                        ctx.fillText(score, tableX + colWidth * (i + 1.5), y);
+                    });
+
+                    y += rowHeight;
+                    rowCount++;
+                });
+
+                // If no scores found
+                if (rowCount === 0) {
+                    ctx.fillStyle = "white";
+                    ctx.font = "20px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("No scores recorded yet!", canvas.width/2, startY + rowHeight);
+                }
+            })
+            .catch(error => {
+                console.error("Error fetching scores:", error);
+                ctx.fillStyle = "red";
+                ctx.textAlign = "center";
+                ctx.fillText("Error loading scores", canvas.width/2, startY + rowHeight);
+            });
+
+        // Instructions at bottom
         ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
         ctx.font = "18px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("ESC: Return to main menu", canvas.width / 2, instructY + 30);
+        ctx.fillText("Press ESC to return to main menu", canvas.width/2, canvas.height - 40);
       }
       
       // Main draw function
@@ -3764,6 +3902,11 @@
             glowColor = "#80c0ff"; // Light blue glow
             particleColor = "#00ccff"; // Cyan particles
             iconText = pu.enhanced ? "6X" : "3X";
+          } else if (pu.type === "missileBarrage") {
+            coreColor = "#ffdd00"; // Bright yellow core
+            glowColor = "#ffe680"; // Light yellow glow
+            particleColor = "#ffcc00"; // Golden particles
+            iconText = "MB"; // Missile Barrage
           } else {
             // Default health power-up
             coreColor = "#ff3030"; // Bright red core
@@ -3922,6 +4065,36 @@
           
           ctx.restore();
         }
+        
+        // Display missile barrage timer if active
+        if (spaceship.missileBarrageActive) {
+          const timerWidth = 80;
+          const timerHeight = 6;
+          const timeLeft = spaceship.missileBarrageTimer / MISSILE_BARRAGE_DURATION;
+          
+          ctx.save();
+          // Position below triple shot timer (if showing)
+          const x = canvas.width - 120;
+          const y = spaceship.tripleShot ? 65 : 45;
+          
+          // Timer background
+          ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+          ctx.fillRect(x, y, timerWidth, timerHeight);
+          
+          // Timer fill
+          ctx.fillStyle = MISSILE_BARRAGE_POWERUP_COLOR;
+          ctx.fillRect(x, y, timerWidth * timeLeft, timerHeight);
+          
+          // Timer text
+          ctx.font = "12px Arial";
+          ctx.fillStyle = "white";
+          ctx.textAlign = "center";
+          ctx.fillText("MISSILES", x + timerWidth/2, y - 5);
+          
+          ctx.restore();
+        }
+        
+        // No longer showing the missile barrage timer since it's now a pickup
 
         // Spaceship
         drawSpaceship();
@@ -3944,11 +4117,65 @@
         ctx.restore();
 
         // Bullets
-        ctx.fillStyle = "white";
         for (let b of bullets) {
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-          ctx.fill();
+          if (b.isMissile) {
+            // Draw missile with special styling
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(Math.atan2(b.vy, b.vx));
+            
+            // Age-based color effects (missiles change color as they travel)
+            const age = gameTime - (b.creation || 0);
+            const colorPhase = Math.sin(age * 10) * 0.5 + 0.5; // Oscillate between 0-1
+            
+            // Color shifts from yellow to orange to red
+            let missileColor;
+            if (colorPhase < 0.33) {
+              missileColor = "rgba(255, 255, 0, 0.9)"; // Yellow
+            } else if (colorPhase < 0.66) {
+              missileColor = "rgba(255, 200, 0, 0.9)"; // Orange-yellow
+            } else {
+              missileColor = "rgba(255, 150, 0, 0.9)"; // Orange
+            }
+            
+            // Missile body (better triangle shape with glow)
+            ctx.fillStyle = missileColor;
+            
+            // Add glow effect
+            ctx.shadowColor = missileColor;
+            ctx.shadowBlur = 10;
+            
+            // Modified shape - more rocket-like
+            ctx.beginPath();
+            ctx.moveTo(b.radius * 2.5, 0); // Pointier front
+            ctx.lineTo(-b.radius, b.radius * 1.2); // Wider back
+            ctx.lineTo(-b.radius * 0.5, 0); // Indent for engine
+            ctx.lineTo(-b.radius, -b.radius * 1.2); // Wider back
+            ctx.closePath();
+            ctx.fill();
+            
+            // Missile trail
+            ctx.shadowBlur = 15; // More pronounced glow for trail
+            ctx.beginPath();
+            ctx.moveTo(-b.radius * 0.5, 0);
+            ctx.lineTo(-b.radius * 8, 0);
+            const trailGradient = ctx.createLinearGradient(-b.radius, 0, -b.radius * 8, 0);
+            trailGradient.addColorStop(0, missileColor);
+            trailGradient.addColorStop(0.3, "rgba(255, 200, 100, 0.7)");
+            trailGradient.addColorStop(0.7, "rgba(255, 100, 50, 0.3)");
+            trailGradient.addColorStop(1, "rgba(255, 50, 0, 0)");
+            ctx.strokeStyle = trailGradient;
+            ctx.lineWidth = b.radius * (1.5 + Math.sin(age * 15) * 0.3); // Pulsing trail width
+            ctx.stroke();
+            
+            ctx.restore();
+          } else {
+            // Normal bullet
+            ctx.fillStyle = "white";
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
 
         // Normal Comets
@@ -4046,8 +4273,11 @@
 
         // Triple shot timer is now updated earlier in the update cycle
         
+        // Update missile barrage system
+        updateMissileBarrage(dt);
+        
         // Check if we should spawn a triple shot power-up before big comets
-        if (!tripleShootPowerUpSpawned && bigComets.length === 0) {
+        if (!tripleShootPowerUpSpawned && bigComets.length === 0 && !powerUpTypeExists("tripleShot")) {
           tripleShootPowerUpTimer += dt;
           // Spawn triple shot power-up TRIPLE_SHOT_SPAWN_TIME seconds before next big comet
           if (BIG_COMET_SPAWN_INTERVAL - bigCometSpawnTimer <= TRIPLE_SHOT_SPAWN_TIME && tripleShootPowerUpTimer >= 2) {
@@ -4059,6 +4289,9 @@
           // Reset flag when big comets are present
           tripleShootPowerUpSpawned = false;
         }
+        
+        // Reset the missileBarrageSpawnTimer to eliminate automatic spawning
+        // All missile barrage power-ups will now come from random pickups
 
         // Regular power-ups
         powerUpSpawnTimer += dt;
@@ -4088,6 +4321,9 @@
               // Activate triple shot or enhanced shot in infinity mode
               spaceship.tripleShot = true;
               spaceship.tripleShotTimer = TRIPLE_SHOT_DURATION;
+            } else if (pu.type === "missileBarrage") {
+              // Activate missile barrage (Infinity mode only)
+              startMissileBarrage();
             }
             
             // Play power-up sound
@@ -4350,7 +4586,8 @@
                 y: pos.y,
                 vx: Math.cos(angle) * BULLET_SPEED + spaceship.vx,
                 vy: Math.sin(angle) * BULLET_SPEED + spaceship.vy,
-                radius: BULLET_RADIUS
+                radius: BULLET_RADIUS,
+                isMissile: false
               };
               bullets.push(bullet);
             }
@@ -4455,10 +4692,19 @@
                   lastHitSoundTime = now;
                 }
               }
-              c.hitPoints--;
               
-              // Create bullet impact effect for visual feedback
-              createBulletImpact(b.x, b.y);
+              // Apply damage based on bullet type
+              if (b.isMissile) {
+                // Missiles do more damage
+                c.hitPoints -= MISSILE_DAMAGE;
+                // Create larger impact effect with yellow color
+                createBulletImpact(b.x, b.y, 1.5, "yellow");
+              } else {
+                // Normal bullet damage
+                c.hitPoints--;
+                // Create regular impact effect
+                createBulletImpact(b.x, b.y);
+              }
               
               // slow effect if tier 3
               if (c.tier === 3 && c.slowEffectTimer === 0) {

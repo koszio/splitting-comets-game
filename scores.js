@@ -1,6 +1,6 @@
 // Firebase configuration is now in auth.js
 // Use the firebase instance that was already initialized in auth.js
-const db = firebase.firestore();
+// DO NOT declare db again since it's declared in auth.js
 
 // Function to check if the current score is a new high score and save it
 function updateHighScore(score, difficulty) {
@@ -67,6 +67,9 @@ function updateHighScore(score, difficulty) {
           dateAchieved: new Date().toISOString()
         };
         
+        // Also save the score to the user scores collection for the leaderboard
+        saveScore(username, score, difficulty);
+        
         return highScoreRef.set(scoreData)
           .then(() => {
             console.log(`High score updated: ${score}`);
@@ -76,6 +79,31 @@ function updateHighScore(score, difficulty) {
     })
     .catch(error => {
       console.error("Error updating high score:", error);
+      return { success: false, error: error.message };
+    });
+}
+
+// Function to save a user score to the userScores collection (for leaderboard)
+function saveScore(username, score, difficulty) {
+  console.log("Saving score:", { username, score, difficulty });
+  
+  const scoreData = {
+    username: username,
+    userId: firebase.auth().currentUser?.uid || 'anonymous',
+    score: Number(score), // Ensure score is a number
+    difficulty: difficulty.toLowerCase(), // Ensure consistent case
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  return firebase.firestore()
+    .collection('userScores')
+    .add(scoreData)
+    .then(docRef => {
+      console.log("Score saved successfully:", docRef.id);
+      return { success: true };
+    })
+    .catch(error => {
+      console.error("Error saving score:", error);
       return { success: false, error: error.message };
     });
 }
@@ -109,4 +137,11 @@ function getHighScore(difficulty = "medium") {
       console.error("Error getting high score:", error);
       return { score: 0, date: null, username: "Error", error: error.message };
     });
+}
+
+// Function to save a user score (placeholder for future implementation)
+function saveScore(username, score, difficulty) {
+  console.log(`Would save score: ${score} for ${username} (${difficulty})`);
+  // This function will be implemented in the future
+  return Promise.resolve({ success: true });
 }
