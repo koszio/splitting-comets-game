@@ -3074,11 +3074,65 @@
       
       // Draw the Main Menu
       function drawMainMenu() {
-        // Game Title
-        ctx.fillStyle = "white";
-        ctx.font = "48px sans-serif";
+        // Game Title with enhanced styling
+        const titleY = canvas.height / 4;
+        
+        // Draw outer glow
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = "rgba(0, 150, 255, 0.8)";
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 52px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("Splitting Comets", canvas.width / 2, canvas.height / 4);
+        ctx.fillText("SPLITTING COMETS", canvas.width / 2, titleY);
+        ctx.restore();
+        
+        // Draw subtle text stroke
+        ctx.save();
+        ctx.strokeStyle = "rgba(0, 200, 255, 0.6)";
+        ctx.lineWidth = 2;
+        ctx.font = "bold 52px sans-serif";
+        ctx.textAlign = "center";
+        ctx.strokeText("SPLITTING COMETS", canvas.width / 2, titleY);
+        
+        // Main text with gradient
+        const gradient = ctx.createLinearGradient(
+          canvas.width/2 - 200, titleY - 40, 
+          canvas.width/2 + 200, titleY + 10
+        );
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(0.5, "#80c0ff");
+        gradient.addColorStop(1, "#ffffff");
+        
+        ctx.fillStyle = gradient;
+        ctx.font = "bold 52px sans-serif";
+        ctx.fillText("SPLITTING COMETS", canvas.width / 2, titleY);
+        ctx.restore();
+        
+        // Add a subtle animated underline
+        const lineWidth = 320;
+        const lineTime = performance.now() / 1000;
+        
+        ctx.save();
+        ctx.strokeStyle = "rgba(0, 150, 255, 0.7)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        
+        // Wavy animated line
+        for (let x = -lineWidth/2; x < lineWidth/2; x++) {
+          const waveHeight = 3 * Math.sin((x / 30) + lineTime * 2);
+          const xPos = canvas.width/2 + x;
+          const yPos = titleY + 15 + waveHeight;
+          
+          if (x === -lineWidth/2) {
+            ctx.moveTo(xPos, yPos);
+          } else {
+            ctx.lineTo(xPos, yPos);
+          }
+        }
+        
+        ctx.stroke();
+        ctx.restore();
         
         // Menu options
         const menuY = canvas.height / 2 - 40;
