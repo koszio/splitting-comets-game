@@ -3072,8 +3072,298 @@
       // Call initialization on startup
       initPulsar();
       
+      // Function to draw background spaceships
+      function drawBackgroundSpaceships() {
+        const time = performance.now() / 2000; // Slower animation cycle
+        
+        // Draw three additional spaceships with different properties
+        drawSpaceship1(time);
+        drawSpaceship2(time);
+        drawSpaceship3(time);
+        
+        // Draw the main large rocket
+        drawLargeBackgroundRocket();
+      }
+      
+      // First additional spaceship (small, distant)
+      function drawSpaceship1(time) {
+        // Position in top left area
+        const shipX = canvas.width * 0.2;
+        const shipY = canvas.height * 0.25;
+        const shipSize = canvas.height * 0.15; // Smaller size
+        const shipTilt = Math.PI / 12; // Slight positive tilt
+        
+        // Very subtle movement
+        const floatX = Math.sin(time * 0.8) * 3;
+        const floatY = Math.cos(time * 0.6) * 2;
+        
+        ctx.save();
+        ctx.translate(shipX + floatX, shipY + floatY);
+        ctx.rotate(shipTilt);
+        
+        // Most transparent (appears furthest)
+        ctx.globalAlpha = 0.08;
+        
+        // Draw simplified ship
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "rgba(150, 200, 255, 0.5)";
+        ctx.lineWidth = shipSize * 0.02;
+        
+        // Ship body
+        ctx.beginPath();
+        ctx.moveTo(0, -shipSize/2); // Top point
+        ctx.lineTo(shipSize/5, shipSize/2); // Bottom right
+        ctx.lineTo(-shipSize/5, shipSize/2); // Bottom left
+        ctx.closePath();
+        ctx.fill();
+        
+        // Small exhaust flame
+        const flameHeight = shipSize/5 + Math.sin(time * 5) * shipSize/25;
+        
+        const flameGradient = ctx.createLinearGradient(
+          0, shipSize/2,
+          0, shipSize/2 + flameHeight
+        );
+        flameGradient.addColorStop(0, "rgba(255, 200, 50, 0.6)");
+        flameGradient.addColorStop(1, "rgba(255, 100, 50, 0)");
+        
+        ctx.fillStyle = flameGradient;
+        ctx.beginPath();
+        ctx.moveTo(-shipSize/10, shipSize/2); // Left base
+        ctx.quadraticCurveTo(0, shipSize/2 + flameHeight, shipSize/10, shipSize/2); // Curve to right
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+      }
+      
+      // Second additional spaceship (medium, different design)
+      function drawSpaceship2(time) {
+        // Position in bottom left
+        const shipX = canvas.width * 0.25;
+        const shipY = canvas.height * 0.7;
+        const shipSize = canvas.height * 0.2; // Medium size
+        const shipTilt = -Math.PI / 18; // Small negative tilt
+        
+        // Medium movement
+        const floatX = Math.sin(time * 0.5 + 1) * 4;
+        const floatY = Math.cos(time * 0.7 + 2) * 3;
+        
+        ctx.save();
+        ctx.translate(shipX + floatX, shipY + floatY);
+        ctx.rotate(shipTilt);
+        
+        // Medium transparency
+        ctx.globalAlpha = 0.12;
+        
+        // Draw slightly different ship design
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "rgba(150, 200, 255, 0.6)";
+        ctx.lineWidth = shipSize * 0.015;
+        
+        // Ship body (more rounded)
+        ctx.beginPath();
+        ctx.moveTo(0, -shipSize/2); // Top point
+        ctx.quadraticCurveTo(shipSize/4, 0, shipSize/5, shipSize/2); // Right curve
+        ctx.lineTo(-shipSize/5, shipSize/2); // Bottom
+        ctx.quadraticCurveTo(-shipSize/4, 0, 0, -shipSize/2); // Left curve
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Window
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(150, 220, 255, 0.7)";
+        ctx.arc(0, -shipSize/6, shipSize/15, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Ship fins
+        ctx.beginPath();
+        ctx.moveTo(-shipSize/5, shipSize/3);
+        ctx.lineTo(-shipSize/3, shipSize/2);
+        ctx.lineTo(-shipSize/5, shipSize/2);
+        
+        ctx.moveTo(shipSize/5, shipSize/3);
+        ctx.lineTo(shipSize/3, shipSize/2);
+        ctx.lineTo(shipSize/5, shipSize/2);
+        ctx.stroke();
+        
+        // Medium exhaust flame
+        const flameHeight = shipSize/4 + Math.sin(time * 7) * shipSize/20;
+        
+        const flameGradient = ctx.createLinearGradient(
+          0, shipSize/2,
+          0, shipSize/2 + flameHeight
+        );
+        flameGradient.addColorStop(0, "rgba(255, 180, 50, 0.7)");
+        flameGradient.addColorStop(0.6, "rgba(255, 100, 50, 0.4)");
+        flameGradient.addColorStop(1, "rgba(255, 50, 20, 0)");
+        
+        ctx.fillStyle = flameGradient;
+        ctx.beginPath();
+        ctx.moveTo(-shipSize/7, shipSize/2);
+        ctx.quadraticCurveTo(0, shipSize/2 + flameHeight * 1.1, 0, shipSize/2 + flameHeight);
+        ctx.quadraticCurveTo(0, shipSize/2 + flameHeight * 1.1, shipSize/7, shipSize/2);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+      }
+      
+      // Third additional spaceship (larger, more visible)
+      function drawSpaceship3(time) {
+        // Position in middle right area
+        const shipX = canvas.width * 0.6;
+        const shipY = canvas.height * 0.4;
+        const shipSize = canvas.height * 0.25; // Larger size
+        const shipTilt = Math.PI / 24; // Very slight tilt
+        
+        // More noticeable movement
+        const floatX = Math.sin(time * 0.6 + 2) * 6;
+        const floatY = Math.cos(time * 0.4 + 1) * 5;
+        
+        ctx.save();
+        ctx.translate(shipX + floatX, shipY + floatY);
+        ctx.rotate(shipTilt);
+        
+        // Most visible of the three additional ships
+        ctx.globalAlpha = 0.13;
+        
+        // Draw more detailed ship
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "rgba(150, 200, 255, 0.7)";
+        ctx.lineWidth = shipSize * 0.02;
+        
+        // Ship body
+        ctx.beginPath();
+        ctx.moveTo(0, -shipSize/2); // Top point
+        ctx.lineTo(shipSize/4, shipSize/2); // Bottom right
+        ctx.lineTo(-shipSize/4, shipSize/2); // Bottom left
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Window
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(150, 220, 255, 0.7)";
+        ctx.arc(0, -shipSize/5, shipSize/10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Ship fins (more prominent)
+        ctx.beginPath();
+        // Left fin
+        ctx.moveTo(-shipSize/4, shipSize/3);
+        ctx.lineTo(-shipSize/2.5, shipSize/2 + shipSize/6);
+        ctx.lineTo(-shipSize/6, shipSize/2);
+        // Right fin
+        ctx.moveTo(shipSize/4, shipSize/3);
+        ctx.lineTo(shipSize/2.5, shipSize/2 + shipSize/6);
+        ctx.lineTo(shipSize/6, shipSize/2);
+        ctx.stroke();
+        
+        // Larger flame
+        const flameHeight = shipSize/3 + Math.sin(time * 8) * shipSize/15;
+        
+        const flameGradient = ctx.createLinearGradient(
+          0, shipSize/2,
+          0, shipSize/2 + flameHeight
+        );
+        flameGradient.addColorStop(0, "rgba(255, 220, 50, 0.8)");
+        flameGradient.addColorStop(0.5, "rgba(255, 130, 50, 0.5)");
+        flameGradient.addColorStop(1, "rgba(255, 70, 20, 0)");
+        
+        ctx.fillStyle = flameGradient;
+        ctx.beginPath();
+        ctx.moveTo(-shipSize/5, shipSize/2);
+        ctx.quadraticCurveTo(0, shipSize/2 + flameHeight * 1.2, 0, shipSize/2 + flameHeight);
+        ctx.quadraticCurveTo(0, shipSize/2 + flameHeight * 1.2, shipSize/5, shipSize/2);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+      }
+      
+      // Function to draw a large background rocket
+      function drawLargeBackgroundRocket() {
+        const rocketTime = performance.now() / 2000; // Slower animation
+        
+        // Position on the right side of the screen, tilted
+        const rocketX = canvas.width * 0.85;
+        const rocketY = canvas.height * 0.65;
+        const rocketSize = canvas.height * 0.45; // Large size (45% of screen height)
+        const rocketTilt = -Math.PI / 9; // Approx -20 degrees tilt
+        
+        // Subtle floating motion
+        const floatX = Math.sin(rocketTime * 0.7) * 5; 
+        const floatY = Math.cos(rocketTime * 0.5) * 5;
+        
+        ctx.save();
+        // Translate to position and apply tilt
+        ctx.translate(rocketX + floatX, rocketY + floatY);
+        ctx.rotate(rocketTilt);
+        
+        // Semi-transparent rocket for background effect
+        ctx.globalAlpha = 0.15;
+        
+        // Rocket body
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "rgba(150, 200, 255, 0.7)";
+        ctx.lineWidth = rocketSize * 0.02;
+        
+        // Main rocket body
+        ctx.beginPath();
+        ctx.moveTo(0, -rocketSize/2); // Top point
+        ctx.lineTo(rocketSize/5, rocketSize/2); // Bottom right
+        ctx.lineTo(-rocketSize/5, rocketSize/2); // Bottom left
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Rocket window
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(150, 200, 255, 0.6)";
+        ctx.arc(0, -rocketSize/6, rocketSize/12, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Rocket fins
+        ctx.beginPath();
+        // Left fin
+        ctx.moveTo(-rocketSize/5, rocketSize/2);
+        ctx.lineTo(-rocketSize/3, rocketSize/2 + rocketSize/6);
+        ctx.lineTo(-rocketSize/6, rocketSize/2);
+        // Right fin
+        ctx.moveTo(rocketSize/5, rocketSize/2);
+        ctx.lineTo(rocketSize/3, rocketSize/2 + rocketSize/6);
+        ctx.lineTo(rocketSize/6, rocketSize/2);
+        ctx.stroke();
+        
+        // Rocket exhaust/flame (animated)
+        const flameHeight = rocketSize/3 + Math.sin(rocketTime * 6) * rocketSize/20;
+        
+        const flameGradient = ctx.createLinearGradient(
+          0, rocketSize/2,
+          0, rocketSize/2 + flameHeight
+        );
+        flameGradient.addColorStop(0, "rgba(255, 200, 50, 0.6)");
+        flameGradient.addColorStop(0.7, "rgba(255, 100, 50, 0.3)");
+        flameGradient.addColorStop(1, "rgba(255, 50, 20, 0)");
+        
+        ctx.fillStyle = flameGradient;
+        ctx.beginPath();
+        ctx.moveTo(-rocketSize/6, rocketSize/2); // Left base
+        ctx.quadraticCurveTo(0, rocketSize/2 + flameHeight * 1.2, 0, rocketSize/2 + flameHeight); // Curve to bottom
+        ctx.quadraticCurveTo(0, rocketSize/2 + flameHeight * 1.2, rocketSize/6, rocketSize/2); // Curve to right
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+      }
+      
       // Draw the Main Menu
       function drawMainMenu() {
+        // Draw all background spaceships
+        drawBackgroundSpaceships();
+        
         // Game Title with enhanced styling
         const titleY = canvas.height / 4;
         
@@ -3132,6 +3422,98 @@
         }
         
         ctx.stroke();
+        ctx.restore();
+        
+        // Add minimalistic rocket and comet
+        const rocketTime = performance.now() / 1000;
+        
+        // Draw comet (right side)
+        ctx.save();
+        const cometX = canvas.width/2 + 230;
+        const cometY = titleY - 15;
+        const cometTilt = Math.PI * 0.25; // Angle for comet trajectory
+        const cometFloat = Math.sin(rocketTime * 1.5) * 5; // Subtle floating motion
+        
+        // Draw comet body (semi-transparent circle)
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(180, 220, 255, 0.7)";
+        ctx.strokeStyle = "rgba(220, 240, 255, 0.9)";
+        ctx.lineWidth = 1.5;
+        ctx.arc(cometX, cometY + cometFloat, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Draw comet tail
+        ctx.beginPath();
+        const tailGradient = ctx.createLinearGradient(
+          cometX, cometY + cometFloat,
+          cometX - 40, cometY + cometFloat - 40
+        );
+        tailGradient.addColorStop(0, "rgba(180, 220, 255, 0.7)");
+        tailGradient.addColorStop(1, "rgba(180, 220, 255, 0)");
+        
+        ctx.fillStyle = tailGradient;
+        ctx.moveTo(cometX, cometY + cometFloat);
+        ctx.lineTo(cometX - 45, cometY + cometFloat - 45);
+        ctx.lineTo(cometX - 30, cometY + cometFloat - 25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        
+        // Draw rocket (left side)
+        ctx.save();
+        const rocketX = canvas.width/2 - 230;
+        const rocketY = titleY + 15;
+        const rocketFloat = Math.sin(rocketTime) * 3; // Subtle floating motion
+        
+        // Rocket body
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "rgba(100, 180, 255, 0.8)";
+        ctx.lineWidth = 1.5;
+        
+        // Main rocket body
+        ctx.beginPath();
+        ctx.moveTo(rocketX, rocketY + rocketFloat - 20); // Top point
+        ctx.lineTo(rocketX + 8, rocketY + rocketFloat); // Bottom right
+        ctx.lineTo(rocketX - 8, rocketY + rocketFloat); // Bottom left
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Rocket window
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(100, 180, 255, 0.8)";
+        ctx.arc(rocketX, rocketY + rocketFloat - 10, 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Rocket fins
+        ctx.beginPath();
+        ctx.moveTo(rocketX - 8, rocketY + rocketFloat); // Left bottom
+        ctx.lineTo(rocketX - 12, rocketY + rocketFloat + 5); // Left fin
+        ctx.lineTo(rocketX - 6, rocketY + rocketFloat); // Back to rocket
+        ctx.moveTo(rocketX + 8, rocketY + rocketFloat); // Right bottom
+        ctx.lineTo(rocketX + 12, rocketY + rocketFloat + 5); // Right fin
+        ctx.lineTo(rocketX + 6, rocketY + rocketFloat); // Back to rocket
+        ctx.stroke();
+        
+        // Rocket exhaust/flame (animated)
+        const flameHeight = 6 + Math.sin(rocketTime * 10) * 2; // Animate flame
+        
+        const flameGradient = ctx.createLinearGradient(
+          rocketX, rocketY + rocketFloat,
+          rocketX, rocketY + rocketFloat + flameHeight + 5
+        );
+        flameGradient.addColorStop(0, "rgba(255, 200, 50, 0.9)");
+        flameGradient.addColorStop(1, "rgba(255, 100, 50, 0)");
+        
+        ctx.fillStyle = flameGradient;
+        ctx.beginPath();
+        ctx.moveTo(rocketX - 5, rocketY + rocketFloat); // Left base
+        ctx.lineTo(rocketX, rocketY + rocketFloat + flameHeight + 5); // Bottom point
+        ctx.lineTo(rocketX + 5, rocketY + rocketFloat); // Right base
+        ctx.closePath();
+        ctx.fill();
+        
         ctx.restore();
         
         // Menu options
