@@ -64,6 +64,8 @@
   <script src="js/auth.js"></script>
   <!-- Include the scores.js file with Firebase code -->
   <script src="scores.js"></script>
+  <script src="scoreboard.js"></script>
+
 </head>
 
 <body>
@@ -2030,6 +2032,7 @@
           if (e.key === "Escape" || e.keyCode === 27 || e.key === "b" || e.code === "KeyB") {
             console.log("ESC pressed in high scores or how to play screen");
             // Go directly to main menu
+            gameState = GAME_STATE.MAIN_MENU;
             updateGameState(GAME_STATE.MAIN_MENU);
             startMenuMusic();
           }
@@ -3591,45 +3594,14 @@
             ctx.fillText(col.title, col.x + colWidth/2, startY);
         });
 
-        // Fetch and display scores
-        firebase.firestore().collection('userScores')
-            .get()
-            .then(snapshot => {
+        // Fetch and display scores using getAllPlayerScores function
+        getAllPlayerScores()
+            .then(playerScores => {
                 let y = startY + rowHeight;
                 let rowCount = 0;
 
-                // Create a map to organize scores by user
-                const userScores = new Map();
-
-                // Collect all scores
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    if (!userScores.has(data.username)) {
-                        userScores.set(data.username, {
-                            easy: "---",
-                            medium: "---",
-                            hard: "---",
-                            infinity: "---"
-                        });
-                    }
-                    // Update the score for the specific difficulty
-                    userScores.get(data.username)[data.difficulty] = data.score;
-                });
-
-                // Convert to array and sort by highest total score
-                const sortedUsers = Array.from(userScores.entries())
-                    .sort((a, b) => {
-                        const totalA = Object.values(a[1]).reduce((sum, score) => 
-                            sum + (score === "---" ? 0 : parseInt(score)), 0);
-                        const totalB = Object.values(b[1]).reduce((sum, score) => 
-                            sum + (score === "---" ? 0 : parseInt(score)), 0);
-                        return totalB - totalA;
-                    });
-
                 // Draw each row
-                sortedUsers.forEach((userEntry, index) => {
-                    const [username, scores] = userEntry;
-                    
+                playerScores.forEach((player, index) => {
                     // Alternate row backgrounds
                     if (index % 2 === 0) {
                         ctx.fillStyle = "rgba(0, 40, 80, 0.4)";
@@ -3644,12 +3616,12 @@
 
                     // Username
                     ctx.fillStyle = "white";
-                    ctx.fillText(username, tableX + colWidth/2, y);
+                    ctx.fillText(player.username, tableX + colWidth/2, y);
 
                     // Scores for each difficulty
                     ["easy", "medium", "hard", "infinity"].forEach((diff, i) => {
-                        const score = scores[diff];
-                        ctx.fillStyle = score === "---" ? "#666" : "#FFD700";
+                        const score = player.scores[diff] || "---";
+                        ctx.fillStyle = score === 0 || score === "---" ? "#666" : "#FFD700";
                         ctx.fillText(score, tableX + colWidth * (i + 1.5), y);
                     });
 

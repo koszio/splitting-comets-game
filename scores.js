@@ -139,9 +139,65 @@ function getHighScore(difficulty = "medium") {
     });
 }
 
-// Function to save a user score (placeholder for future implementation)
-function saveScore(username, score, difficulty) {
-  console.log(`Would save score: ${score} for ${username} (${difficulty})`);
-  // This function will be implemented in the future
-  return Promise.resolve({ success: true });
+// Function to get all player scores for the leaderboard
+function getAllPlayerScores() {
+  console.log("Getting all player scores...");
+  
+  return db.collection('userScores')
+    .get()
+    .then(snapshot => {
+      console.log("Retrieved scores, count:", snapshot.size);
+      
+      // Group scores by player and keep highest score per difficulty
+      const playerScores = {};
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        
+        // Skip invalid data
+        if (!data.username || !data.difficulty || typeof data.score !== 'number') {
+          console.warn("Skipping invalid score data:", data);
+          return;
+        }
+        
+        const username = data.username;
+        const difficulty = data.difficulty.toLowerCase();
+        const score = data.score;
+        
+        // Initialize player entry if needed
+        if (!playerScores[username]) {
+          playerScores[username] = {
+            username: username,
+            scores: {
+              easy: 0,
+              medium: 0,
+              hard: 0,
+              infinity: 0
+            }
+          };
+        }
+        
+        // Update score if higher than existing
+        if (score > playerScores[username].scores[difficulty]) {
+          playerScores[username].scores[difficulty] = score;
+        }
+      });
+      
+      // Convert to array and sort by total score
+      const sortedPlayers = Object.values(playerScores).sort((a, b) => {
+        const totalA = a.scores.easy + a.scores.medium + a.scores.hard + a.scores.infinity;
+        const totalB = b.scores.easy + b.scores.medium + b.scores.hard + b.scores.infinity;
+        return totalB - totalA;
+      });
+      
+      // Limit to 10 players for better performance
+      return sortedPlayers.slice(0, 10);
+    })
+    .catch(error => {
+      console.error("Error fetching player scores:", error);
+      return [];
+    });
 }
+
+// Expose the function globally so it can be accessed from index.html
+window.getAllPlayerScores = getAllPlayerScores;
