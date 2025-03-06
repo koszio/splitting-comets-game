@@ -800,6 +800,9 @@
         angle: 0,
         size: SHIP_SIZE,
         hitPoints: 5,
+        previousHitPoints: 5, // Track previous health for shake detection
+        healthShakeTimer: 0,  // Timer for health bar shake animation
+        healthScaleTimer: 0,  // Timer for health bar scale animation
         hitFlashTimer: 0,
         tripleShot: false,
         tripleShotTimer: 0,
@@ -1495,15 +1498,66 @@
       }
 
       function drawHealthBar(x, y, barWidth, barHeight) {
-        // Use default values if not provided
-        x = x || (canvas.width - 120);
-        y = y || 20;
-        barWidth = barWidth || 100;
-        barHeight = barHeight || 15;
+        // Use default values if not provided - now centered with bigger dimensions
+        barWidth = barWidth || 150; // Wider bar (was 100)
+        barHeight = barHeight || 20; // Taller bar (was 15)
+        
+        // Center the health bar by default
+        x = x || (canvas.width / 2 - barWidth / 2);
+        y = y || 60; // Positioned lower to avoid overlapping with high score text
+        
+        ctx.save();
+        
+        // Apply shake and scale effects if timers are active
+        if (spaceship.healthShakeTimer > 0 || spaceship.healthScaleTimer > 0) {
+          // Calculate the center of the health bar for transformations
+          const centerX = x + barWidth / 2;
+          const centerY = y + barHeight / 2;
+          
+          // First translate to the center point
+          ctx.translate(centerX, centerY);
+          
+          // Apply symmetric circular shake effect if timer is active
+          if (spaceship.healthShakeTimer > 0) {
+            // Create a deliberate, circular shake pattern rather than random
+            const progress = 1 - (spaceship.healthShakeTimer / 0.5); // 0-1 representing shake progress
+            const frequency = 20; // Controls shake oscillation speed
+            const maxAmplitude = 8; // Maximum pixels to move in any direction
+            
+            // Calculate decreasing amplitude as shake fades out
+            const amplitude = maxAmplitude * (1 - progress);
+            
+            // Create circular motion with decreasing radius
+            const angle = progress * frequency * Math.PI * 2; // Rotates through 2π multiple times
+            const shakeX = Math.cos(angle) * amplitude;
+            const shakeY = Math.sin(angle) * amplitude;
+            
+            ctx.translate(shakeX, shakeY);
+          }
+          
+          // Apply smooth pulsing scale effect if timer is active
+          if (spaceship.healthScaleTimer > 0) {
+            // Start larger and smoothly decrease
+            const progress = 1 - (spaceship.healthScaleTimer / 0.3); // 0-1 representing scale progress
+            
+            // Non-linear easing for more natural animation
+            const easing = 1 - Math.pow(progress, 2); // Quadratic ease-out
+            
+            // Scale from 1.3 down to 1.0 over time
+            const scaleAmount = 1 + (0.3 * easing);
+            
+            ctx.scale(scaleAmount, scaleAmount);
+          }
+          
+          // Translate back to apply the transformations correctly
+          ctx.translate(-centerX, -centerY);
+        }
         
         // Draw health bar background and border
         ctx.strokeStyle = "white";
         ctx.lineWidth = 2;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // Dark background
+        ctx.fillRect(x, y, barWidth, barHeight); // Fill the background
         ctx.strokeRect(x, y, barWidth, barHeight);
         
         // Get max HP based on ship type
@@ -1511,54 +1565,108 @@
         if (spaceship.type === SHIP_TYPE.LASER) {
           maxHP = 7; // Heavy cruiser has more HP
         } else if (spaceship.type === SHIP_TYPE.MISSILE) {
-          maxHP = 4; // Missile ship has less HP
+          maxHP = 5; // Missile ship now has same HP as default
         } else {
           maxHP = 5; // Default ship has standard HP
         }
         
         // Draw health bar fill
-        let hpFraction = spaceship.hitPoints / maxHP;
+        // Ensure hitPoints is never negative and calculate fraction
+        let hitPoints = Math.max(0, spaceship.hitPoints);
+        let hpFraction = hitPoints / maxHP;
+        
+        // Make sure the fraction is valid (between 0 and 1)
+        hpFraction = Math.max(0, Math.min(1, hpFraction));
         
         // Change color based on health level
         if (hpFraction > 0.6) {
-          ctx.fillStyle = "rgba(50, 205, 50, 0.7)"; // Green for good health
+          ctx.fillStyle = "rgba(50, 205, 50, 0.8)"; // Green for good health (slightly more opaque)
         } else if (hpFraction > 0.3) {
-          ctx.fillStyle = "rgba(255, 165, 0, 0.7)"; // Orange for medium health
+          ctx.fillStyle = "rgba(255, 165, 0, 0.8)"; // Orange for medium health
         } else {
-          ctx.fillStyle = "rgba(255, 0, 0, 0.7)"; // Red for low health
+          ctx.fillStyle = "rgba(255, 0, 0, 0.8)"; // Red for low health
         }
         
-        ctx.fillRect(x, y, barWidth * hpFraction, barHeight);
+        // Draw the health bar with a minimum width of 2 pixels when health is low but not zero
+        const fillWidth = hitPoints > 0 ? Math.max(2, barWidth * hpFraction) : 0;
+        ctx.fillRect(x, y, fillWidth, barHeight);
         
         // Add "HP" label
         ctx.fillStyle = "white";
-        ctx.font = "12px sans-serif";
+        ctx.font = "14px sans-serif"; // Slightly larger font
         ctx.textAlign = "right";
-        ctx.fillText("HP:", x - 5, y + barHeight/2 + 4);
+        ctx.fillText("HP:", x - 8, y + barHeight/2 + 5);
+        
+        // Add segments to the health bar for visual clarity
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+        ctx.lineWidth = 1;
+        
+        for (let i = 1; i < maxHP; i++) {
+          const segX = x + (barWidth / maxHP) * i;
+          ctx.beginPath();
+          ctx.moveTo(segX, y);
+          ctx.lineTo(segX, y + barHeight);
+          ctx.stroke();
+        }
+        
+        ctx.restore();
         
         // Draw shield bar for laser ship if it has a shield
         if (spaceship.type === SHIP_TYPE.LASER && spaceship.hasShield) {
-          const shieldY = y + barHeight + 5; // Position shield bar below health bar
+          const shieldBarHeight = barHeight - 2; // Slightly smaller than health bar
+          const shieldY = y + barHeight + 8; // Position shield bar below health bar with a bit more space
+          
+          ctx.save();
+          
+          // Apply shake effect if health shake is active (same circular pattern)
+          if (spaceship.healthShakeTimer > 0) {
+            // Calculate the center of the shield bar for transformations
+            const centerX = x + barWidth / 2;
+            const centerY = shieldY + shieldBarHeight / 2;
+            
+            // First translate to the center point
+            ctx.translate(centerX, centerY);
+            
+            // Create a deliberate, circular shake pattern
+            const progress = 1 - (spaceship.healthShakeTimer / 0.5); // 0-1 representing shake progress
+            const frequency = 20; // Controls shake oscillation speed
+            const maxAmplitude = 7; // Maximum pixels to move (slightly less than health bar)
+            
+            // Calculate decreasing amplitude as shake fades out
+            const amplitude = maxAmplitude * (1 - progress);
+            
+            // Create circular motion with decreasing radius
+            const angle = progress * frequency * Math.PI * 2; // Rotates through 2π multiple times
+            const shakeX = Math.cos(angle) * amplitude;
+            const shakeY = Math.sin(angle) * amplitude;
+            
+            ctx.translate(shakeX, shakeY);
+            
+            // Translate back to apply the transformations correctly
+            ctx.translate(-centerX, -centerY);
+          }
           
           // Draw shield bar background and border
           ctx.strokeStyle = "white";
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x, shieldY, barWidth, barHeight - 3); // Slightly smaller than health bar
+          ctx.lineWidth = 1.5;
+          ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // Dark background
+          ctx.fillRect(x, shieldY, barWidth, shieldBarHeight); // Fill the background
+          ctx.strokeRect(x, shieldY, barWidth, shieldBarHeight);
           
           // Draw shield bar fill based on shield health
           const shieldFraction = spaceship.shieldHealth / 3; // 3 is max shield health
           
           // Make shield bar flash when hit
-          let shieldAlpha = 0.7;
+          let shieldAlpha = 0.8;
           if (spaceship.shieldFlashTimer > 0) {
             // Pulsing effect
-            shieldAlpha = 0.7 + Math.sin(gameTime * 30) * 0.3;
+            shieldAlpha = 0.8 + Math.sin(gameTime * 30) * 0.2;
           }
           
           // Shield color based on remaining shield strength
           let shieldColor;
           if (shieldFraction > 0.7) {
-            shieldColor = `rgba(0, 150, 255, ${shieldAlpha})`; // Blue for strong shield
+            shieldColor = `rgba(0, 160, 255, ${shieldAlpha})`; // Blue for strong shield
           } else if (shieldFraction > 0.3) {
             shieldColor = `rgba(0, 220, 220, ${shieldAlpha})`; // Cyan for medium shield
           } else if (shieldFraction > 0) {
@@ -1569,13 +1677,29 @@
           
           // Fill shield bar
           ctx.fillStyle = shieldColor;
-          ctx.fillRect(x, shieldY, barWidth * shieldFraction, barHeight - 3);
+          // Ensure valid fraction and minimum visible width when shield exists
+          const shieldFillWidth = shieldFraction > 0 ? Math.max(2, barWidth * shieldFraction) : 0;
+          ctx.fillRect(x, shieldY, shieldFillWidth, shieldBarHeight);
           
           // Add "SH" label (Shield)
           ctx.fillStyle = "white";
-          ctx.font = "10px sans-serif";
+          ctx.font = "12px sans-serif"; // Slightly larger font
           ctx.textAlign = "right";
-          ctx.fillText("SH:", x - 5, shieldY + (barHeight - 3)/2 + 3);
+          ctx.fillText("SH:", x - 8, shieldY + shieldBarHeight/2 + 4);
+          
+          // Add segments to the shield bar for visual clarity
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+          ctx.lineWidth = 1;
+          
+          for (let i = 1; i < 3; i++) { // 3 segments for shield
+            const segX = x + (barWidth / 3) * i;
+            ctx.beginPath();
+            ctx.moveTo(segX, shieldY);
+            ctx.lineTo(segX, shieldY + shieldBarHeight);
+            ctx.stroke();
+          }
+          
+          ctx.restore();
         }
       }
 
@@ -1826,12 +1950,24 @@
       }
 
       function updateTimers(dt) {
+        // Big comet spawn timer
         bigCometSpawnTimer += dt;
         if (bigCometSpawnTimer >= BIG_COMET_SPAWN_INTERVAL) {
           for (let i = 0; i < BIG_COMET_SPAWN_MAX; i++) {
             spawnBigComet();
           }
           bigCometSpawnTimer = 0;
+        }
+        
+        // Health bar animation timers
+        if (spaceship.healthShakeTimer > 0) {
+          spaceship.healthShakeTimer -= dt;
+          if (spaceship.healthShakeTimer < 0) spaceship.healthShakeTimer = 0;
+        }
+        
+        if (spaceship.healthScaleTimer > 0) {
+          spaceship.healthScaleTimer -= dt;
+          if (spaceship.healthScaleTimer < 0) spaceship.healthScaleTimer = 0;
         }
       }
 
@@ -2676,7 +2812,7 @@
             // Futuristic, agile ship with special missiles
             spaceship.size = SHIP_SIZE * 0.85;
             spaceship.speedModifier = 1.1; // Faster
-            spaceship.hitPoints = 4; // Slightly less health (80% of standard)
+            spaceship.hitPoints = 5; // Same health as standard ship
             break;
         }
       }
@@ -4961,7 +5097,7 @@
         const ships = [
           {
             type: SHIP_TYPE.DEFAULT,
-            name: "Balanced Fighter",
+            name: "Nova Striker",
             desc: "Standard speed and firepower",
             features: ["Balanced maneuverability", "Twin blasters", "Standard engines"]
           },
@@ -5553,8 +5689,8 @@
           ctx.fillText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`, timerX, hudHeight/2 + 6);
         }
         
-        // Draw health bar at the top-right, below the HUD panel
-        drawHealthBar(canvas.width - 120, hudHeight + 10, 100, 15);
+        // Draw health bar centered at the top
+        drawHealthBar();
 
         // Power-ups
         for (let pu of powerUps) {
@@ -6385,7 +6521,7 @@
             if (pu.type === "health") {
               // Refill HP based on ship type
               const maxHP = spaceship.type === SHIP_TYPE.LASER ? 7 :
-                           spaceship.type === SHIP_TYPE.MISSILE ? 4 : 5;
+                           spaceship.type === SHIP_TYPE.MISSILE ? 5 : 5;
               
               // Restore 3 HP or full if less than 3 remaining
               spaceship.hitPoints = Math.min(maxHP, spaceship.hitPoints + 3);
@@ -6560,8 +6696,12 @@
             
             // If shield didn't absorb, damage spaceship
             if (!shieldAbsorbed) {
+              // Save previous health before reducing and trigger shake effect
+              spaceship.previousHitPoints = spaceship.hitPoints;
               spaceship.hitPoints--;
               spaceship.hitFlashTimer = 0.3;
+              spaceship.healthShakeTimer = 0.5; // Half a second of shake
+              spaceship.healthScaleTimer = 0.3; // Scale animation for 0.3 seconds
               
               // Create impact effect
               if (soundEnabled) {
@@ -6643,7 +6783,11 @@
                     // If only 1 shield point left, use it and take partial damage
                     spaceship.shieldHealth = 0;
                     // Still take damage, but only 1 point instead of full damage
+                    // Save previous health before reducing and trigger shake effect
+                    spaceship.previousHitPoints = spaceship.hitPoints;
                     spaceship.hitPoints--;
+                    spaceship.healthShakeTimer = 0.5; // Half a second of shake
+                    spaceship.healthScaleTimer = 0.3; // Scale animation for 0.3 seconds
                   }
                   
                   spaceship.shieldFlashTimer = 0.6; // Longer flash for big impact
@@ -6680,8 +6824,12 @@
             
             // If shield didn't fully absorb, damage spaceship
             if (!shieldAbsorbed) {
+              // Save previous health before reducing and trigger shake effect
+              spaceship.previousHitPoints = spaceship.hitPoints;
               spaceship.hitPoints--;
               spaceship.hitFlashTimer = 0.3;
+              spaceship.healthShakeTimer = 0.5; // Half a second of shake
+              spaceship.healthScaleTimer = 0.3; // Scale animation for 0.3 seconds
               
               // Create impact effect
               if (soundEnabled) {
