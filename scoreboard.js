@@ -81,11 +81,18 @@ firebase.firestore().collection('userScores')
         leaderboardData = playersArray.slice(0, 10);
         leaderboardLoaded = true;
 
-        // If desired, you could trigger a UI refresh here. 
-        // For example, if the scoreboard screen is currently visible, redraw it:
-        // if (window.gameState === GAME_STATE.HIGH_SCORES && typeof window.drawHighScores === 'function') {
-        //     window.drawHighScores();
-        // }
+        // Trigger UI refresh when scoreboard is visible
+        if (window.gameState === "highScores" && leaderboardLoaded) {
+            // Force a redraw by changing game state temporarily and back
+            if (typeof window.drawHighScores === 'function') {
+                window.drawHighScores();
+            } else {
+                // If custom draw function not available, refresh scores in the game
+                if (typeof loadHighScores === 'function') {
+                    loadHighScores();
+                }
+            }
+        }
     }, error => {
         console.error("Error fetching leaderboard data:", error);
     });

@@ -6,13 +6,13 @@
 function updateHighScore(score, difficulty) {
   console.log(`Checking high score: ${score} points, difficulty: ${difficulty}`);
   
-  // Check if auth.js is loaded and use its function if available
-  if (typeof window.saveUserScore === 'function' && typeof currentUser !== 'undefined' && currentUser) {
-    console.log("Using auth.js saveUserScore function");
-    return window.saveUserScore(score, difficulty);
+  // Always use auth.js implementation when available
+  if (typeof window.updateHighScore === 'function' && window.updateHighScore !== updateHighScore) {
+    console.log("Using auth.js updateHighScore function");
+    return window.updateHighScore(score, difficulty);
   }
   
-  // Fallback to original implementation if auth.js not loaded
+  // Fallback implementation in case auth.js is not loaded yet
   // Ensure difficulty is a valid string
   if (!difficulty || difficulty === "undefined") {
     difficulty = "medium"; // Default to medium difficulty
@@ -110,7 +110,7 @@ function saveScore(username, score, difficulty) {
 
 // Function to get the current high score for a difficulty level
 function getHighScore(difficulty = "medium") {
-  // Check if auth.js is loaded and use its function if available
+  // Always use auth.js implementation when available
   if (typeof window.getHighScore === 'function' && window.getHighScore !== getHighScore) {
     console.log("Using auth.js getHighScore function");
     return window.getHighScore(difficulty);

@@ -203,6 +203,7 @@
       const GAME_STATE = {
         MAIN_MENU: "mainMenu",
         DIFFICULTY_SELECT: "difficultySelect",
+        SHIP_SELECT: "shipSelect",
         SETTINGS: "settings",
         HOW_TO_PLAY: "howToPlay",
         HIGH_SCORES: "highScores",
@@ -229,6 +230,19 @@
           infinity: "None"
         }
       };
+      
+      // Spaceship types
+      const SHIP_TYPE = {
+        DEFAULT: "default",
+        LASER: "laser",
+        MISSILE: "missile"
+      };
+      
+      // Selected ship type (default to first ship)
+      let selectedShipType = SHIP_TYPE.DEFAULT;
+      
+      // Ship selection menu
+      let selectedShipMenuItem = 0;
       
       // Load high scores from Firebase when the game starts
       function loadHighScores() {
@@ -790,7 +804,22 @@
         tripleShot: false,
         tripleShotTimer: 0,
         missileBarrageActive: false,
-        missileBarrageTimer: 0
+        missileBarrageTimer: 0,
+        
+        // Ship type specific properties
+        type: SHIP_TYPE.DEFAULT,
+        
+        // Laser beam properties (for LASER type)
+        laserActive: false,
+        laserTimer: 0,
+        laserCooldown: false,
+        laserCooldownTimer: 0,
+        
+        // Missile properties (for MISSILE type)
+        missileSpecialCooldown: 0,
+        
+        // Ship type movement modifiers
+        speedModifier: 1.0
       };
       
       // Missile barrage state variables
@@ -1477,8 +1506,18 @@
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, barWidth, barHeight);
         
+        // Get max HP based on ship type
+        let maxHP;
+        if (spaceship.type === SHIP_TYPE.LASER) {
+          maxHP = 7; // Heavy cruiser has more HP
+        } else if (spaceship.type === SHIP_TYPE.MISSILE) {
+          maxHP = 4; // Missile ship has less HP
+        } else {
+          maxHP = 5; // Default ship has standard HP
+        }
+        
         // Draw health bar fill
-        let hpFraction = spaceship.hitPoints / 5;
+        let hpFraction = spaceship.hitPoints / maxHP;
         
         // Change color based on health level
         if (hpFraction > 0.6) {
@@ -1496,6 +1535,48 @@
         ctx.font = "12px sans-serif";
         ctx.textAlign = "right";
         ctx.fillText("HP:", x - 5, y + barHeight/2 + 4);
+        
+        // Draw shield bar for laser ship if it has a shield
+        if (spaceship.type === SHIP_TYPE.LASER && spaceship.hasShield) {
+          const shieldY = y + barHeight + 5; // Position shield bar below health bar
+          
+          // Draw shield bar background and border
+          ctx.strokeStyle = "white";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x, shieldY, barWidth, barHeight - 3); // Slightly smaller than health bar
+          
+          // Draw shield bar fill based on shield health
+          const shieldFraction = spaceship.shieldHealth / 3; // 3 is max shield health
+          
+          // Make shield bar flash when hit
+          let shieldAlpha = 0.7;
+          if (spaceship.shieldFlashTimer > 0) {
+            // Pulsing effect
+            shieldAlpha = 0.7 + Math.sin(gameTime * 30) * 0.3;
+          }
+          
+          // Shield color based on remaining shield strength
+          let shieldColor;
+          if (shieldFraction > 0.7) {
+            shieldColor = `rgba(0, 150, 255, ${shieldAlpha})`; // Blue for strong shield
+          } else if (shieldFraction > 0.3) {
+            shieldColor = `rgba(0, 220, 220, ${shieldAlpha})`; // Cyan for medium shield
+          } else if (shieldFraction > 0) {
+            shieldColor = `rgba(255, 170, 0, ${shieldAlpha})`; // Orange for weak shield
+          } else {
+            shieldColor = `rgba(100, 100, 100, ${shieldAlpha * 0.5})`; // Gray for depleted shield
+          }
+          
+          // Fill shield bar
+          ctx.fillStyle = shieldColor;
+          ctx.fillRect(x, shieldY, barWidth * shieldFraction, barHeight - 3);
+          
+          // Add "SH" label (Shield)
+          ctx.fillStyle = "white";
+          ctx.font = "10px sans-serif";
+          ctx.textAlign = "right";
+          ctx.fillText("SH:", x - 5, shieldY + (barHeight - 3)/2 + 3);
+        }
       }
 
       // Helper function to check if a power-up of a specific type already exists
@@ -1757,6 +1838,39 @@
       // INPUT HANDLING
       const keys = {};
       window.addEventListener("keydown", (e) => {
+        // Special abilities with 'F' key (during gameplay)
+        if ((e.key.toLowerCase() === "f" || e.code === "KeyF") && 
+            gameState === GAME_STATE.PLAYING) {
+          
+          // Missile ship special ability
+          if (spaceship.type === SHIP_TYPE.MISSILE && 
+              spaceship.missileSpecialCooldown <= 0) {
+            // Activate special missile ability
+            fireSpecialMissiles();
+            // Cooldown is now set inside fireSpecialMissiles()
+          }
+          
+          // Laser ship special ability
+          else if (spaceship.type === SHIP_TYPE.LASER && 
+                  !spaceship.laserCooldown && 
+                  !spaceship.laserActive) {
+            // Activate laser beam
+            spaceship.laserActive = true;
+            spaceship.laserTimer = 0;
+            // Reset laser beam endpoint variables
+            spaceship.laserBeamEndX = null;
+            spaceship.laserBeamEndY = null;
+            
+            // Play laser activation sound
+            if (soundEnabled) {
+              bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+              bulletSoundPool[nextBulletSoundIndex].volume = 0.4;
+              bulletSoundPool[nextBulletSoundIndex].play();
+              nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+            }
+          }
+        }
+        
         // Music toggle with 'M' key (in any game state)
         if (e.key.toLowerCase() === "m" || e.code === "KeyM") {
           // Get the current state before toggling
@@ -1960,7 +2074,32 @@
               case 3: currentDifficulty = DIFFICULTY.INFINITY; break;
             }
           } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
-            // Start the game with selected difficulty
+            // Go to ship selection screen
+            updateGameState(GAME_STATE.SHIP_SELECT);
+            // Reset to first ship in the selection
+            selectedShipMenuItem = 0;
+          } else if (e.key === "Escape" || e.keyCode === 27) {
+            // Back to main menu
+            gameState = GAME_STATE.MAIN_MENU;
+          }
+        } 
+        // Ship selection screen
+        else if (gameState === GAME_STATE.SHIP_SELECT) {
+          if (e.key === "ArrowLeft" || e.keyCode === 37) {
+            // Navigate left in ship selection
+            selectedShipMenuItem = (selectedShipMenuItem - 1 + 3) % 3;
+          } else if (e.key === "ArrowRight" || e.keyCode === 39) {
+            // Navigate right in ship selection
+            selectedShipMenuItem = (selectedShipMenuItem + 1) % 3;
+          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
+            // Set the selected ship type
+            switch(selectedShipMenuItem) {
+              case 0: selectedShipType = SHIP_TYPE.DEFAULT; break;
+              case 1: selectedShipType = SHIP_TYPE.LASER; break;
+              case 2: selectedShipType = SHIP_TYPE.MISSILE; break;
+            }
+            
+            // Start the game
             updateGameState(GAME_STATE.PLAYING);
             score = 0;
             gameTime = 0;
@@ -1970,12 +2109,15 @@
             infinityModeTime = 0;
             infinityModeSpawnMultiplier = 1.0;
             
+            // Initialize ship based on selected type
+            initializeShip(selectedShipType);
+            
             startGameplayMusic();
           } else if (e.key === "Escape" || e.keyCode === 27) {
-            // Back to main menu
-            gameState = GAME_STATE.MAIN_MENU;
+            // Back to difficulty selection
+            updateGameState(GAME_STATE.DIFFICULTY_SELECT);
           }
-        } 
+        }
         // Settings screen
         else if (gameState === GAME_STATE.SETTINGS) {
           if (e.key === "ArrowUp" || e.keyCode === 38) {
@@ -2476,6 +2618,162 @@
       }
 
 
+      // Initialize ship based on selected type
+      function initializeShip(shipType) {
+        // Reset basic properties
+        spaceship.x = canvas.width / 2;
+        spaceship.y = canvas.height / 2;
+        spaceship.vx = 0;
+        spaceship.vy = 0;
+        spaceship.angle = 0;
+        spaceship.hitPoints = 5; // Default hitpoints
+        spaceship.hitFlashTimer = 0;
+        spaceship.tripleShot = false;
+        spaceship.tripleShotTimer = 0;
+        spaceship.missileBarrageActive = false;
+        spaceship.missileBarrageTimer = 0;
+        
+        // Set ship type
+        spaceship.type = shipType;
+        
+        // Reset type-specific properties
+        spaceship.laserActive = false;
+        spaceship.laserTimer = 0;
+        spaceship.laserCooldown = false;
+        spaceship.laserCooldownTimer = 0;
+        spaceship.missileSpecialCooldown = 0;
+        
+        // Reset shield properties
+        spaceship.hasShield = false;
+        spaceship.shieldHealth = 0;
+        spaceship.shieldRechargeTimer = 0;
+        spaceship.shieldFlashTimer = 0;
+        spaceship.frontArcOnly = false;
+        
+        // Apply ship type-specific modifications
+        switch(shipType) {
+          case SHIP_TYPE.DEFAULT:
+            // Default balanced ship
+            spaceship.size = SHIP_SIZE;
+            spaceship.speedModifier = 1.0;
+            spaceship.hitPoints = 5; // Standard health
+            // Default ship has no shield
+            break;
+            
+          case SHIP_TYPE.LASER:
+            // Bulkier, slower ship with laser beam and shield
+            spaceship.size = SHIP_SIZE * 1.83; // Original size
+            spaceship.speedModifier = 0.7; // Slower but powerful
+            spaceship.hitPoints = 7; // Increased health (40% more)
+            
+            // Heavy cruiser has frontal shield
+            spaceship.hasShield = true;
+            spaceship.shieldHealth = 3; // Shield can absorb 3 full hits
+            spaceship.frontArcOnly = true; // Shield only covers the front
+            break;
+            
+          case SHIP_TYPE.MISSILE:
+            // Futuristic, agile ship with special missiles
+            spaceship.size = SHIP_SIZE * 0.85;
+            spaceship.speedModifier = 1.1; // Faster
+            spaceship.hitPoints = 4; // Slightly less health (80% of standard)
+            break;
+        }
+      }
+      
+      // Store the state of sequential missile firing
+      const missileSequenceState = {
+        isActive: false,
+        currentMissile: 0,
+        totalMissiles: 6,
+        lastFiredTime: 0,
+        missileDelay: 0.1 // 0.1 seconds between each missile
+      };
+      
+      // Fire special missiles (for MISSILE type ship)
+      function fireSpecialMissiles() {
+        if (spaceship.type !== SHIP_TYPE.MISSILE) return;
+        
+        // If a sequence is not active, start one
+        if (!missileSequenceState.isActive) {
+          missileSequenceState.isActive = true;
+          missileSequenceState.currentMissile = 0;
+          missileSequenceState.lastFiredTime = gameTime;
+          
+          // Start the sequence by firing the first missile
+          fireNextMissileInSequence();
+          
+          // Set cooldown - but don't disable firing yet since we're in a sequence
+          spaceship.missileSpecialCooldown = 1;
+        }
+      }
+      
+      // Function to fire the next missile in the 3-missile sequence
+      function fireNextMissileInSequence() {
+        // Play missile firing sound
+        if (soundEnabled) {
+          bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+          bulletSoundPool[nextBulletSoundIndex].volume = 0.5; // Louder for super missiles
+          bulletSoundPool[nextBulletSoundIndex].play();
+          nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+        }
+        
+        // Determine angle offset based on which missile in the sequence
+        let angleOffset = 0;
+        
+        // Calculate spread for 6 missiles
+        switch(missileSequenceState.currentMissile) {
+          case 0: // First missile - far left
+            angleOffset = -Math.PI / 12; // -15 degrees
+            break;
+          case 1: // Second missile - mid left
+            angleOffset = -Math.PI / 24; // -7.5 degrees
+            break;
+          case 2: // Third missile - slight left
+            angleOffset = -Math.PI / 48; // -3.75 degrees
+            break;
+          case 3: // Fourth missile - slight right
+            angleOffset = Math.PI / 48; // 3.75 degrees
+            break;
+          case 4: // Fifth missile - mid right
+            angleOffset = Math.PI / 24; // 7.5 degrees
+            break;
+          case 5: // Sixth missile - far right
+            angleOffset = Math.PI / 12; // 15 degrees
+            break;
+        }
+        
+        // Calculate missile position with the same start point
+        const missileX = spaceship.x + Math.cos(spaceship.angle) * spaceship.size * 0.9;
+        const missileY = spaceship.y + Math.sin(spaceship.angle) * spaceship.size * 0.9;
+        
+        // Calculate missile angle with offset
+        const missileAngle = spaceship.angle + angleOffset;
+        
+        // Create a more powerful missile (20x regular bullet)
+        bullets.push({
+          x: missileX,
+          y: missileY,
+          vx: Math.cos(missileAngle) * MISSILE_SPEED * 1.2, // 20% faster
+          vy: Math.sin(missileAngle) * MISSILE_SPEED * 1.2,
+          radius: 8, // Larger than regular missiles
+          isMissile: true,
+          isPowerfulMissile: true, // Flag for increased damage
+          missilePower: 20, // 20x regular bullet damage
+          creation: gameTime, // Track when the missile was created
+          sequenceNumber: missileSequenceState.currentMissile // Track which missile in sequence (for color variation)
+        });
+        
+        // Increment to the next missile
+        missileSequenceState.currentMissile++;
+        missileSequenceState.lastFiredTime = gameTime;
+        
+        // If we've fired all missiles, end the sequence
+        if (missileSequenceState.currentMissile >= missileSequenceState.totalMissiles) {
+          missileSequenceState.isActive = false;
+        }
+      }
+
       function restartGame() {
         // Go directly to main menu, not difficulty select
         gameState = GAME_STATE.MAIN_MENU;
@@ -2490,17 +2788,7 @@
         infinityModeSpawnMultiplier = 1.0;
         
         // Reset spaceship
-        spaceship.x = canvas.width / 2;
-        spaceship.y = canvas.height / 2;
-        spaceship.vx = 0;
-        spaceship.vy = 0;
-        spaceship.angle = 0;
-        spaceship.hitPoints = 5;
-        spaceship.hitFlashTimer = 0;
-        spaceship.tripleShot = false;
-        spaceship.tripleShotTimer = 0;
-        spaceship.missileBarrageActive = false;
-        spaceship.missileBarrageTimer = 0;
+        initializeShip(spaceship.type);
         
         // Nothing to reset now that missile barrage is a pickup
         
@@ -2551,8 +2839,33 @@
         let shipGrad = ctx.createLinearGradient(spaceship.size, 0, -spaceship.size, 0);
         shipGrad.addColorStop(0, shipFill);
         shipGrad.addColorStop(1, "#111");
+        
+        // Draw ship based on type
+        switch(spaceship.type) {
+          case SHIP_TYPE.DEFAULT:
+            drawDefaultShip(shipGrad);
+            break;
+          case SHIP_TYPE.LASER:
+            drawLaserShip(shipGrad);
+            break;
+          case SHIP_TYPE.MISSILE:
+            drawMissileShip(shipGrad);
+            break;
+          default:
+            drawDefaultShip(shipGrad);
+        }
+        
+        // Draw active laser beam if present
+        if (spaceship.type === SHIP_TYPE.LASER && spaceship.laserActive) {
+          drawLaserBeam();
+        }
 
-        // Body - keeping the original shape
+        ctx.restore();
+      }
+      
+      // Default balanced ship
+      function drawDefaultShip(shipGrad) {
+        // Body - original shape
         ctx.beginPath();
         ctx.moveTo(spaceship.size, 0);
         ctx.lineTo(spaceship.size * 0.2, spaceship.size * 0.7);
@@ -2591,21 +2904,107 @@
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Flame
+        // ENHANCED ENGINE FLAME
         ctx.save();
-        ctx.globalAlpha = 0.7;
-        let flameLength = spaceship.size * 0.8;
-        let flameWidth = spaceship.size * 0.3;
+        ctx.globalAlpha = 0.8; // More visible
+        
+        // Get animation time
+        const flameTime = performance.now() / 100;
+        
+        // Animated flame length
+        let flameLength = spaceship.size * 0.9; // Longer flame
+        let flameWidth = spaceship.size * 0.4; // Wider flame
+        
+        // Add flicker effect
+        const flameFlicker = 0.85 + Math.sin(flameTime) * 0.15;
+        flameLength *= flameFlicker;
+        
+        // Better flame gradient
         let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.6, 0, -spaceship.size * 0.6 - flameLength, 0);
-        flameGrad.addColorStop(0, "yellow");
-        flameGrad.addColorStop(1, "red");
+        flameGrad.addColorStop(0, "rgba(255, 255, 100, 0.9)"); // Bright yellow core
+        flameGrad.addColorStop(0.3, "rgba(255, 180, 50, 0.8)"); // Orange mid
+        flameGrad.addColorStop(0.7, "rgba(255, 80, 10, 0.6)"); // Deep orange/red
+        flameGrad.addColorStop(1, "rgba(180, 10, 0, 0)"); // Fading red edge
+        
+        // Draw main flame with curved shape
         ctx.fillStyle = flameGrad;
         ctx.beginPath();
         ctx.moveTo(-spaceship.size * 0.6, flameWidth / 2);
-        ctx.lineTo(-spaceship.size * 0.6 - flameLength, 0);
-        ctx.lineTo(-spaceship.size * 0.6, -flameWidth / 2);
+        
+        // Use curves for more natural flame shape
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.6 - flameLength * 0.6, flameWidth * 0.2, 
+          -spaceship.size * 0.6 - flameLength, 0
+        );
+        
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.6 - flameLength * 0.6, -flameWidth * 0.2,
+          -spaceship.size * 0.6, -flameWidth / 2
+        );
+        
         ctx.closePath();
         ctx.fill();
+        
+        // Draw inner core flame (brighter)
+        const innerFlameGrad = ctx.createLinearGradient(
+          -spaceship.size * 0.6, 0, 
+          -spaceship.size * 0.6 - flameLength * 0.6, 0
+        );
+        innerFlameGrad.addColorStop(0, "rgba(255, 255, 255, 0.9)"); // White hot center
+        innerFlameGrad.addColorStop(0.3, "rgba(255, 255, 180, 0.8)"); // Pale yellow
+        innerFlameGrad.addColorStop(1, "rgba(255, 180, 50, 0)"); // Fading orange
+        
+        ctx.fillStyle = innerFlameGrad;
+        ctx.beginPath();
+        ctx.moveTo(-spaceship.size * 0.6, flameWidth / 4);
+        
+        // Inner core is narrower
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.6 - flameLength * 0.4, flameWidth * 0.1,
+          -spaceship.size * 0.6 - flameLength * 0.6, 0
+        );
+        
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.6 - flameLength * 0.4, -flameWidth * 0.1,
+          -spaceship.size * 0.6, -flameWidth / 4
+        );
+        
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add flickering particles to the flame
+        const particleCount = 5; // 5 particles
+        
+        for (let i = 0; i < particleCount; i++) {
+          // Random position along flame length
+          const distanceFromEngine = Math.random() * flameLength * 0.8;
+          const yOffset = (Math.random() - 0.5) * flameWidth * 0.9; // Position across flame width
+          
+          // Particle size (smaller near end of flame)
+          const particleSize = Math.random() * spaceship.size * 0.06 * (1 - distanceFromEngine/flameLength);
+          
+          // Particle color (yellower near engine, redder at flame tip)
+          let particleColor;
+          if (distanceFromEngine < flameLength * 0.3) {
+            particleColor = "rgba(255, 255, 150, 0.8)"; // Yellow near engine
+          } else if (distanceFromEngine < flameLength * 0.6) {
+            particleColor = "rgba(255, 200, 50, 0.7)"; // Orange in middle
+          } else {
+            particleColor = "rgba(255, 100, 30, 0.6)"; // Red near end
+          }
+          
+          // Draw particle
+          ctx.fillStyle = particleColor;
+          ctx.beginPath();
+          ctx.arc(
+            -spaceship.size * 0.6 - distanceFromEngine,
+            yOffset,
+            particleSize,
+            0, Math.PI * 2
+          );
+          ctx.fill();
+        }
+        
         ctx.restore();
 
         // Cockpit
@@ -2624,8 +3023,714 @@
         ctx.fill();
         ctx.strokeStyle = "white";
         ctx.stroke();
-
+      }
+      
+      // Bulky laser ship
+      function drawLaserShip(shipGrad) {
+        // Draw frontal shield first (if active) so ship will appear on top
+        if (spaceship.hasShield && spaceship.shieldHealth > 0) {
+          drawLaserShipShield();
+        }
+        
+        // Body - more bulky, armored shape
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.95, 0); // More pointed front
+        ctx.lineTo(spaceship.size * 0.8, spaceship.size * 0.5);
+        ctx.lineTo(spaceship.size * 0.4, spaceship.size * 0.7);
+        ctx.lineTo(-spaceship.size * 0.45, spaceship.size * 0.6);
+        ctx.lineTo(-spaceship.size * 0.75, 0);
+        ctx.lineTo(-spaceship.size * 0.45, -spaceship.size * 0.6);
+        ctx.lineTo(spaceship.size * 0.4, -spaceship.size * 0.7);
+        ctx.lineTo(spaceship.size * 0.8, -spaceship.size * 0.5);
+        ctx.closePath();
+        
+        // Create a more metallic gradient
+        const armorGrad = ctx.createLinearGradient(
+          -spaceship.size * 0.75, 0,
+          spaceship.size * 0.95, 0
+        );
+        armorGrad.addColorStop(0, "#333355"); // Darker blue-gray
+        armorGrad.addColorStop(0.4, "#556688"); // Medium blue-gray
+        armorGrad.addColorStop(0.6, "#667799"); // Light blue-gray
+        armorGrad.addColorStop(1, "#99AACC"); // Highlight at front
+        
+        // Fill with gradient
+        ctx.fillStyle = armorGrad;
+        ctx.fill();
+        
+        // Add armor plating details
+        ctx.strokeStyle = "#AABBDD";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Add armor panel details
+        ctx.beginPath();
+        // Top armor panel
+        ctx.moveTo(spaceship.size * 0.7, -spaceship.size * 0.2);
+        ctx.lineTo(spaceship.size * 0.4, -spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.1, -spaceship.size * 0.4);
+        // Bottom armor panel
+        ctx.moveTo(spaceship.size * 0.7, spaceship.size * 0.2);
+        ctx.lineTo(spaceship.size * 0.4, spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.1, spaceship.size * 0.4);
+        // Middle armor lines
+        ctx.moveTo(spaceship.size * 0.0, -spaceship.size * 0.2);
+        ctx.lineTo(spaceship.size * 0.0, spaceship.size * 0.2);
+        ctx.moveTo(-spaceship.size * 0.4, -spaceship.size * 0.3);
+        ctx.lineTo(-spaceship.size * 0.4, spaceship.size * 0.3);
+        
+        ctx.strokeStyle = "rgba(170, 190, 220, 0.6)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // Enhanced laser cannon (center) - larger and more imposing
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.95, -spaceship.size * 0.15);
+        ctx.lineTo(spaceship.size * 1.3, -spaceship.size * 0.15);
+        ctx.lineTo(spaceship.size * 1.3, spaceship.size * 0.15);
+        ctx.lineTo(spaceship.size * 0.95, spaceship.size * 0.15);
+        ctx.closePath();
+        
+        // Cannon gradient
+        const cannonGrad = ctx.createLinearGradient(
+          spaceship.size * 0.95, 0,
+          spaceship.size * 1.3, 0
+        );
+        cannonGrad.addColorStop(0, "#444");
+        cannonGrad.addColorStop(0.6, "#666");
+        cannonGrad.addColorStop(1, "#888");
+        
+        ctx.fillStyle = cannonGrad;
+        ctx.fill();
+        ctx.strokeStyle = "#aaa";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Add cooling vents to the cannon
+        ctx.beginPath();
+        // Top vents
+        for (let i = 0; i < 3; i++) {
+          const ventX = spaceship.size * (1.0 + i * 0.08);
+          ctx.moveTo(ventX, -spaceship.size * 0.1);
+          ctx.lineTo(ventX + spaceship.size * 0.05, -spaceship.size * 0.1);
+        }
+        // Bottom vents
+        for (let i = 0; i < 3; i++) {
+          const ventX = spaceship.size * (1.0 + i * 0.08);
+          ctx.moveTo(ventX, spaceship.size * 0.1);
+          ctx.lineTo(ventX + spaceship.size * 0.05, spaceship.size * 0.1);
+        }
+        ctx.strokeStyle = "#99AACC";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // Laser cannon glow - more intense when active
+        const glowSize = spaceship.laserActive ? spaceship.size * 0.1 : spaceship.size * 0.07;
+        const glowX = spaceship.size * 1.2;
+        
+        // Enhanced glow effect with animation
+        const time = performance.now() / 1000;
+        let glowOpacity;
+        let glowColor;
+        
+        if (spaceship.laserActive) {
+          // Pulsing cyan glow for active laser
+          glowOpacity = 0.7 + Math.sin(time * 15) * 0.3;
+          glowColor = `rgba(0, 255, 255, ${glowOpacity})`;
+        } else if (spaceship.laserCooldown) {
+          // Pulsing red for cooldown
+          glowOpacity = 0.3 + Math.sin(time * 8) * 0.2;
+          glowColor = `rgba(255, 100, 100, ${glowOpacity})`;
+        } else {
+          // Subtle blue standby mode
+          glowOpacity = 0.2 + Math.sin(time * 2) * 0.1;
+          glowColor = `rgba(100, 150, 255, ${glowOpacity})`;
+        }
+        
+        // Create radial gradient for better glow effect
+        const glowGradient = ctx.createRadialGradient(
+          glowX, 0, 0,
+          glowX, 0, glowSize
+        );
+        glowGradient.addColorStop(0, "rgba(255, 255, 255, 0.9)");
+        glowGradient.addColorStop(0.5, glowColor);
+        glowGradient.addColorStop(1, "rgba(0, 50, 100, 0)");
+        
+        ctx.beginPath();
+        ctx.arc(glowX, 0, glowSize * 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = glowGradient;
+        ctx.fill();
+        
+        // Enhanced side thrusters - more armored and powerful
+        ctx.beginPath();
+        ctx.moveTo(-spaceship.size * 0.75, spaceship.size * 0.35);
+        ctx.lineTo(-spaceship.size * 0.95, spaceship.size * 0.25);
+        ctx.lineTo(-spaceship.size * 0.95, -spaceship.size * 0.25);
+        ctx.lineTo(-spaceship.size * 0.75, -spaceship.size * 0.35);
+        ctx.closePath();
+        
+        // Thruster gradient
+        const thrusterGrad = ctx.createLinearGradient(
+          -spaceship.size * 0.75, 0,
+          -spaceship.size * 0.95, 0
+        );
+        thrusterGrad.addColorStop(0, "#444");
+        thrusterGrad.addColorStop(1, "#222");
+        
+        ctx.fillStyle = thrusterGrad;
+        ctx.fill();
+        ctx.strokeStyle = "#888";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Thruster vents
+        ctx.beginPath();
+        for (let i = 0; i < 3; i++) {
+          const ventY = spaceship.size * (-0.2 + i * 0.2);
+          ctx.moveTo(-spaceship.size * 0.85, ventY);
+          ctx.lineTo(-spaceship.size * 0.90, ventY);
+        }
+        ctx.strokeStyle = "#99AACC";
+        ctx.stroke();
+        
+        // Enhanced engine flames - more powerful looking
+        ctx.save();
+        ctx.globalAlpha = 0.8; // More visible
+        let flameLength = spaceship.size * 0.7; // Longer flames
+        let flameWidth = spaceship.size * 0.5; // Wider flames
+        
+        // Animate flame
+        const flameTime = performance.now() / 100;
+        const flameFlicker = 0.85 + Math.sin(flameTime) * 0.15;
+        flameLength *= flameFlicker;
+        
+        // More vibrant flame gradient
+        let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.95, 0, -spaceship.size * 0.95 - flameLength, 0);
+        flameGrad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
+        flameGrad.addColorStop(0.4, "rgba(255, 120, 30, 0.8)");
+        flameGrad.addColorStop(0.8, "rgba(220, 50, 10, 0.6)");
+        flameGrad.addColorStop(1, "rgba(180, 20, 0, 0)");
+        
+        ctx.fillStyle = flameGrad;
+        ctx.beginPath();
+        ctx.moveTo(-spaceship.size * 0.95, flameWidth / 2);
+        
+        // Create a more dynamic flame shape with curves
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.95 - flameLength * 0.7, flameWidth * 0.2,
+          -spaceship.size * 0.95 - flameLength, 0
+        );
+        
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.95 - flameLength * 0.7, -flameWidth * 0.2,
+          -spaceship.size * 0.95, -flameWidth / 2
+        );
+        
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add inner core to flame
+        const innerFlameGrad = ctx.createLinearGradient(-spaceship.size * 0.95, 0, -spaceship.size * 0.95 - flameLength * 0.6, 0);
+        innerFlameGrad.addColorStop(0, "rgba(255, 255, 200, 0.9)");
+        innerFlameGrad.addColorStop(0.5, "rgba(255, 200, 50, 0.7)");
+        innerFlameGrad.addColorStop(1, "rgba(255, 120, 30, 0)");
+        
+        ctx.fillStyle = innerFlameGrad;
+        ctx.beginPath();
+        ctx.moveTo(-spaceship.size * 0.95, flameWidth / 4);
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.95 - flameLength * 0.4, flameWidth * 0.1,
+          -spaceship.size * 0.95 - flameLength * 0.6, 0
+        );
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.95 - flameLength * 0.4, -flameWidth * 0.1,
+          -spaceship.size * 0.95, -flameWidth / 4
+        );
+        ctx.closePath();
+        ctx.fill();
+        
         ctx.restore();
+        
+        // Enhanced cockpit - more armored looking
+        let cockpitRadius = spaceship.size * 0.25;
+        let cockpitX = spaceship.size * 0.3;
+        let cockpitY = 0;
+        
+        // Armor ring around cockpit
+        ctx.beginPath();
+        ctx.arc(cockpitX, cockpitY, cockpitRadius + 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#445566";
+        ctx.fill();
+        ctx.strokeStyle = "#99AACC";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Inner cockpit with upgraded gradient
+        let cockpitGrad = ctx.createRadialGradient(
+          cockpitX, cockpitY, cockpitRadius * 0.3,
+          cockpitX, cockpitY, cockpitRadius 
+        );
+        cockpitGrad.addColorStop(0, "rgba(180, 230, 255, 0.9)"); // Brighter blue
+        cockpitGrad.addColorStop(0.5, "rgba(80, 150, 255, 0.8)"); // Medium blue
+        cockpitGrad.addColorStop(1, "rgba(30, 80, 180, 0.7)"); // Dark blue
+        
+        ctx.beginPath();
+        ctx.arc(cockpitX, cockpitY, cockpitRadius, 0, Math.PI * 2);
+        ctx.fillStyle = cockpitGrad;
+        ctx.fill();
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Add cockpit details - cross shape
+        ctx.beginPath();
+        ctx.moveTo(cockpitX - cockpitRadius * 0.7, cockpitY);
+        ctx.lineTo(cockpitX + cockpitRadius * 0.7, cockpitY);
+        ctx.moveTo(cockpitX, cockpitY - cockpitRadius * 0.7);
+        ctx.lineTo(cockpitX, cockpitY + cockpitRadius * 0.7);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      
+      // Draw shield for laser ship
+      function drawLaserShipShield() {
+        // Get current time for animation
+        const time = performance.now() / 1000;
+        
+        // Shield pulse effect
+        const shieldPulse = 0.7 + Math.sin(time * 3) * 0.3;
+        
+        // Different appearance based on shield health
+        let shieldOpacity;
+        let shieldColor;
+        let hexColor;
+        
+        // Make shield flash when recently hit
+        if (spaceship.shieldFlashTimer > 0) {
+          shieldOpacity = 0.8;
+          hexColor = "#FFFFFF";
+          shieldColor = `rgba(255, 255, 255, ${shieldOpacity * shieldPulse})`;
+        } else {
+          // Normal shield state based on health
+          const healthRatio = spaceship.shieldHealth / 3;
+          
+          if (healthRatio > 0.7) {
+            // Strong shield - blue
+            shieldOpacity = 0.3 + (healthRatio * 0.2);
+            hexColor = "#00AAFF";
+            shieldColor = `rgba(0, 170, 255, ${shieldOpacity * shieldPulse})`;
+          } else if (healthRatio > 0.3) {
+            // Medium shield - cyan with some yellow
+            shieldOpacity = 0.25 + (healthRatio * 0.15);
+            hexColor = "#00FFAA";
+            shieldColor = `rgba(0, 255, 170, ${shieldOpacity * shieldPulse})`;
+          } else {
+            // Weak shield - orange/red
+            shieldOpacity = 0.2 + (healthRatio * 0.15);
+            hexColor = "#FFAA00";
+            shieldColor = `rgba(255, 170, 0, ${shieldOpacity * shieldPulse})`;
+          }
+        }
+        
+        ctx.save();
+        
+        // Define shield arc angle
+        const arcRadius = spaceship.size * 1.2;
+        const arcWidth = spaceship.size * 0.15;
+        
+        // Calculate starting and ending angles for frontal arc shield
+        const arcStart = -Math.PI / 3; // 60 degrees left of center
+        const arcEnd = Math.PI / 3;    // 60 degrees right of center
+        
+        // Create gradient for shield edge
+        const gradient = ctx.createRadialGradient(
+          0, 0, arcRadius - arcWidth,
+          0, 0, arcRadius + arcWidth
+        );
+        
+        gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+        gradient.addColorStop(0.5, shieldColor);
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+        
+        // Draw main shield arc
+        ctx.beginPath();
+        ctx.arc(0, 0, arcRadius, arcStart, arcEnd);
+        ctx.lineWidth = arcWidth;
+        ctx.strokeStyle = gradient;
+        ctx.stroke();
+        
+        // Add subtle energy ripples along shield
+        const rippleCount = 3;
+        for (let i = 0; i < rippleCount; i++) {
+          // Calculate ripple position along the arc
+          const ripplePos = arcStart + ((arcEnd - arcStart) * (i / (rippleCount - 1)));
+          const rippleRadius = arcWidth * 0.6;
+          
+          // Calculate position on the arc
+          const x = Math.cos(ripplePos) * arcRadius;
+          const y = Math.sin(ripplePos) * arcRadius;
+          
+          // Draw ripple
+          ctx.beginPath();
+          ctx.arc(x, y, rippleRadius, 0, Math.PI * 2);
+          
+          // Create ripple gradient
+          const rippleGradient = ctx.createRadialGradient(
+            x, y, 0,
+            x, y, rippleRadius
+          );
+          
+          rippleGradient.addColorStop(0, `rgba(255, 255, 255, ${shieldOpacity * 1.5 * shieldPulse})`);
+          rippleGradient.addColorStop(0.5, shieldColor);
+          rippleGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+          
+          ctx.fillStyle = rippleGradient;
+          ctx.fill();
+        }
+        
+        // Add hexagon pattern to shield
+        const hexSize = arcWidth * 0.4;
+        const hexSpacing = hexSize * 1.8;
+        const hexRows = 2;
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${shieldOpacity * 0.7 * shieldPulse})`;
+        ctx.lineWidth = 1;
+        
+        for (let row = 0; row < hexRows; row++) {
+          const rowRadius = arcRadius - arcWidth/2 + (row * hexSpacing);
+          const arcLength = rowRadius * (arcEnd - arcStart);
+          const hexCount = Math.floor(arcLength / hexSpacing);
+          
+          for (let i = 0; i < hexCount; i++) {
+            const hexAngle = arcStart + ((arcEnd - arcStart) * (i / (hexCount - 1)));
+            const x = Math.cos(hexAngle) * rowRadius;
+            const y = Math.sin(hexAngle) * rowRadius;
+            
+            // Draw hexagon
+            ctx.beginPath();
+            for (let j = 0; j < 6; j++) {
+              const angle = (j * Math.PI / 3) + time * 0.2;
+              const hx = x + Math.cos(angle) * hexSize;
+              const hy = y + Math.sin(angle) * hexSize;
+              
+              if (j === 0) {
+                ctx.moveTo(hx, hy);
+              } else {
+                ctx.lineTo(hx, hy);
+              }
+            }
+            ctx.closePath();
+            ctx.stroke();
+          }
+        }
+        
+        ctx.restore();
+      }
+      
+      // Draw laser beam when active
+      function drawLaserBeam() {
+        // Get the current time for various flicker/trembling effects
+        const time = performance.now() / 1000;
+        
+        // Create multiple flicker frequencies for realistic effect
+        const primaryFlicker = Math.sin(time * 25) * 0.15 + 0.85; // Fast primary flicker
+        const secondaryFlicker = Math.sin(time * 8) * 0.1 + 0.9; // Slower secondary flicker
+        const microFlicker = (Math.sin(time * 120) * 0.05 + 0.95); // Very fast micro-flicker
+        
+        // Combine all flicker effects
+        const flickerEffect = primaryFlicker * secondaryFlicker * microFlicker;
+        
+        // Create trembling effect for the beam
+        const trembleAmount = spaceship.size * 0.05;
+        const trembleX = Math.sin(time * 30) * trembleAmount;
+        const trembleY = Math.cos(time * 27) * trembleAmount;
+        
+        // Make beam thicker than before
+        const baseBeamWidth = spaceship.size * 0.3; // Doubled from 0.15
+        const beamWidth = baseBeamWidth * flickerEffect;
+        
+        // Get beam endpoint from the collision detection or use default endpoint
+        const beamEndX = spaceship.laserBeamEndX || (spaceship.x + Math.cos(spaceship.angle) * 2000);
+        const beamEndY = spaceship.laserBeamEndY || (spaceship.y + Math.sin(spaceship.angle) * 2000);
+        
+        // Calculate beam length dynamically based on end point
+        const dx = beamEndX - spaceship.x;
+        const dy = beamEndY - spaceship.y;
+        const beamLength = Math.sqrt(dx * dx + dy * dy);
+        
+        // Create beam gradient
+        const beamGrad = ctx.createLinearGradient(
+          spaceship.size * 1.2, 0,
+          spaceship.size * 1.2 + beamLength, 0
+        );
+        beamGrad.addColorStop(0, "rgba(0, 255, 255, 0.95)");
+        beamGrad.addColorStop(0.05, "rgba(230, 255, 255, 0.9)");
+        beamGrad.addColorStop(0.2, "rgba(180, 240, 255, 0.8)");
+        beamGrad.addColorStop(0.7, "rgba(100, 200, 255, 0.5)");
+        beamGrad.addColorStop(1, "rgba(0, 100, 200, 0)");
+        
+        // Apply trembling to the beam
+        ctx.save();
+        ctx.translate(trembleX, trembleY);
+        
+        // Outer glow - thicker and more pronounced
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 1.2, 0);
+        ctx.lineTo(spaceship.size * 1.2 + beamLength, beamWidth * 3);
+        ctx.lineTo(spaceship.size * 1.2 + beamLength, -beamWidth * 3);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(0, 150, 255, ${0.3 * flickerEffect})`;
+        ctx.fill();
+        
+        // Main beam with trembling effect
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 1.2, 0);
+        ctx.lineTo(spaceship.size * 1.2 + beamLength, beamWidth * 1.5);
+        ctx.lineTo(spaceship.size * 1.2 + beamLength, -beamWidth * 1.5);
+        ctx.closePath();
+        ctx.fillStyle = beamGrad;
+        ctx.fill();
+        
+        // Core of the beam - intense center with slight randomness
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 1.2, 0);
+        ctx.lineTo(spaceship.size * 1.2 + beamLength, beamWidth * 0.4 + trembleY * 0.2);
+        ctx.lineTo(spaceship.size * 1.2 + beamLength, -beamWidth * 0.4 - trembleY * 0.2);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.95 * flickerEffect})`;
+        ctx.fill();
+        
+        // Energy particles effect along the beam
+        const particleCount = Math.max(5, Math.floor(beamLength / 80)); // Scale particles based on beam length
+        for (let i = 0; i < particleCount; i++) {
+          // Calculate particle position along beam - limit to actual beam length
+          const distanceAlongBeam = (i / particleCount) * Math.min(beamLength, beamLength * 0.95);
+          const particleX = spaceship.size * 1.2 + distanceAlongBeam;
+          
+          // Particle size decreases with distance
+          const particleSize = beamWidth * 0.8 * (1 - i/particleCount);
+          
+          // Randomize particle position with more randomness further from ship
+          const particleOffsetFactor = i / particleCount; // Increases with distance
+          const particleY = (Math.sin(time * 30 + i * 5) * beamWidth * particleOffsetFactor);
+          
+          // Draw particle
+          ctx.beginPath();
+          ctx.arc(particleX, particleY, particleSize * flickerEffect, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(230, 255, 255, ${0.7 * flickerEffect * (1 - particleOffsetFactor)})`;
+          ctx.fill();
+        }
+        
+        // Impact flare at beam's endpoint
+        if (beamLength < 1900) { // Only draw impact flare if beam is hitting something (not max length)
+          const flareSize = beamWidth * 2.5;
+          const flareX = spaceship.size * 1.2 + beamLength;
+          
+          // Flare gradient
+          const flareGrad = ctx.createRadialGradient(
+            flareX, 0, 0,
+            flareX, 0, flareSize
+          );
+          flareGrad.addColorStop(0, `rgba(255, 255, 255, ${0.9 * flickerEffect})`);
+          flareGrad.addColorStop(0.3, `rgba(100, 200, 255, ${0.7 * flickerEffect})`);
+          flareGrad.addColorStop(1, `rgba(0, 100, 200, 0)`);
+          
+          ctx.beginPath();
+          ctx.arc(flareX, 0, flareSize, 0, Math.PI * 2);
+          ctx.fillStyle = flareGrad;
+          ctx.fill();
+          
+          // Add random spark particles at impact point
+          const sparkCount = Math.floor(3 + Math.random() * 3); // 3-5 sparks
+          for (let i = 0; i < sparkCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * flareSize * 0.7;
+            const sparkX = flareX + Math.cos(angle) * distance;
+            const sparkY = Math.sin(angle) * distance;
+            const sparkSize = Math.random() * beamWidth * 0.4 + beamWidth * 0.1;
+            
+            ctx.beginPath();
+            ctx.arc(sparkX, sparkY, sparkSize * flickerEffect, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(220, 240, 255, ${0.8 * flickerEffect})`;
+            ctx.fill();
+          }
+        }
+        
+        ctx.restore();
+      }
+      
+      // Fighter-like missile ship
+      function drawMissileShip(shipGrad) {
+        // More fighter-like body but still unique
+        ctx.beginPath();
+        // Front point (similar to fighter shape)
+        ctx.moveTo(spaceship.size, 0);
+        // Right side (slightly different curve)
+        ctx.lineTo(spaceship.size * 0.3, spaceship.size * 0.6);
+        // Bottom right curve
+        ctx.quadraticCurveTo(-spaceship.size * 0.6, spaceship.size * 0.5, -spaceship.size * 0.5, 0);
+        // Bottom left mirror
+        ctx.quadraticCurveTo(-spaceship.size * 0.6, -spaceship.size * 0.5, spaceship.size * 0.3, -spaceship.size * 0.6);
+        ctx.closePath();
+        
+        // Fill with gradient
+        ctx.fillStyle = shipGrad;
+        ctx.fill();
+        
+        // Add stroke
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Add distinctive wing details - double fins
+        ctx.beginPath();
+        // Top fin
+        ctx.moveTo(spaceship.size * 0.3, -spaceship.size * 0.3);
+        ctx.lineTo(spaceship.size * 0.7, -spaceship.size * 0.5);
+        ctx.lineTo(spaceship.size * 0.5, -spaceship.size * 0.6);
+        ctx.closePath();
+        // Bottom fin
+        ctx.moveTo(spaceship.size * 0.3, spaceship.size * 0.3);
+        ctx.lineTo(spaceship.size * 0.7, spaceship.size * 0.5);
+        ctx.lineTo(spaceship.size * 0.5, spaceship.size * 0.6);
+        ctx.closePath();
+        ctx.fillStyle = "#444";
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Top missile launcher (similar to fighter gun)
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.5, -spaceship.size * 0.25);
+        ctx.lineTo(spaceship.size * 0.9, -spaceship.size * 0.25);
+        ctx.lineTo(spaceship.size * 0.9, -spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.5, -spaceship.size * 0.3);
+        ctx.closePath();
+        ctx.fillStyle = "#555";
+        ctx.fill();
+        ctx.strokeStyle = "#ccc";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Bottom missile launcher (similar to fighter gun)
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.5, spaceship.size * 0.25);
+        ctx.lineTo(spaceship.size * 0.9, spaceship.size * 0.25);
+        ctx.lineTo(spaceship.size * 0.9, spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.5, spaceship.size * 0.3);
+        ctx.closePath();
+        ctx.fillStyle = "#555";
+        ctx.fill();
+        ctx.strokeStyle = "#ccc";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Missile indicator lights
+        const missileReadyColor = spaceship.missileSpecialCooldown <= 0 ? 
+                                "rgba(255, 255, 0, 0.8)" : 
+                                "rgba(100, 100, 100, 0.6)";
+        
+        // Top missile indicator
+        ctx.beginPath();
+        ctx.arc(spaceship.size * 0.8, -spaceship.size * 0.32, spaceship.size * 0.04, 0, Math.PI * 2);
+        ctx.fillStyle = missileReadyColor;
+        ctx.fill();
+        
+        // Bottom missile indicator
+        ctx.beginPath();
+        ctx.arc(spaceship.size * 0.8, spaceship.size * 0.32, spaceship.size * 0.04, 0, Math.PI * 2);
+        ctx.fillStyle = missileReadyColor;
+        ctx.fill();
+        
+        // Enhanced engine flames - more powerful looking
+        ctx.save();
+        ctx.globalAlpha = 0.8; // More visible
+        let flameLength = spaceship.size * 0.7; // Longer flames
+        let flameWidth = spaceship.size * 0.5; // Wider flames
+
+        // Animate flame
+        const flameTime = performance.now() / 100;
+        const flameFlicker = 0.85 + Math.sin(flameTime) * 0.15;
+        flameLength *= flameFlicker;
+
+        // More vibrant flame gradient
+        let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.5, 0, -spaceship.size * 0.5 - flameLength, 0);
+        flameGrad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
+        flameGrad.addColorStop(0.4, "rgba(255, 120, 30, 0.8)");
+        flameGrad.addColorStop(0.8, "rgba(220, 50, 10, 0.6)");
+        flameGrad.addColorStop(1, "rgba(180, 20, 0, 0)");
+
+        ctx.fillStyle = flameGrad;
+        ctx.beginPath();
+        ctx.moveTo(-spaceship.size * 0.5, flameWidth / 2);
+
+        // Create a more dynamic flame shape with curves
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.5 - flameLength * 0.7, flameWidth * 0.2,
+          -spaceship.size * 0.5 - flameLength, 0
+        );
+
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.5 - flameLength * 0.7, -flameWidth * 0.2,
+          -spaceship.size * 0.5, -flameWidth / 2
+        );
+
+        ctx.closePath();
+        ctx.fill();
+
+        // Add inner core to flame
+        const innerFlameGrad = ctx.createLinearGradient(-spaceship.size * 0.5, 0, -spaceship.size * 0.5 - flameLength * 0.6, 0);
+        innerFlameGrad.addColorStop(0, "rgba(255, 255, 200, 0.9)");
+        innerFlameGrad.addColorStop(0.5, "rgba(255, 200, 50, 0.7)");
+        innerFlameGrad.addColorStop(1, "rgba(255, 120, 30, 0)");
+
+        ctx.fillStyle = innerFlameGrad;
+        ctx.beginPath();
+        ctx.moveTo(-spaceship.size * 0.5, flameWidth / 4);
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.5 - flameLength * 0.4, flameWidth * 0.1,
+          -spaceship.size * 0.5 - flameLength * 0.6, 0
+        );
+        ctx.quadraticCurveTo(
+          -spaceship.size * 0.5 - flameLength * 0.4, -flameWidth * 0.1,
+          -spaceship.size * 0.5, -flameWidth / 4
+        );
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        
+        // Cockpit (similar to fighter)
+        let cockpitRadius = spaceship.size * 0.25;
+        let cockpitGrad = ctx.createRadialGradient(
+          spaceship.size * 0.3, 0,
+          cockpitRadius * 0.3,
+          spaceship.size * 0.3, 0,
+          cockpitRadius 
+        );
+        cockpitGrad.addColorStop(0, "lightblue");
+        cockpitGrad.addColorStop(1, "blue");
+        ctx.beginPath();
+        ctx.arc(spaceship.size * 0.3, 0, cockpitRadius, 0, Math.PI * 2);
+        ctx.fillStyle = cockpitGrad;
+        ctx.fill();
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Simplified missile cooldown indicator (if needed)
+        if (spaceship.missileSpecialCooldown > 0) {
+          const cooldownPercentage = 1 - (spaceship.missileSpecialCooldown / 1); // 1s is max cooldown now
+          
+          // Draw pulsing ring around cockpit when cooldown active
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(spaceship.size * 0.3, 0, cockpitRadius + 5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 200, 0, ${0.5 * cooldownPercentage})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
       // 3) Draw normal comets with morph
@@ -3845,6 +4950,155 @@
         ctx.fillText("↑/↓: Navigate menu   ENTER: Select   ESC: Resume game", canvas.width / 2, instructY + 30);
       }
       
+      // Draw the Ship Selection screen
+      function drawShipSelect() {
+        ctx.fillStyle = "white";
+        ctx.font = "36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Select Your Spaceship", canvas.width / 2, canvas.height / 5);
+        
+        // Ships and their descriptions
+        const ships = [
+          {
+            type: SHIP_TYPE.DEFAULT,
+            name: "Balanced Fighter",
+            desc: "Standard speed and firepower",
+            features: ["Balanced maneuverability", "Twin blasters", "Standard engines"]
+          },
+          {
+            type: SHIP_TYPE.LASER,
+            name: "Heavy Cruiser",
+            desc: "Slow but powerful laser cannon",
+            features: ["Powerful laser beam (F key)", "3-second beam duration", "10-second cooldown"]
+          },
+          {
+            type: SHIP_TYPE.MISSILE,
+            name: "Stealth Interceptor",
+            desc: "Fast with six missile spread",
+            features: ["Faster movement", "Six missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
+          }
+        ];
+        
+        // Layout parameters
+        const panelWidth = canvas.width * 0.25;
+        const panelHeight = canvas.height * 0.5;
+        const panelSpacing = canvas.width * 0.05;
+        const panelY = canvas.height * 0.3;
+        
+        // Calculate positions for 3 panels with even spacing
+        const totalWidth = (panelWidth * 3) + (panelSpacing * 2);
+        const startX = (canvas.width - totalWidth) / 2;
+        
+        // Draw each ship panel
+        for (let i = 0; i < ships.length; i++) {
+          const ship = ships[i];
+          const x = startX + (panelWidth + panelSpacing) * i;
+          
+          // Create panel with rounded corners and glow for selected item
+          ctx.save();
+          
+          // Selection indicator
+          if (i === selectedShipMenuItem) {
+            // Outer glow for selected panel
+            ctx.shadowColor = "rgba(0, 150, 255, 0.8)";
+            ctx.shadowBlur = 15;
+            
+            // Panel background - brighter when selected
+            ctx.fillStyle = "rgba(0, 150, 255, 0.4)";
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.9)";
+            ctx.lineWidth = 3;
+          } else {
+            // Panel background - darker when not selected
+            ctx.fillStyle = "rgba(0, 100, 255, 0.2)";
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.4)";
+            ctx.lineWidth = 1;
+          }
+          
+          // Draw rounded rectangle for panel
+          roundRect(ctx, x, panelY, panelWidth, panelHeight, 10);
+          
+          // Ship title
+          ctx.fillStyle = "white";
+          ctx.font = "bold 20px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(ship.name, x + panelWidth/2, panelY + 30);
+          
+          // Ship visualization (draw actual ship)
+          ctx.translate(x + panelWidth/2, panelY + panelHeight * 0.4);
+          
+          // Make ship hover up and down slightly
+          const hoverOffset = Math.sin(performance.now() / 500) * 5;
+          ctx.translate(0, hoverOffset);
+          
+          // Scale the ship to fit nicely in panel
+          const shipScaleFactor = 1.2;
+          ctx.scale(shipScaleFactor, shipScaleFactor);
+          
+          // Create temporary ship object to draw
+          const tempShip = {
+            x: 0,
+            y: 0,
+            size: SHIP_SIZE,
+            angle: -Math.PI/2,  // Face upward
+            type: ship.type
+          };
+          
+          // Save the original spaceship object and replace it temporarily
+          const originalShip = spaceship;
+          spaceship = tempShip;
+          
+          // Draw the ship
+          switch(ship.type) {
+            case SHIP_TYPE.DEFAULT:
+              drawDefaultShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+              break;
+            case SHIP_TYPE.LASER:
+              drawLaserShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+              break;
+            case SHIP_TYPE.MISSILE:
+              drawMissileShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+              break;
+          }
+          
+          // Restore the original spaceship object
+          spaceship = originalShip;
+          
+          ctx.restore();
+          
+          // Ship description
+          ctx.fillStyle = "rgba(200, 200, 255, 0.9)";
+          ctx.font = "italic 16px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(ship.desc, x + panelWidth/2, panelY + panelHeight * 0.7);
+          
+          // Ship features (bullet points)
+          ctx.font = "14px sans-serif";
+          ctx.textAlign = "left";
+          const featX = x + 20;
+          let featY = panelY + panelHeight * 0.75;
+          
+          for (const feature of ship.features) {
+            ctx.fillText(`• ${feature}`, featX, featY);
+            featY += 20;
+          }
+        }
+        
+        // Instructions with subtle backdrop
+        const instructY = panelY + panelHeight + 40;
+        
+        // Draw semi-transparent backdrop for instructions
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(canvas.width/2 - 250, instructY - 15, 500, 80);
+        
+        // Navigation instructions
+        ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
+        ctx.font = "18px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("◄ ► : Navigate between ships", canvas.width / 2, instructY + 15);
+        ctx.fillText("ENTER: Select ship and start game", canvas.width / 2, instructY + 45);
+        ctx.fillText("ESC: Return to difficulty selection", canvas.width / 2, instructY + 75);
+      }
+      
       // Draw the Settings screen
       function drawSettings() {
         ctx.fillStyle = "white";
@@ -4119,6 +5373,9 @@
             return;
           case GAME_STATE.DIFFICULTY_SELECT:
             drawDifficultySelect();
+            return;
+          case GAME_STATE.SHIP_SELECT:
+            drawShipSelect();
             return;
           case GAME_STATE.SETTINGS:
             drawSettings();
@@ -4504,6 +5761,49 @@
           ctx.restore();
         }
         
+        // Display laser cooldown for laser ship
+        if (spaceship.type === SHIP_TYPE.LASER && (spaceship.laserCooldown || spaceship.laserActive)) {
+          const timerWidth = 80;
+          const timerHeight = 6;
+          
+          let timerLabel, timeLeft, timerColor;
+          
+          if (spaceship.laserActive) {
+            // Laser is active - show active time left
+            timerLabel = "LASER";
+            timeLeft = 1 - (spaceship.laserTimer / 6); // 6 seconds duration (increased from 3)
+            timerColor = "rgba(0, 220, 255, 0.8)";
+          } else {
+            // Laser is cooling down
+            timerLabel = "RECHARGING";
+            timeLeft = 1 - (spaceship.laserCooldownTimer / 10); // 10 seconds cooldown
+            timerColor = "rgba(255, 100, 100, 0.8)";
+          }
+          
+          ctx.save();
+          // Position below other timers if needed
+          const x = canvas.width - 120;
+          let y = 45;
+          if (spaceship.tripleShot) y += 20;
+          if (spaceship.missileBarrageActive) y += 20;
+          
+          // Timer background
+          ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+          ctx.fillRect(x, y, timerWidth, timerHeight);
+          
+          // Timer fill
+          ctx.fillStyle = timerColor;
+          ctx.fillRect(x, y, timerWidth * timeLeft, timerHeight);
+          
+          // Timer text
+          ctx.font = "12px Arial";
+          ctx.fillStyle = "white";
+          ctx.textAlign = "center";
+          ctx.fillText(timerLabel, x + timerWidth/2, y - 5);
+          
+          ctx.restore();
+        }
+        
         // No longer showing the missile barrage timer since it's now a pickup
 
         // Spaceship
@@ -4538,45 +5838,168 @@
             const age = gameTime - (b.creation || 0);
             const colorPhase = Math.sin(age * 10) * 0.5 + 0.5; // Oscillate between 0-1
             
-            // Color shifts from yellow to orange to red
-            let missileColor;
-            if (colorPhase < 0.33) {
-              missileColor = "rgba(255, 255, 0, 0.9)"; // Yellow
-            } else if (colorPhase < 0.66) {
-              missileColor = "rgba(255, 200, 0, 0.9)"; // Orange-yellow
+            // Color shifts based on missile power
+            let missileColor, trailLength, glowIntensity;
+            
+            if (b.isPowerfulMissile) {
+              // Vary colors slightly based on missile sequence number for more variety
+              const sequenceNum = b.sequenceNumber || 0;
+              
+              if (sequenceNum === 0) {
+                // First missile (center) - gold to orange
+                if (colorPhase < 0.33) {
+                  missileColor = "rgba(255, 220, 50, 1.0)"; // Bright gold
+                } else if (colorPhase < 0.66) {
+                  missileColor = "rgba(255, 150, 20, 1.0)"; // Deep orange
+                } else {
+                  missileColor = "rgba(255, 80, 10, 1.0)"; // Reddish orange
+                }
+              } else if (sequenceNum === 1) {
+                // Second missile (left) - blue to purple
+                if (colorPhase < 0.33) {
+                  missileColor = "rgba(50, 180, 255, 1.0)"; // Bright blue
+                } else if (colorPhase < 0.66) {
+                  missileColor = "rgba(100, 120, 255, 1.0)"; // Blue-purple
+                } else {
+                  missileColor = "rgba(150, 80, 255, 1.0)"; // Purple
+                }
+              } else {
+                // Third missile (right) - green to teal
+                if (colorPhase < 0.33) {
+                  missileColor = "rgba(50, 255, 120, 1.0)"; // Bright green
+                } else if (colorPhase < 0.66) {
+                  missileColor = "rgba(20, 220, 150, 1.0)"; // Teal-green
+                } else {
+                  missileColor = "rgba(10, 200, 180, 1.0)"; // Teal
+                }
+              }
+              trailLength = 12; // Longer trail
+              glowIntensity = 20; // Stronger glow
             } else {
-              missileColor = "rgba(255, 150, 0, 0.9)"; // Orange
+              // Regular missile colors
+              if (colorPhase < 0.33) {
+                missileColor = "rgba(255, 255, 0, 0.9)"; // Yellow
+              } else if (colorPhase < 0.66) {
+                missileColor = "rgba(255, 200, 0, 0.9)"; // Orange-yellow
+              } else {
+                missileColor = "rgba(255, 150, 0, 0.9)"; // Orange
+              }
+              trailLength = 8; // Standard trail
+              glowIntensity = 10; // Standard glow
             }
             
-            // Missile body (better triangle shape with glow)
+            // Missile body shape
             ctx.fillStyle = missileColor;
             
             // Add glow effect
             ctx.shadowColor = missileColor;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = glowIntensity;
             
             // Modified shape - more rocket-like
             ctx.beginPath();
-            ctx.moveTo(b.radius * 2.5, 0); // Pointier front
-            ctx.lineTo(-b.radius, b.radius * 1.2); // Wider back
-            ctx.lineTo(-b.radius * 0.5, 0); // Indent for engine
-            ctx.lineTo(-b.radius, -b.radius * 1.2); // Wider back
-            ctx.closePath();
+            
+            if (b.isPowerfulMissile) {
+              // Bullet shape for powerful missiles
+              ctx.arc(0, 0, b.radius * 1.5, 0, Math.PI * 2);
+            } else {
+              // Standard missile shape - simple circle
+              ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+            }
+            
             ctx.fill();
             
-            // Missile trail
-            ctx.shadowBlur = 15; // More pronounced glow for trail
+            // Missile trail - simpler reversion to original structure
+            ctx.shadowBlur = glowIntensity + 5; // More pronounced glow for trail
             ctx.beginPath();
-            ctx.moveTo(-b.radius * 0.5, 0);
-            ctx.lineTo(-b.radius * 8, 0);
-            const trailGradient = ctx.createLinearGradient(-b.radius, 0, -b.radius * 8, 0);
-            trailGradient.addColorStop(0, missileColor);
-            trailGradient.addColorStop(0.3, "rgba(255, 200, 100, 0.7)");
-            trailGradient.addColorStop(0.7, "rgba(255, 100, 50, 0.3)");
-            trailGradient.addColorStop(1, "rgba(255, 50, 0, 0)");
+            ctx.moveTo(-b.radius * 0.7, 0);
+            ctx.lineTo(-b.radius * trailLength, 0);
+            
+            // Trail gradient varies based on missile power and sequence
+            const sequenceNum = b.sequenceNumber || 0;
+            const trailGradient = ctx.createLinearGradient(-b.radius, 0, -b.radius * trailLength, 0);
+            
+            if (b.isPowerfulMissile) {
+              // Color based on which missile in sequence
+              if (sequenceNum === 0) {
+                // Orange/red trail for center missile
+                trailGradient.addColorStop(0, missileColor);
+                trailGradient.addColorStop(0.2, "rgba(255, 200, 50, 0.9)");
+                trailGradient.addColorStop(0.5, "rgba(255, 100, 50, 0.7)");
+                trailGradient.addColorStop(0.8, "rgba(255, 50, 0, 0.4)");
+                trailGradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+              } else if (sequenceNum === 1) {
+                // Blue/purple trail for left missile
+                trailGradient.addColorStop(0, missileColor);
+                trailGradient.addColorStop(0.2, "rgba(50, 150, 255, 0.9)");
+                trailGradient.addColorStop(0.5, "rgba(80, 100, 255, 0.7)");
+                trailGradient.addColorStop(0.8, "rgba(100, 50, 220, 0.4)");
+                trailGradient.addColorStop(1, "rgba(80, 20, 180, 0)");
+              } else {
+                // Green/teal trail for right missile
+                trailGradient.addColorStop(0, missileColor);
+                trailGradient.addColorStop(0.2, "rgba(50, 220, 120, 0.9)");
+                trailGradient.addColorStop(0.5, "rgba(30, 200, 150, 0.7)");
+                trailGradient.addColorStop(0.8, "rgba(20, 180, 180, 0.4)");
+                trailGradient.addColorStop(1, "rgba(10, 150, 150, 0)");
+              }
+            } else {
+              // Standard trail
+              trailGradient.addColorStop(0, missileColor);
+              trailGradient.addColorStop(0.3, "rgba(255, 200, 100, 0.7)");
+              trailGradient.addColorStop(0.7, "rgba(255, 100, 50, 0.3)");
+              trailGradient.addColorStop(1, "rgba(255, 50, 0, 0)");
+            }
+            
             ctx.strokeStyle = trailGradient;
-            ctx.lineWidth = b.radius * (1.5 + Math.sin(age * 15) * 0.3); // Pulsing trail width
+            
+            // Pulsing trail width
+            const pulseRate = b.isPowerfulMissile ? 20 : 15; // Faster pulse for powerful missiles
+            const pulseAmplitude = b.isPowerfulMissile ? 0.4 : 0.3; // Higher amplitude for powerful missiles
+            ctx.lineWidth = b.radius * (1.5 + Math.sin(age * pulseRate) * pulseAmplitude);
             ctx.stroke();
+            
+            // Add fire particles to powerful missile trail
+            if (b.isPowerfulMissile) {
+              // Add more particles for a fire-like effect
+              const numParticles = 4; // Number of particles to add per frame
+              
+              for (let i = 0; i < numParticles; i++) {
+                // Calculate random position along trail
+                const sparkDistance = Math.random() * (trailLength * b.radius * 0.8);
+                // More spread at the end of the trail
+                const spreadFactor = sparkDistance / (trailLength * b.radius);
+                const sparkOffsetY = (Math.random() - 0.5) * b.radius * 3 * spreadFactor;
+                
+                // Particle size smaller toward end of trail
+                const particleSize = Math.random() * b.radius * 0.8 * (1 - spreadFactor * 0.8);
+                
+                // Choose particle color based on sequence and position
+                let particleColor;
+                
+                if (sequenceNum === 0) {
+                  // Orange/yellow sparks
+                  particleColor = Math.random() < 0.5 ? 
+                    "rgba(255, 220, 100, 0.8)" : 
+                    "rgba(255, 160, 50, 0.8)";
+                } else if (sequenceNum === 1) {
+                  // Blue/white sparks
+                  particleColor = Math.random() < 0.5 ? 
+                    "rgba(180, 220, 255, 0.8)" : 
+                    "rgba(100, 180, 255, 0.8)";
+                } else {
+                  // Green/white sparks
+                  particleColor = Math.random() < 0.5 ? 
+                    "rgba(180, 255, 220, 0.8)" : 
+                    "rgba(100, 255, 180, 0.8)";
+                }
+                
+                // Draw the spark particle
+                ctx.beginPath();
+                ctx.arc(-b.radius - sparkDistance, sparkOffsetY, particleSize, 0, Math.PI * 2);
+                ctx.fillStyle = particleColor;
+                ctx.fill();
+              }
+            }
             
             ctx.restore();
           } else {
@@ -4645,6 +6068,9 @@
             authButton.style.opacity = "0.5";
             authButton.style.cursor = "not-allowed";
           }
+          
+          // Update ship type-specific mechanics
+          updateShipMechanics(dt);
         } else {
           window.gameState = String(gameState);
           
@@ -4655,6 +6081,238 @@
             authButton.style.opacity = "1";
             authButton.style.cursor = "pointer";
           }
+        }
+        
+        // Function to update ship type-specific mechanics
+        function updateShipMechanics(dt) {
+          // Update missile cooldown timer
+          if (spaceship.missileSpecialCooldown > 0) {
+            spaceship.missileSpecialCooldown -= dt;
+            if (spaceship.missileSpecialCooldown < 0) spaceship.missileSpecialCooldown = 0;
+          }
+          
+          // Handle sequential missile firing
+          if (missileSequenceState.isActive) {
+            // Check if it's time to fire the next missile in the sequence
+            if (gameTime - missileSequenceState.lastFiredTime >= missileSequenceState.missileDelay) {
+              fireNextMissileInSequence();
+            }
+          }
+          
+          // Update shield flash timer
+          if (spaceship.shieldFlashTimer > 0) {
+            spaceship.shieldFlashTimer -= dt;
+            if (spaceship.shieldFlashTimer < 0) spaceship.shieldFlashTimer = 0;
+          }
+          
+          // Update laser ship mechanics
+          if (spaceship.type === SHIP_TYPE.LASER) {
+            if (spaceship.laserCooldown) {
+              // Handle cooldown
+              spaceship.laserCooldownTimer -= dt;
+              if (spaceship.laserCooldownTimer <= 0) {
+                spaceship.laserCooldown = false;
+                spaceship.laserCooldownTimer = 0;
+              }
+            } else if (spaceship.laserActive) {
+              // Update active laser beam
+              spaceship.laserTimer += dt;
+              
+              // Periodic sound effects for sustained laser
+              if (Math.floor(spaceship.laserTimer * 3) % 1 === 0 && soundEnabled) {
+                bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+                bulletSoundPool[nextBulletSoundIndex].volume = 0.2;
+                bulletSoundPool[nextBulletSoundIndex].play();
+                nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+              }
+              
+              // Laser stays active for 6 seconds then goes on cooldown (increased from 3)
+              if (spaceship.laserTimer >= 6) {
+                spaceship.laserActive = false;
+                spaceship.laserTimer = 0;
+                spaceship.laserCooldown = true;
+                spaceship.laserCooldownTimer = 10; // 10 second cooldown
+                // Reset laser beam endpoint variables
+                spaceship.laserBeamEndX = null;
+                spaceship.laserBeamEndY = null;
+              }
+              
+              // Process laser beam collisions
+              processLaserCollisions();
+            }
+          }
+        }
+        
+        // Check collisions between laser beam and comets/bigComets
+        function processLaserCollisions() {
+          if (!spaceship.laserActive || spaceship.type !== SHIP_TYPE.LASER) return;
+          
+          // Calculate laser beam endpoint (very long to cover screen)
+          const laserLength = 2000;
+          let beamEndX = spaceship.x + Math.cos(spaceship.angle) * laserLength;
+          let beamEndY = spaceship.y + Math.sin(spaceship.angle) * laserLength;
+          
+          // Initialize variables to track closest intersection
+          let closestIntersection = null;
+          let closestDist = Infinity;
+          let closestComet = null;
+          let isNormalComet = true;
+          
+          // Check normal comets
+          for (let i = comets.length - 1; i >= 0; i--) {
+            const comet = comets[i];
+            
+            // Skip if comet is indestructible
+            if (comet.indestructableTimer > 0) continue;
+            
+            // Check if laser intersects comet
+            if (lineCircleIntersect(
+                spaceship.x, spaceship.y, 
+                beamEndX, beamEndY,
+                comet.x, comet.y, comet.radius)) {
+              
+              // Calculate distance to this comet
+              const dist = Math.hypot(comet.x - spaceship.x, comet.y - spaceship.y);
+              
+              // If this is closer than previous hits, remember it
+              if (dist < closestDist) {
+                closestDist = dist;
+                closestComet = comet;
+                isNormalComet = true;
+              }
+            }
+          }
+          
+          // Check big comets
+          for (let i = bigComets.length - 1; i >= 0; i--) {
+            const bigComet = bigComets[i];
+            
+            // Check if laser intersects big comet
+            if (lineCircleIntersect(
+                spaceship.x, spaceship.y, 
+                beamEndX, beamEndY,
+                bigComet.x, bigComet.y, bigComet.radius)) {
+              
+              // Calculate distance to this comet
+              const dist = Math.hypot(bigComet.x - spaceship.x, bigComet.y - spaceship.y);
+              
+              // If this is closer than previous hits, remember it
+              if (dist < closestDist) {
+                closestDist = dist;
+                closestComet = bigComet;
+                isNormalComet = false;
+              }
+            }
+          }
+          
+          // If we found a comet intersection, update beam endpoint
+          if (closestComet) {
+            // Calculate beam endpoint at the comet's edge
+            const angle = Math.atan2(closestComet.y - spaceship.y, closestComet.x - spaceship.x);
+            const radius = isNormalComet ? closestComet.radius : closestComet.radius;
+            
+            // Set endpoint to be at the comet's edge
+            beamEndX = closestComet.x - Math.cos(angle) * radius;
+            beamEndY = closestComet.y - Math.sin(angle) * radius;
+            
+            // Apply damage to the closest comet only
+            if (isNormalComet) {
+              // It's a normal comet
+              closestComet.hitPoints -= 2.5 * dt; // Increased damage from 0.5 to 2.5 per second
+              closestComet.hitEffectTimer = 0.1;
+              
+              // Create hit effect
+              if (Math.random() < 0.2) { // Throttle particles
+                createBulletImpact(beamEndX, beamEndY, 0.5, "cyan");
+              }
+              
+              // Check if comet is destroyed
+              if (closestComet.hitPoints <= 0) {
+                createSmallExplosion(closestComet.x, closestComet.y);
+                
+                // Split into smaller comets if bigger than tier 1
+                if (closestComet.tier > 1) {
+                  const newTier = closestComet.tier - 1;
+                  const baseSpeed = Math.hypot(closestComet.vx, closestComet.vy);
+                  let splits = Math.floor(randomRange(2, 6));
+                  const offset = 50;
+                  for (let k = 0; k < splits; k++) {
+                    let newAngle = Math.random() * 2 * Math.PI;
+                    let factor = randomRange(0.7, 0.8);
+                    let extraFactor = randomRange(1.2, 1.5);
+                    let newSpeed = baseSpeed * factor * extraFactor;
+                    spawnComet(
+                      newTier,
+                      closestComet.x + Math.cos(newAngle) * offset,
+                      closestComet.y + Math.sin(newAngle) * offset,
+                      Math.cos(newAngle) * newSpeed,
+                      Math.sin(newAngle) * newSpeed
+                    );
+                    // Short indestructible period so they don't instantly collide
+                    comets[comets.length - 1].indestructableTimer = 0.01;
+                  }
+                }
+                score += 10;
+                // Find and remove the comet
+                const index = comets.indexOf(closestComet);
+                if (index > -1) {
+                  comets.splice(index, 1);
+                }
+              }
+            } else {
+              // It's a big comet
+              closestComet.hitPoints -= 20 * dt; // Much higher damage per second
+              closestComet.hitCount++; // Increment hit counter
+              closestComet.hitFlashTimer = 0.1;
+              
+              // Add visual effects
+              if (Math.random() < 0.3) { // Throttle particles
+                createBulletImpact(
+                  beamEndX,
+                  beamEndY,
+                  0.7, "cyan"
+                );
+              }
+              
+              // Shake effect
+              closestComet.shakeAmount = 3 + (closestComet.hitCount / BIG_COMET_HEALTH) * 8;
+              closestComet.shakeTimer = 0.2 + (closestComet.hitCount / BIG_COMET_HEALTH) * 0.4;
+            }
+          }
+          
+          // Store beam endpoint for drawing
+          spaceship.laserBeamEndX = beamEndX;
+          spaceship.laserBeamEndY = beamEndY;
+        }
+        
+        // Helper function to check if a line intersects a circle
+        function lineCircleIntersect(x1, y1, x2, y2, cx, cy, r) {
+          // Calculate the closest point on the line to the circle center
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          const len = Math.sqrt(dx*dx + dy*dy);
+          
+          // Normalize direction vector
+          const nx = dx / len;
+          const ny = dy / len;
+          
+          // Vector from line start to circle center
+          const lcx = cx - x1;
+          const lcy = cy - y1;
+          
+          // Project circle center onto line
+          const projection = lcx * nx + lcy * ny;
+          const projectionX = x1 + nx * Math.max(0, Math.min(len, projection));
+          const projectionY = y1 + ny * Math.max(0, Math.min(len, projection));
+          
+          // Distance from closest point to circle center
+          const distance = Math.sqrt(
+            Math.pow(projectionX - cx, 2) + 
+            Math.pow(projectionY - cy, 2)
+          );
+          
+          // Intersects if distance is less than circle radius
+          return distance <= r;
         }
         
 
@@ -4725,8 +6383,20 @@
           if (Math.hypot(dx, dy) < (spaceship.size / 2 + pu.radius)) {
             // Apply power-up effect based on type
             if (pu.type === "health") {
-              // Refill HP
-              spaceship.hitPoints = Math.min(5, spaceship.hitPoints + 3);
+              // Refill HP based on ship type
+              const maxHP = spaceship.type === SHIP_TYPE.LASER ? 7 :
+                           spaceship.type === SHIP_TYPE.MISSILE ? 4 : 5;
+              
+              // Restore 3 HP or full if less than 3 remaining
+              spaceship.hitPoints = Math.min(maxHP, spaceship.hitPoints + 3);
+              
+              // Also restore shield for laser ship
+              if (spaceship.type === SHIP_TYPE.LASER && spaceship.hasShield) {
+                // Always restore shield to full
+                spaceship.shieldHealth = 3;
+                // Flash shield to show it's recharged
+                spaceship.shieldFlashTimer = 0.6;
+              }
             } else if (pu.type === "tripleShot") {
               // Activate triple shot or enhanced shot in infinity mode
               spaceship.tripleShot = true;
@@ -4818,39 +6488,110 @@
             let nx = dx / dist;
             let ny = dy / dist;
             let overlap = (spaceship.size + c.radius) - dist;
-            // separate them
-            spaceship.x += nx * (overlap / 2);
-            spaceship.y += ny * (overlap / 2);
-            c.x -= nx * (overlap / 2);
-            c.y -= ny * (overlap / 2);
-            // bounce velocities
-            spaceship.vx = -spaceship.vx * 0.5;
-            spaceship.vy = -spaceship.vy * 0.5;
-            c.vx = -c.vx * 0.3;
-            c.vy = -c.vy * 0.3;
-            // damage spaceship
-            spaceship.hitPoints--;
-            spaceship.hitFlashTimer = 0.3;
-            if (spaceship.hitPoints <= 0) {
-              comets = [];
-              bigComets = [];
-              bullets = [];
-              sparks = [];
-              createHugeExplosion(spaceship.x, spaceship.y);
-              gameState = GAME_STATE.GAME_OVER;
-              bgMusic.pause(); // Stop the gameplay music
-              defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
+            let shieldAbsorbed = false;
+            
+            // Different collision behavior based on ship type
+            if (spaceship.type === SHIP_TYPE.LASER) {
+              // Heavy cruiser has more mass - pushes comets more and is pushed less
+              // Ship moves less during collision (12.5% of normal movement)
+              spaceship.x += nx * (overlap / 8);
+              spaceship.y += ny * (overlap / 8);
+              // Comet moves more (175% of normal movement)
+              c.x -= nx * (overlap * 0.875);
+              c.y -= ny * (overlap * 0.875);
               
-              // Check and update high score in Firebase
-              updateHighScore(score, currentDifficulty)
-                .then(result => {
-                  console.log("High score check complete:", result);
-                  if (result.isNewHighScore) {
-                    console.log("NEW HIGH SCORE!");
+              // Heavy cruiser bounces less and affects comets more
+              spaceship.vx = -spaceship.vx * 0.2; // 60% less bounce than other ships
+              spaceship.vy = -spaceship.vy * 0.2;
+              c.vx = -c.vx * 0.3 - nx * 50; // Additional force applied to comets
+              c.vy = -c.vy * 0.3 - ny * 50;
+              
+              // Check if shield is active and can handle the collision
+              if (spaceship.hasShield && spaceship.shieldHealth > 0) {
+                // Calculate angle of impact to check if it's in the front arc for frontal shield
+                const impactAngle = Math.atan2(ny, nx);
+                const angleRelativeToShip = ((impactAngle - spaceship.angle) + Math.PI * 2) % (Math.PI * 2);
+                
+                // For frontal shield, check if the impact is in the front 120° arc (-π/3 to π/3)
+                const isInFrontArc = (angleRelativeToShip < Math.PI / 3 || angleRelativeToShip > Math.PI * 5 / 3);
+                
+                if (!spaceship.frontArcOnly || (spaceship.frontArcOnly && isInFrontArc)) {
+                  // Shield absorbed the hit!
+                  shieldAbsorbed = true;
+                  spaceship.shieldHealth--;
+                  spaceship.shieldFlashTimer = 0.3;
+                  
+                  // Play shield hit sound
+                  if (soundEnabled) {
+                    hitSoundPool[nextHitSoundIndex].currentTime = 0;
+                    hitSoundPool[nextHitSoundIndex].volume = 0.3;
+                    hitSoundPool[nextHitSoundIndex].play();
+                    nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
                   }
-                });
+                  
+                  // Create shield impact effect at the collision point
+                  // Calculate collision point
+                  const impactX = spaceship.x - nx * spaceship.size;
+                  const impactY = spaceship.y - ny * spaceship.size;
+                  
+                  // Visual effect at impact point
+                  createBulletImpact(
+                    impactX, 
+                    impactY, 
+                    1.0, // Scale
+                    spaceship.shieldHealth > 1 ? "#00AAFF" : "#FFAA00" // Blue or orange based on shield health
+                  );
+                }
+              }
+            } else {
+              // Normal collision dynamics for other ships
+              // separate them
+              spaceship.x += nx * (overlap / 2);
+              spaceship.y += ny * (overlap / 2);
+              c.x -= nx * (overlap / 2);
+              c.y -= ny * (overlap / 2);
               
-              return;
+              // bounce velocities
+              spaceship.vx = -spaceship.vx * 0.5;
+              spaceship.vy = -spaceship.vy * 0.5;
+              c.vx = -c.vx * 0.3;
+              c.vy = -c.vy * 0.3;
+            }
+            
+            // If shield didn't absorb, damage spaceship
+            if (!shieldAbsorbed) {
+              spaceship.hitPoints--;
+              spaceship.hitFlashTimer = 0.3;
+              
+              // Create impact effect
+              if (soundEnabled) {
+                hitSoundPool[nextHitSoundIndex].currentTime = 0;
+                hitSoundPool[nextHitSoundIndex].volume = 0.4; // Louder for direct hit
+                hitSoundPool[nextHitSoundIndex].play();
+                nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+              }
+              
+              if (spaceship.hitPoints <= 0) {
+                comets = [];
+                bigComets = [];
+                bullets = [];
+                sparks = [];
+                createHugeExplosion(spaceship.x, spaceship.y);
+                gameState = GAME_STATE.GAME_OVER;
+                bgMusic.pause(); // Stop the gameplay music
+                defeatSound.play().catch(err => console.error("Error playing defeat sound:", err));
+                
+                // Check and update high score in Firebase
+                updateHighScore(score, currentDifficulty)
+                  .then(result => {
+                    console.log("High score check complete:", result);
+                    if (result.isNewHighScore) {
+                      console.log("NEW HIGH SCORE!");
+                    }
+                  });
+                
+                return;
+              }
             }
           }
         }
@@ -4865,12 +6606,93 @@
             let nx = dx / dist;
             let ny = dy / dist;
             let overlap = (spaceship.size + bc.radius) - dist;
-            spaceship.x += nx * (overlap / 2);
-            spaceship.y += ny * (overlap / 2);
-            spaceship.vx = -spaceship.vx * 0.5;
-            spaceship.vy = -spaceship.vy * 0.5;
-            spaceship.hitPoints--;
-            spaceship.hitFlashTimer = 0.3;
+            let shieldAbsorbed = false;
+            
+            // Different collision behavior based on ship type
+            if (spaceship.type === SHIP_TYPE.LASER) {
+              // Heavy cruiser has more mass - is pushed less by big comets
+              spaceship.x += nx * (overlap / 6); // Only move 1/6 of normal distance
+              spaceship.y += ny * (overlap / 6);
+              
+              // Heavy cruiser bounces significantly less from big comets
+              spaceship.vx = -spaceship.vx * 0.15; // 70% less bounce
+              spaceship.vy = -spaceship.vy * 0.15;
+              
+              // Add some backward thrust to counter the impact
+              spaceship.vx -= nx * 100;
+              spaceship.vy -= ny * 100;
+              
+              // Check if the shield can absorb the hit from the big comet
+              if (spaceship.hasShield && spaceship.shieldHealth > 0) {
+                // Calculate angle of impact to check if it's in the front arc for frontal shield
+                const impactAngle = Math.atan2(ny, nx);
+                const angleRelativeToShip = ((impactAngle - spaceship.angle) + Math.PI * 2) % (Math.PI * 2);
+                
+                // For frontal shield, check if the impact is in the front 120° arc (-π/3 to π/3)
+                const isInFrontArc = (angleRelativeToShip < Math.PI / 3 || angleRelativeToShip > Math.PI * 5 / 3);
+                
+                // Big comets are more powerful - they require 2 shield hit points to fully absorb
+                if (!spaceship.frontArcOnly || (spaceship.frontArcOnly && isInFrontArc)) {
+                  // Shield absorbed the hit!
+                  shieldAbsorbed = true;
+                  
+                  // Big comets deplete 2 shield points if possible
+                  if (spaceship.shieldHealth >= 2) {
+                    spaceship.shieldHealth -= 2;
+                  } else {
+                    // If only 1 shield point left, use it and take partial damage
+                    spaceship.shieldHealth = 0;
+                    // Still take damage, but only 1 point instead of full damage
+                    spaceship.hitPoints--;
+                  }
+                  
+                  spaceship.shieldFlashTimer = 0.6; // Longer flash for big impact
+                  
+                  // Play shield hit sound (louder for big comet)
+                  if (soundEnabled) {
+                    hitSoundPool[nextHitSoundIndex].currentTime = 0;
+                    hitSoundPool[nextHitSoundIndex].volume = 0.5; // Louder for big impact
+                    hitSoundPool[nextHitSoundIndex].play();
+                    nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+                  }
+                  
+                  // Create bigger shield impact effect at the collision point
+                  // Calculate collision point
+                  const impactX = spaceship.x - nx * spaceship.size;
+                  const impactY = spaceship.y - ny * spaceship.size;
+                  
+                  // Visual effect at impact point
+                  createBulletImpact(
+                    impactX, 
+                    impactY, 
+                    2.0, // Larger scale for big comet
+                    spaceship.shieldHealth > 0 ? "#00AAFF" : "#FF6600" // Blue or orange based on shield health
+                  );
+                }
+              }
+            } else {
+              // Normal collision dynamics for other ships
+              spaceship.x += nx * (overlap / 2);
+              spaceship.y += ny * (overlap / 2);
+              spaceship.vx = -spaceship.vx * 0.5;
+              spaceship.vy = -spaceship.vy * 0.5;
+            }
+            
+            // If shield didn't fully absorb, damage spaceship
+            if (!shieldAbsorbed) {
+              spaceship.hitPoints--;
+              spaceship.hitFlashTimer = 0.3;
+              
+              // Create impact effect
+              if (soundEnabled) {
+                hitSoundPool[nextHitSoundIndex].currentTime = 0;
+                hitSoundPool[nextHitSoundIndex].volume = 0.6; // Louder for big comet impact
+                hitSoundPool[nextHitSoundIndex].play();
+                nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+              }
+            }
+            
+            // Check if the ship was destroyed
             if (spaceship.hitPoints <= 0) {
               comets = [];
               bigComets = [];
@@ -4897,12 +6719,12 @@
 
         // Movement controls
         if (keys["ArrowUp"]) {
-          spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * dt;
-          spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * dt;
+          spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * spaceship.speedModifier * dt;
+          spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * spaceship.speedModifier * dt;
         }
         if (keys["ArrowDown"]) {
-          spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * dt;
-          spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * dt;
+          spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * spaceship.speedModifier * dt;
+          spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * spaceship.speedModifier * dt;
         }
         if (keys["Space"]) {
           // Quick brake
@@ -4915,10 +6737,22 @@
           }
         }
         if (keys["ArrowLeft"]) {
-          spaceship.angle -= SHIP_ROT_SPEED * dt;
+          // Apply rotation speed reduction when laser is active
+          if (spaceship.type === SHIP_TYPE.LASER && spaceship.laserActive) {
+            // Significantly slower rotation when laser is active (85% reduction)
+            spaceship.angle -= SHIP_ROT_SPEED * dt * 0.75;
+          } else {
+            spaceship.angle -= SHIP_ROT_SPEED * dt;
+          }
         }
         if (keys["ArrowRight"]) {
-          spaceship.angle += SHIP_ROT_SPEED * dt;
+          // Apply rotation speed reduction when laser is active
+          if (spaceship.type === SHIP_TYPE.LASER && spaceship.laserActive) {
+            // Significantly slower rotation when laser is active (85% reduction)
+            spaceship.angle += SHIP_ROT_SPEED * dt * 0.75;
+          } else {
+            spaceship.angle += SHIP_ROT_SPEED * dt;
+          }
         }
 
         // Spaceship movement
@@ -4926,7 +6760,15 @@
         spaceship.y += spaceship.vy * dt;
         spaceship.vx *= FRICTION;
         spaceship.vy *= FRICTION;
-        bounce(spaceship, spaceship.size, 0.3);
+        
+        // Apply different bounce behavior based on ship type
+        if (spaceship.type === SHIP_TYPE.LASER) {
+          // Heavy cruiser bounces much less (only 10% of velocity retained on bounce)
+          bounce(spaceship, spaceship.size, 0.1);
+        } else {
+          // Default bounce for other ships (30% of velocity retained)
+          bounce(spaceship, spaceship.size, 0.3);
+        }
 
         // Shooting
         lastBulletTime += dt * 1000;
@@ -5105,10 +6947,19 @@
               
               // Apply damage based on bullet type
               if (b.isMissile) {
-                // Missiles do more damage
-                c.hitPoints -= MISSILE_DAMAGE;
-                // Create larger impact effect with yellow color
-                createBulletImpact(b.x, b.y, 1.5, "yellow");
+                if (b.isPowerfulMissile) {
+                  // Super missiles do massive damage (20x normal bullet)
+                  c.hitPoints -= b.missilePower || 20;
+                  // Create even larger impact effect with orange color
+                  createBulletImpact(b.x, b.y, 2.5, "orange");
+                  // Create additional explosion effect
+                  createSmallExplosion(b.x, b.y);
+                } else {
+                  // Regular missiles do moderate damage
+                  c.hitPoints -= MISSILE_DAMAGE;
+                  // Create larger impact effect with yellow color
+                  createBulletImpact(b.x, b.y, 1.5, "yellow");
+                }
               } else {
                 // Normal bullet damage
                 c.hitPoints--;
