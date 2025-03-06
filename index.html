@@ -1559,6 +1559,7 @@
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // Dark background
         ctx.fillRect(x, y, barWidth, barHeight); // Fill the background
         ctx.strokeRect(x, y, barWidth, barHeight);
+        ctx.strokeRect(x, y, barWidth, barHeight);
         
         // Get max HP based on ship type
         let maxHP;
@@ -1657,16 +1658,16 @@
           const shieldFraction = spaceship.shieldHealth / 3; // 3 is max shield health
           
           // Make shield bar flash when hit
-          let shieldAlpha = 0.8;
+          let shieldAlpha = 0.7;
           if (spaceship.shieldFlashTimer > 0) {
             // Pulsing effect
-            shieldAlpha = 0.8 + Math.sin(gameTime * 30) * 0.2;
+            shieldAlpha = 0.7 + Math.sin(gameTime * 30) * 0.3;
           }
           
           // Shield color based on remaining shield strength
           let shieldColor;
           if (shieldFraction > 0.7) {
-            shieldColor = `rgba(0, 160, 255, ${shieldAlpha})`; // Blue for strong shield
+            shieldColor = `rgba(0, 150, 255, ${shieldAlpha})`; // Blue for strong shield
           } else if (shieldFraction > 0.3) {
             shieldColor = `rgba(0, 220, 220, ${shieldAlpha})`; // Cyan for medium shield
           } else if (shieldFraction > 0) {
@@ -2812,7 +2813,7 @@
             // Futuristic, agile ship with special missiles
             spaceship.size = SHIP_SIZE * 0.85;
             spaceship.speedModifier = 1.1; // Faster
-            spaceship.hitPoints = 5; // Same health as standard ship
+            spaceship.hitPoints = 4; // Slightly less health (80% of standard)
             break;
         }
       }
@@ -2821,7 +2822,7 @@
       const missileSequenceState = {
         isActive: false,
         currentMissile: 0,
-        totalMissiles: 6,
+        totalMissiles: 3,
         lastFiredTime: 0,
         missileDelay: 0.1 // 0.1 seconds between each missile
       };
@@ -2857,26 +2858,15 @@
         // Determine angle offset based on which missile in the sequence
         let angleOffset = 0;
         
-        // Calculate spread for 6 missiles
-        switch(missileSequenceState.currentMissile) {
-          case 0: // First missile - far left
-            angleOffset = -Math.PI / 12; // -15 degrees
-            break;
-          case 1: // Second missile - mid left
-            angleOffset = -Math.PI / 24; // -7.5 degrees
-            break;
-          case 2: // Third missile - slight left
-            angleOffset = -Math.PI / 48; // -3.75 degrees
-            break;
-          case 3: // Fourth missile - slight right
-            angleOffset = Math.PI / 48; // 3.75 degrees
-            break;
-          case 4: // Fifth missile - mid right
-            angleOffset = Math.PI / 24; // 7.5 degrees
-            break;
-          case 5: // Sixth missile - far right
-            angleOffset = Math.PI / 12; // 15 degrees
-            break;
+        if (missileSequenceState.currentMissile === 0) {
+          // First missile - center (no offset)
+          angleOffset = 0;
+        } else if (missileSequenceState.currentMissile === 1) {
+          // Second missile - left side
+          angleOffset = -Math.PI / 24; // 7.5 degrees to the left
+        } else {
+          // Third missile - right side
+          angleOffset = Math.PI / 24; // 7.5 degrees to the right
         }
         
         // Calculate missile position with the same start point
@@ -3040,107 +3030,21 @@
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // ENHANCED ENGINE FLAME
+        // Flame
         ctx.save();
-        ctx.globalAlpha = 0.8; // More visible
-        
-        // Get animation time
-        const flameTime = performance.now() / 100;
-        
-        // Animated flame length
-        let flameLength = spaceship.size * 0.9; // Longer flame
-        let flameWidth = spaceship.size * 0.4; // Wider flame
-        
-        // Add flicker effect
-        const flameFlicker = 0.85 + Math.sin(flameTime) * 0.15;
-        flameLength *= flameFlicker;
-        
-        // Better flame gradient
+        ctx.globalAlpha = 0.7;
+        let flameLength = spaceship.size * 0.8;
+        let flameWidth = spaceship.size * 0.3;
         let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.6, 0, -spaceship.size * 0.6 - flameLength, 0);
-        flameGrad.addColorStop(0, "rgba(255, 255, 100, 0.9)"); // Bright yellow core
-        flameGrad.addColorStop(0.3, "rgba(255, 180, 50, 0.8)"); // Orange mid
-        flameGrad.addColorStop(0.7, "rgba(255, 80, 10, 0.6)"); // Deep orange/red
-        flameGrad.addColorStop(1, "rgba(180, 10, 0, 0)"); // Fading red edge
-        
-        // Draw main flame with curved shape
+        flameGrad.addColorStop(0, "yellow");
+        flameGrad.addColorStop(1, "red");
         ctx.fillStyle = flameGrad;
         ctx.beginPath();
         ctx.moveTo(-spaceship.size * 0.6, flameWidth / 2);
-        
-        // Use curves for more natural flame shape
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.6 - flameLength * 0.6, flameWidth * 0.2, 
-          -spaceship.size * 0.6 - flameLength, 0
-        );
-        
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.6 - flameLength * 0.6, -flameWidth * 0.2,
-          -spaceship.size * 0.6, -flameWidth / 2
-        );
-        
+        ctx.lineTo(-spaceship.size * 0.6 - flameLength, 0);
+        ctx.lineTo(-spaceship.size * 0.6, -flameWidth / 2);
         ctx.closePath();
         ctx.fill();
-        
-        // Draw inner core flame (brighter)
-        const innerFlameGrad = ctx.createLinearGradient(
-          -spaceship.size * 0.6, 0, 
-          -spaceship.size * 0.6 - flameLength * 0.6, 0
-        );
-        innerFlameGrad.addColorStop(0, "rgba(255, 255, 255, 0.9)"); // White hot center
-        innerFlameGrad.addColorStop(0.3, "rgba(255, 255, 180, 0.8)"); // Pale yellow
-        innerFlameGrad.addColorStop(1, "rgba(255, 180, 50, 0)"); // Fading orange
-        
-        ctx.fillStyle = innerFlameGrad;
-        ctx.beginPath();
-        ctx.moveTo(-spaceship.size * 0.6, flameWidth / 4);
-        
-        // Inner core is narrower
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.6 - flameLength * 0.4, flameWidth * 0.1,
-          -spaceship.size * 0.6 - flameLength * 0.6, 0
-        );
-        
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.6 - flameLength * 0.4, -flameWidth * 0.1,
-          -spaceship.size * 0.6, -flameWidth / 4
-        );
-        
-        ctx.closePath();
-        ctx.fill();
-        
-        // Add flickering particles to the flame
-        const particleCount = 5; // 5 particles
-        
-        for (let i = 0; i < particleCount; i++) {
-          // Random position along flame length
-          const distanceFromEngine = Math.random() * flameLength * 0.8;
-          const yOffset = (Math.random() - 0.5) * flameWidth * 0.9; // Position across flame width
-          
-          // Particle size (smaller near end of flame)
-          const particleSize = Math.random() * spaceship.size * 0.06 * (1 - distanceFromEngine/flameLength);
-          
-          // Particle color (yellower near engine, redder at flame tip)
-          let particleColor;
-          if (distanceFromEngine < flameLength * 0.3) {
-            particleColor = "rgba(255, 255, 150, 0.8)"; // Yellow near engine
-          } else if (distanceFromEngine < flameLength * 0.6) {
-            particleColor = "rgba(255, 200, 50, 0.7)"; // Orange in middle
-          } else {
-            particleColor = "rgba(255, 100, 30, 0.6)"; // Red near end
-          }
-          
-          // Draw particle
-          ctx.fillStyle = particleColor;
-          ctx.beginPath();
-          ctx.arc(
-            -spaceship.size * 0.6 - distanceFromEngine,
-            yOffset,
-            particleSize,
-            0, Math.PI * 2
-          );
-          ctx.fill();
-        }
-        
         ctx.restore();
 
         // Cockpit
@@ -3779,59 +3683,19 @@
         ctx.fillStyle = missileReadyColor;
         ctx.fill();
         
-        // Enhanced engine flames - more powerful looking
+        // Engine flame - regular orange/red like fighter
         ctx.save();
-        ctx.globalAlpha = 0.8; // More visible
-        let flameLength = spaceship.size * 0.7; // Longer flames
-        let flameWidth = spaceship.size * 0.5; // Wider flames
-
-        // Animate flame
-        const flameTime = performance.now() / 100;
-        const flameFlicker = 0.85 + Math.sin(flameTime) * 0.15;
-        flameLength *= flameFlicker;
-
-        // More vibrant flame gradient
+        ctx.globalAlpha = 0.7;
+        let flameLength = spaceship.size * 0.8;
+        let flameWidth = spaceship.size * 0.3;
         let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.5, 0, -spaceship.size * 0.5 - flameLength, 0);
-        flameGrad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
-        flameGrad.addColorStop(0.4, "rgba(255, 120, 30, 0.8)");
-        flameGrad.addColorStop(0.8, "rgba(220, 50, 10, 0.6)");
-        flameGrad.addColorStop(1, "rgba(180, 20, 0, 0)");
-
+        flameGrad.addColorStop(0, "yellow");
+        flameGrad.addColorStop(1, "red");
         ctx.fillStyle = flameGrad;
         ctx.beginPath();
         ctx.moveTo(-spaceship.size * 0.5, flameWidth / 2);
-
-        // Create a more dynamic flame shape with curves
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.5 - flameLength * 0.7, flameWidth * 0.2,
-          -spaceship.size * 0.5 - flameLength, 0
-        );
-
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.5 - flameLength * 0.7, -flameWidth * 0.2,
-          -spaceship.size * 0.5, -flameWidth / 2
-        );
-
-        ctx.closePath();
-        ctx.fill();
-
-        // Add inner core to flame
-        const innerFlameGrad = ctx.createLinearGradient(-spaceship.size * 0.5, 0, -spaceship.size * 0.5 - flameLength * 0.6, 0);
-        innerFlameGrad.addColorStop(0, "rgba(255, 255, 200, 0.9)");
-        innerFlameGrad.addColorStop(0.5, "rgba(255, 200, 50, 0.7)");
-        innerFlameGrad.addColorStop(1, "rgba(255, 120, 30, 0)");
-
-        ctx.fillStyle = innerFlameGrad;
-        ctx.beginPath();
-        ctx.moveTo(-spaceship.size * 0.5, flameWidth / 4);
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.5 - flameLength * 0.4, flameWidth * 0.1,
-          -spaceship.size * 0.5 - flameLength * 0.6, 0
-        );
-        ctx.quadraticCurveTo(
-          -spaceship.size * 0.5 - flameLength * 0.4, -flameWidth * 0.1,
-          -spaceship.size * 0.5, -flameWidth / 4
-        );
+        ctx.lineTo(-spaceship.size * 0.5 - flameLength, 0);
+        ctx.lineTo(-spaceship.size * 0.5, -flameWidth / 2);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
@@ -5097,7 +4961,7 @@
         const ships = [
           {
             type: SHIP_TYPE.DEFAULT,
-            name: "Nova Striker",
+            name: "Balanced Fighter",
             desc: "Standard speed and firepower",
             features: ["Balanced maneuverability", "Twin blasters", "Standard engines"]
           },
@@ -5110,8 +4974,8 @@
           {
             type: SHIP_TYPE.MISSILE,
             name: "Stealth Interceptor",
-            desc: "Fast with six missile spread",
-            features: ["Faster movement", "Six missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
+            desc: "Fast with triple missile spread",
+            features: ["Faster movement", "Triple missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
           }
         ];
         
@@ -6521,7 +6385,7 @@
             if (pu.type === "health") {
               // Refill HP based on ship type
               const maxHP = spaceship.type === SHIP_TYPE.LASER ? 7 :
-                           spaceship.type === SHIP_TYPE.MISSILE ? 5 : 5;
+                           spaceship.type === SHIP_TYPE.MISSILE ? 4 : 5;
               
               // Restore 3 HP or full if less than 3 remaining
               spaceship.hitPoints = Math.min(maxHP, spaceship.hitPoints + 3);
