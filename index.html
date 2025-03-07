@@ -18,6 +18,7 @@
     canvas {
       display: block;
       background: black;
+      visibility: hidden; /* Initially hidden until loading completes */
     }
     
     /* Auth UI overlay styles */
@@ -55,6 +56,49 @@
     #auth-button:hover {
       background: rgba(0, 180, 255, 0.8);
     }
+    
+    /* Loading screen styles */
+    #loading-screen {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      background: black;
+      z-index: 2000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .loading-container {
+      text-align: center;
+    }
+    
+    .loading-text {
+      color: #0af;
+      font-family: 'Arial', sans-serif;
+      font-size: 24px;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px rgba(0, 150, 255, 0.8);
+    }
+    
+    .loading-bar-container {
+      width: 300px;
+      height: 20px;
+      background: rgba(0, 20, 40, 0.6);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 0 10px rgba(0, 150, 255, 0.3);
+    }
+    
+    #loading-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #0055aa, #00aaff);
+      border-radius: 10px;
+      transition: width 0.3s ease;
+    }
   </style>
   <!-- Firebase App (the core Firebase SDK) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -75,6 +119,16 @@
   <div class="auth-overlay">
     <span id="user-status">Playing as Guest</span>
     <button id="auth-button">Login</button>
+  </div>
+  
+  <!-- Loading screen overlay (initially hidden) -->
+  <div id="loading-screen" style="display: none;">
+    <div class="loading-container">
+      <div class="loading-text">Loading...</div>
+      <div class="loading-bar-container">
+        <div id="loading-bar"></div>
+      </div>
+    </div>
   </div>
   
   <canvas id="gameCanvas" tabindex="1"></canvas>
@@ -177,21 +231,136 @@
         }
       }
 
+      // Add a game loading state
+      let isLoading = false;
+      let originalSoundState = true;
+      
+      // Add a function to reset the game state completely
+      function resetGameState() {
+        // Reset all game objects and timers
+        comets = [];
+        bigComets = [];
+        bullets = [];
+        sparks = [];
+        smallExplosionParticles = [];
+        powerUps = [];
+        
+        // Reset game time and spawn timers
+        gameTime = 0;
+        lastSpawnTime = 0;
+        lastBigSpawnTime = 0;
+        lastPowerUpTime = 0;
+        
+        // Reset score
+        score = 0;
+        
+        // Reset infinity mode variables
+        infinityModeTime = 0;
+        infinityModeSpawnMultiplier = 1.0;
+        
+        // Initialize the spaceship in the center
+        initializeShip(selectedShipType);
+      }
+      
+      // Save original sound functions to restore later
+      const originalPlayMethod = Audio.prototype.play;
+      
+      // Function to completely disable all sounds
+      function disableSounds() {
+        // Store original sound state
+        originalSoundState = soundEnabled;
+        
+        // Disable all sound playing globally by overriding the play method
+        Audio.prototype.play = function() {
+          return Promise.resolve();
+        };
+        
+        // Pause all currently playing sounds
+        powerUpSound.pause();
+        victorySound.pause();
+        defeatSound.pause();
+        bgMusic.pause();
+        
+        // Pause all sound pools
+        for (let sound of bulletSoundPool) {
+          sound.pause();
+        }
+        for (let sound of hitSoundPool) {
+          sound.pause();
+        }
+        
+        // Set global sound state to disabled
+        window.soundEnabled = false;
+      }
+      
+      // Function to restore sounds to original state
+      function restoreSounds() {
+        // Restore the original play method
+        Audio.prototype.play = originalPlayMethod;
+        
+        // Restore the original sound enabled state
+        window.soundEnabled = originalSoundState;
+        
+        // If music should be playing, restart it
+        if (musicEnabled && currentMusicTrack === "gameplay") {
+          bgMusic.play().catch(err => console.error("Error playing music:", err));
+        }
+      }
+      
       // Function to start gameplay music with delay
       function startGameplayMusic() {
-        if (currentMusicTrack !== "gameplay") {
-          bgMusic.pause();
-          bgMusic.src = "ingame_music.mp3";
-          bgMusic.load();
-          if (musicEnabled) {
+        // Set loading flag to pause game updates
+        isLoading = true;
+        
+        // Disable all sounds during loading
+        disableSounds();
+        
+        // Show loading screen
+        document.getElementById('loading-screen').style.display = 'flex';
+        document.getElementById('loading-bar').style.width = '0%';
+        
+        // Preload resources
+        const ingameMusic = new Audio("ingame_music.mp3");
+        
+        // Loading animation - slower to give 5 seconds total
+        let loadProgress = 0;
+        const loadInterval = setInterval(() => {
+          // Slower progress to make it last 5 seconds
+          loadProgress += 2;
+          document.getElementById('loading-bar').style.width = loadProgress + '%';
+          
+          if (loadProgress >= 100) {
+            clearInterval(loadInterval);
+            
+            // Hide loading screen and start the game
             setTimeout(() => {
-              bgMusic.play().catch(err => console.error("Error playing gameplay music:", err));
-            }, 1300); // 1300ms delay
+              // First reset all game objects
+              resetGameState();
+              
+              // Then hide loading screen
+              document.getElementById('loading-screen').style.display = 'none';
+              
+              // Start the gameplay music
+              if (currentMusicTrack !== "gameplay") {
+                bgMusic.pause();
+                bgMusic.src = "ingame_music.mp3";
+                bgMusic.load();
+                if (musicEnabled) {
+                  bgMusic.play().catch(err => console.error("Error playing gameplay music:", err));
+                }
+                currentMusicTrack = "gameplay";
+              } else if (musicEnabled && bgMusic.paused) {
+                bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
+              }
+              
+              // Restore sounds to original state
+              restoreSounds();
+              
+              // Release the loading flag to allow game updates
+              isLoading = false;
+            }, 500);
           }
-          currentMusicTrack = "gameplay";
-        } else if (musicEnabled && bgMusic.paused) {
-          bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
-        }
+        }, 100); // 50 steps × 100ms = 5000ms (5 seconds)
       }
 
       // Add error handling for music loading
@@ -208,11 +377,15 @@
         HOW_TO_PLAY: "howToPlay",
         HIGH_SCORES: "highScores",
         PLAYING: "playing",
+        PAUSE_MENU: "pauseMenu",
         GAME_OVER: "gameOver",
         WIN: "win"
       };
       
       let gameState = GAME_STATE.MAIN_MENU;
+      
+      // Variable to track selected item in pause menu
+      let pauseMenuSelectedItem = 0;
       
       // Make gameState accessible to auth.js
       window.gameState = gameState;
@@ -275,11 +448,263 @@
       // Load high scores at startup
       loadHighScores();
       
-      // Auto-start menu music when the page loads
+      // Resource loading and game initialization system
+      let totalResources = 0;
+      let loadedResources = 0;
+      let resourcesPreloaded = false;
+      
+      // Function to update loading progress
+      function updateLoadingProgress(increment = 1) {
+        loadedResources += increment;
+        const percentage = Math.min(100, Math.floor((loadedResources / totalResources) * 100));
+        document.getElementById('loading-bar').style.width = percentage + '%';
+        
+        // If all resources are loaded, hide loading screen and start game
+        if (loadedResources >= totalResources && !resourcesPreloaded) {
+          resourcesPreloaded = true;
+          
+          // Start the actual game when loading is complete
+          setTimeout(() => {
+            document.getElementById('loading-screen').style.opacity = '0';
+            setTimeout(() => {
+              document.getElementById('loading-screen').style.display = 'none';
+              
+              // Make sure the canvas is visible
+              canvas.style.visibility = 'visible';
+              
+              // Set game state to playing to actually start the game
+              // Use direct assignment to avoid our interceptor
+              window.gameState = GAME_STATE.PLAYING;
+              
+              console.log("Loading complete - starting game");
+            }, 500);
+          }, 200);
+        }
+      }
+      
+      // Function to preload audio files
+      function preloadAudio(audioArray) {
+        audioArray.forEach(audio => {
+          if (audio.src) {
+            audio.addEventListener('canplaythrough', () => {
+              updateLoadingProgress();
+            }, { once: true });
+            
+            // Handle errors during loading
+            audio.addEventListener('error', () => {
+              console.warn('Failed to load audio:', audio.src);
+              updateLoadingProgress();
+            }, { once: true });
+          } else {
+            // If audio has no source, count it as already loaded
+            updateLoadingProgress();
+          }
+        });
+      }
+      
+      // Function to preload images
+      function preloadImages(imageSources) {
+        const images = [];
+        
+        imageSources.forEach(src => {
+          const img = new Image();
+          
+          img.onload = () => {
+            updateLoadingProgress();
+          };
+          
+          img.onerror = () => {
+            console.warn('Failed to load image:', src);
+            updateLoadingProgress();
+          };
+          
+          img.src = src;
+          images.push(img);
+        });
+        
+        return images;
+      }
+      
+      // Function to wrap the normal game start process with loading screen
+      function startGameWithLoading(shipType) {
+        // Store the selected ship type
+        selectedShipType = shipType;
+        
+        // Set game to temporary loading state
+        const previousGameState = gameState;
+        gameState = "loading";  // Custom state to prevent drawing during loading
+        
+        // Reset loading progress
+        loadedResources = 0;
+        resourcesPreloaded = false;
+        document.getElementById('loading-bar').style.width = '0%';
+        
+        // Show the loading screen
+        document.getElementById('loading-screen').style.display = 'flex';
+        document.getElementById('loading-screen').style.opacity = '1';
+        
+        // Hide the canvas during loading
+        canvas.style.visibility = 'hidden';
+        
+        // Resources to preload
+        const audioElements = [
+          // Main audio tracks
+          new Audio('menu_music.mp3'),
+          new Audio('ingame_music.mp3'),
+          // Sound effects
+          powerUpSound, victorySound, defeatSound,
+          new Audio('mixkit-achievement-bell-600.wav'),
+          new Audio(explosionSoundURL),
+          new Audio('retro-explode.mp3'),
+          new Audio('small-explosion.mp3')
+        ];
+        
+        // Preload any images
+        const imageSources = [
+          'favicon.ico'
+        ];
+        
+        // Initialize resource counter
+        totalResources = audioElements.length + imageSources.length + 5; // Audio + Images + Initialization steps
+        
+        // Start preloading resources
+        preloadAudio(audioElements);
+        preloadImages(imageSources);
+        
+        // Initialize ship based on selected type
+        initializeShip(selectedShipType);
+        
+        // Reset game variables
+        score = 0;
+        gameTime = 0;
+        winTriggered = false;
+        
+        // Reset infinity mode time and multiplier
+        infinityModeTime = 0;
+        infinityModeSpawnMultiplier = 1.0;
+        
+        // Initialization steps with slight delays
+        setTimeout(() => { updateLoadingProgress(); }, 100);
+        setTimeout(() => { updateLoadingProgress(); }, 200);
+        setTimeout(() => { updateLoadingProgress(); }, 300);
+        setTimeout(() => { updateLoadingProgress(); }, 400);
+        setTimeout(() => { startGameplayMusic(); updateLoadingProgress(); }, 500);
+      }
+      
+      // Add a wrapper function to intercept gameState changes
+      const originalSetState = Object.getOwnPropertyDescriptor(window, 'gameState') || 
+                             { get: function() { return gameState; }, 
+                               set: function(newValue) { gameState = newValue; } };
+      
+      // Define a property to intercept gameState changes
+      Object.defineProperty(window, 'gameState', {
+        get: function() { 
+          return gameState; 
+        },
+        set: function(newValue) {
+          // If transitioning from SHIP_SELECT to PLAYING, show loading screen
+          if (gameState === GAME_STATE.SHIP_SELECT && newValue === GAME_STATE.PLAYING) {
+            console.log("Intercepted game state change: SHIP_SELECT -> PLAYING");
+            
+            // Call startGameWithLoading with the current selected ship type
+            let shipTypeToUse;
+            switch(selectedShipMenuItem) {
+              case 0: shipTypeToUse = SHIP_TYPE.DEFAULT; break;
+              case 1: shipTypeToUse = SHIP_TYPE.LASER; break;
+              case 2: shipTypeToUse = SHIP_TYPE.MISSILE; break;
+              default: shipTypeToUse = SHIP_TYPE.DEFAULT;
+            }
+            
+            // Use our loading function instead of direct state change
+            startGameWithLoading(shipTypeToUse);
+            
+            // Set to a temporary state during loading
+            gameState = "loading";
+            return;
+          }
+          
+          // For all other state changes, just set the state
+          gameState = newValue;
+        }
+      });
+      
+      // Monkey patch the update function to respect loading state
+      const originalUpdate = window.update || function(){};
+      window.update = function(dt) {
+        // Skip all updates while loading is in progress
+        if (isLoading || gameState === "loading") {
+          return;
+        }
+        
+        // Call the original update function
+        if (typeof originalUpdate === 'function') {
+          originalUpdate(dt);
+        }
+      };
+      
+      // Add event listener for ESC key to toggle pause menu
+      document.addEventListener('keydown', function(e) {
+        // Handle ESC key for pause/unpause
+        if (e.key === 'Escape' || e.keyCode === 27) {
+          if (gameState === GAME_STATE.PLAYING) {
+            // Pause the game
+            gameState = GAME_STATE.PAUSE_MENU;
+            pauseMenuSelectedItem = 0; // Reset selected item
+            console.log("Game paused");
+          } else if (gameState === GAME_STATE.PAUSE_MENU) {
+            // Resume the game
+            gameState = GAME_STATE.PLAYING;
+            console.log("Game resumed");
+          } else if (gameState === GAME_STATE.HOW_TO_PLAY || 
+                     gameState === GAME_STATE.SETTINGS || 
+                     gameState === GAME_STATE.HIGH_SCORES) {
+            // Return to main menu
+            gameState = GAME_STATE.MAIN_MENU;
+          }
+        }
+        
+        // Handle pause menu navigation
+        if (gameState === GAME_STATE.PAUSE_MENU) {
+          if (e.key === 'ArrowUp' || e.keyCode === 38) {
+            pauseMenuSelectedItem = Math.max(0, pauseMenuSelectedItem - 1);
+          } else if (e.key === 'ArrowDown' || e.keyCode === 40) {
+            pauseMenuSelectedItem = Math.min(2, pauseMenuSelectedItem + 1);
+          } else if (e.key === 'Enter' || e.keyCode === 13) {
+            // Handle pause menu selection
+            switch(pauseMenuSelectedItem) {
+              case 0: // Resume
+                gameState = GAME_STATE.PLAYING;
+                break;
+              case 1: // Restart
+                resetGameState();
+                gameState = GAME_STATE.PLAYING;
+                break;
+              case 2: // Main Menu
+                gameState = GAME_STATE.MAIN_MENU;
+                startMenuMusic();
+                break;
+            }
+          }
+        }
+      });
+      
+      // Initialize basic elements when the page loads
       document.addEventListener('DOMContentLoaded', function() {
+        // Set loading screen transition
+        document.getElementById('loading-screen').style.transition = 'opacity 0.5s ease';
+        
         // Initialize sound pools before trying to use them
         createSoundPools();
+        
+        // Start menu music
         startMenuMusic();
+        
+        // Initialize background elements for menu
+        initStarfield();
+        initMenuBackground();
+        
+        // Make canvas visible for menu navigation
+        canvas.style.visibility = 'visible';
       });
       
       // Create sound pools
@@ -2008,6 +2433,52 @@
           }
         }
         
+        // Special EMP ability with 'E' key for Nova Striker (DEFAULT ship)
+        if ((e.key.toLowerCase() === "e" || e.code === "KeyE") && 
+            gameState === GAME_STATE.PLAYING) {
+          
+          // Default ship (Nova Striker) special ability
+          if (spaceship.type === SHIP_TYPE.DEFAULT && !spaceship.empCooldown) {
+            // Activate EMP blast
+            activateEMPBlast();
+          }
+        }
+        
+        // ESC key for pause menu toggle
+        if (e.key === "Escape" || e.code === "Escape") {
+          if (gameState === GAME_STATE.PLAYING) {
+            gameState = GAME_STATE.PAUSE_MENU;
+            pauseMenuSelectedItem = 0; // Reset menu selection
+            console.log("Game paused");
+          } else if (gameState === GAME_STATE.PAUSE_MENU) {
+            gameState = GAME_STATE.PLAYING;
+            console.log("Game resumed");
+          }
+        }
+        
+        // Handle pause menu navigation
+        if (gameState === GAME_STATE.PAUSE_MENU) {
+          if (e.key === "ArrowUp" || e.code === "ArrowUp") {
+            pauseMenuSelectedItem = Math.max(0, pauseMenuSelectedItem - 1);
+          } else if (e.key === "ArrowDown" || e.code === "ArrowDown") {
+            pauseMenuSelectedItem = Math.min(2, pauseMenuSelectedItem + 1);
+          } else if (e.key === "Enter" || e.code === "Enter") {
+            // Handle pause menu selection
+            switch(pauseMenuSelectedItem) {
+              case 0: // Resume
+                gameState = GAME_STATE.PLAYING;
+                break;
+              case 1: // Restart
+                resetGameState();
+                gameState = GAME_STATE.PLAYING;
+                break;
+              case 2: // Main Menu
+                restartGame();
+                break;
+            }
+          }
+        }
+        
         // Music toggle with 'M' key (in any game state)
         if (e.key.toLowerCase() === "m" || e.code === "KeyM") {
           // Get the current state before toggling
@@ -2795,6 +3266,13 @@
             spaceship.speedModifier = 1.0;
             spaceship.hitPoints = 5; // Standard health
             // Default ship has no shield
+            
+            // EMP weapon properties
+            spaceship.empActive = false;
+            spaceship.empCooldown = false;
+            spaceship.empCooldownTimer = 0;
+            spaceship.empEffectTimer = 0;
+            spaceship.empWaveRadius = 0;
             break;
             
           case SHIP_TYPE.LASER:
@@ -2813,7 +3291,7 @@
             // Futuristic, agile ship with special missiles
             spaceship.size = SHIP_SIZE * 0.85;
             spaceship.speedModifier = 1.1; // Faster
-            spaceship.hitPoints = 4; // Slightly less health (80% of standard)
+            spaceship.hitPoints = 5; // Now equal to the standard fighter
             break;
         }
       }
@@ -2822,7 +3300,7 @@
       const missileSequenceState = {
         isActive: false,
         currentMissile: 0,
-        totalMissiles: 3,
+        totalMissiles: 7,
         lastFiredTime: 0,
         missileDelay: 0.1 // 0.1 seconds between each missile
       };
@@ -2845,7 +3323,7 @@
         }
       }
       
-      // Function to fire the next missile in the 3-missile sequence
+      // Function to fire the next missile in the 7-missile sequence
       function fireNextMissileInSequence() {
         // Play missile firing sound
         if (soundEnabled) {
@@ -2899,6 +3377,32 @@
           missileSequenceState.isActive = false;
         }
       }
+      
+      // Activate EMP blast (for DEFAULT ship type - Nova Striker)
+      function activateEMPBlast() {
+        if (spaceship.type !== SHIP_TYPE.DEFAULT) return;
+        
+        // Add stricter cooldown check
+        if (spaceship.empActive || spaceship.empCooldown) {
+          console.log("EMP is active or in cooldown");
+          return;
+        }
+        
+        // Play EMP activation sound
+        if (soundEnabled) {
+          // Use an existing sound for now
+          bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+          bulletSoundPool[nextBulletSoundIndex].volume = 0.7;
+          bulletSoundPool[nextBulletSoundIndex].play();
+          nextBulletSoundIndex = (nextBulletSoundIndex + 1) % bulletSoundPool.length;
+        }
+        
+        // Set EMP active state
+        spaceship.empActive = true;
+        spaceship.empEffectTimer = 0;
+        spaceship.empWaveRadius = 0;
+        console.log("EMP activated");
+      }
 
       function restartGame() {
         // Go directly to main menu, not difficulty select
@@ -2948,7 +3452,42 @@
       }
 
       // Spaceship
+      // Draw EMP wave if active
+      function drawEMPWave() {
+        if (!spaceship.empActive) return;
+        
+        ctx.save();
+        
+        // Calculate fade based on expansion progress (more transparent as it grows)
+        const progressFactor = Math.min(1, spaceship.empWaveRadius / 500);
+        const alphaBase = 0.8 - progressFactor * 0.7; // Fade from 0.8 to 0.1 as it expands
+        
+        // Adjust opacity based on time and radius 
+        ctx.globalAlpha = alphaBase - (spaceship.empEffectTimer / 6.0) * 0.3; // Additional fade over time
+        
+        // Draw only the ring, not the filled circle
+        const ringWidth = 15 - progressFactor * 10; // Ring gets thinner as it expands
+        
+        // Create a subtle glow for the ring
+        ctx.shadowBlur = 10 - progressFactor * 8;
+        ctx.shadowColor = 'rgba(100, 180, 255, 0.6)';
+        
+        // Draw the wave as just a ring instead of a filled circle
+        ctx.strokeStyle = 'rgba(140, 200, 255, ' + alphaBase + ')';
+        ctx.lineWidth = ringWidth;
+        ctx.beginPath();
+        ctx.arc(spaceship.x, spaceship.y, spaceship.empWaveRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        ctx.restore();
+      }
+      
       function drawSpaceship() {
+        // Draw EMP wave if active
+        if (spaceship.type === SHIP_TYPE.DEFAULT && spaceship.empActive) {
+          drawEMPWave();
+        }
+        
         ctx.save();
         ctx.translate(spaceship.x, spaceship.y);
         ctx.rotate(spaceship.angle);
@@ -3596,6 +4135,32 @@
             ctx.fill();
           }
         }
+        
+        ctx.restore();
+      }
+      
+      // Draw EMP effect for the Nova Striker (DEFAULT ship) - Simplified version
+      function drawEMPEffect() {
+        if (!spaceship.empActive) return;
+        
+        // Calculate wave radius based on effect timer
+        const waveRadius = spaceship.empWaveRadius;
+        
+        ctx.save();
+        
+        // Draw simple expanding ring with fixed opacity
+        ctx.beginPath();
+        ctx.arc(spaceship.x, spaceship.y, waveRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(0, 180, 255, 0.6)";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        
+        // Draw secondary ring (slightly transparent)
+        ctx.beginPath();
+        ctx.arc(spaceship.x, spaceship.y, waveRadius * 0.9, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(120, 220, 255, 0.3)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
         
         ctx.restore();
       }
@@ -4388,6 +4953,92 @@
         ctx.restore();
       }
       
+      // Draw the pause menu
+      function drawPauseMenu() {
+        // Draw gameplay elements in the background
+        // Draw Spaceship
+        drawSpaceship();
+        
+        // Draw comets, bullets, etc.
+        for (let b of bullets) {
+          ctx.fillStyle = "white";
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        for (let c of comets) {
+          ctx.fillStyle = c.color;
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        for (let p of smallExplosionParticles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+        }
+        
+        // Create a semi-transparent overlay
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw pause menu
+        ctx.fillStyle = "white";
+        ctx.font = "48px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Game Paused", canvas.width / 2, canvas.height / 3);
+        
+        // Menu options
+        const menuItems = [
+          { text: "Resume Game", action: "resume" },
+          { text: "Restart", action: "restart" },
+          { text: "Return to Main Menu", action: "menu" }
+        ];
+        
+        const menuStartY = canvas.height / 2;
+        const menuSpacing = 60;
+        const buttonWidth = 300;
+        const buttonHeight = 50;
+        
+        for (let i = 0; i < menuItems.length; i++) {
+          const item = menuItems[i];
+          const y = menuStartY + i * menuSpacing;
+          
+          // Create button with hover effect
+          ctx.beginPath();
+          ctx.roundRect(canvas.width/2 - buttonWidth/2, y, buttonWidth, buttonHeight, 10);
+          
+          // Highlight selected item
+          if (i === pauseMenuSelectedItem) {
+            ctx.fillStyle = "rgba(0, 150, 255, 0.7)";
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.9)";
+            ctx.lineWidth = 3;
+          } else {
+            ctx.fillStyle = "rgba(0, 100, 200, 0.4)";
+            ctx.strokeStyle = "rgba(100, 150, 255, 0.5)";
+            ctx.lineWidth = 1;
+          }
+          
+          ctx.fill();
+          ctx.stroke();
+          
+          // Item text
+          ctx.fillStyle = "white";
+          ctx.font = "20px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(item.text, canvas.width/2, y + 32);
+        }
+        
+        // Instructions
+        ctx.fillStyle = "rgba(200, 200, 255, 0.7)";
+        ctx.font = "18px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("↑/↓: Navigate   ENTER: Select   ESC: Resume Game", canvas.width / 2, canvas.height - 40);
+      }
+      
       // Function to draw a large background rocket
       function drawLargeBackgroundRocket() {
         const rocketTime = performance.now() / 2000; // Slower animation
@@ -4961,9 +5612,9 @@
         const ships = [
           {
             type: SHIP_TYPE.DEFAULT,
-            name: "Balanced Fighter",
-            desc: "Standard speed and firepower",
-            features: ["Balanced maneuverability", "Twin blasters", "Standard engines"]
+            name: "Nova Striker",
+            desc: "Balanced ship with EMP weapon",
+            features: ["EMP blast (F key)", "Slows all nearby comets", "Balanced maneuverability", "Twin blasters"]
           },
           {
             type: SHIP_TYPE.LASER,
@@ -4974,8 +5625,8 @@
           {
             type: SHIP_TYPE.MISSILE,
             name: "Stealth Interceptor",
-            desc: "Fast with triple missile spread",
-            features: ["Faster movement", "Triple missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
+            desc: "Fast with 7-missile spread",
+            features: ["Faster movement", "7-missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
           }
         ];
         
@@ -5347,6 +5998,11 @@
       function draw() {
         ctx.fillStyle = "black";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // If in loading state, don't render game elements
+        if (isLoading || gameState === "loading") {
+          return;
+        }
 
         // For menu screens, use the dedicated menu background
         const isMenuScreen = 
@@ -5808,6 +6464,11 @@
 
         // Spaceship
         drawSpaceship();
+        
+        // Draw EMP effect if active
+        if (spaceship.type === SHIP_TYPE.DEFAULT && spaceship.empActive) {
+          drawEMPEffect();
+        }
 
         // Sparks
         const noseX = spaceship.x + Math.cos(spaceship.angle) * spaceship.size;
@@ -6218,8 +6879,8 @@
             // Apply damage to the closest comet only
             if (isNormalComet) {
               // It's a normal comet
-              closestComet.hitPoints -= 2.5 * dt; // Increased damage from 0.5 to 2.5 per second
-              closestComet.hitEffectTimer = 0.1;
+              closestComet.hitPoints -= 20.0 * dt; // Greatly increased laser damage (from 2.5 to 10.0 per second)
+              closestComet.hitEffectTimer = 10;
               
               // Create hit effect
               if (Math.random() < 0.2) { // Throttle particles
@@ -6327,6 +6988,53 @@
           spaceship.tripleShotTimer -= dt;
           if (spaceship.tripleShotTimer <= 0) {
             spaceship.tripleShot = false;
+          }
+        }
+        
+        // Update EMP effect if active
+        if (spaceship.empActive) {
+          spaceship.empEffectTimer += dt;
+          const expansionRate = 1000 - 700 * (spaceship.empEffectTimer / 5.0);
+          spaceship.empWaveRadius += expansionRate * dt;
+          
+          // Slow down comets in range of the EMP wave
+          for (let comet of comets) {
+            const dx = comet.x - spaceship.x;
+            const dy = comet.y - spaceship.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            
+            // If comet is within EMP wave radius, slow it down
+            if (distance <= spaceship.empWaveRadius) {
+              comet.vx *= 0.8;
+              comet.vy *= 0.8;
+            }
+          }
+          
+          // Also slow down big comets
+          for (let bc of bigComets) {
+            const dx = bc.x - spaceship.x;
+            const dy = bc.y - spaceship.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            
+            if (distance <= spaceship.empWaveRadius) {
+              bc.vx *= 0.8;
+              bc.vy *= 0.8;
+            }
+          }
+          
+          // End the EMP effect after 5 seconds
+          if (spaceship.empEffectTimer >= 5.0) {
+            spaceship.empActive = false;
+            spaceship.empCooldown = true;
+            spaceship.empCooldownTimer = 12.0;
+          }
+        }
+        
+        // Update EMP cooldown
+        if (spaceship.empCooldown) {
+          spaceship.empCooldownTimer -= dt;
+          if (spaceship.empCooldownTimer <= 0) {
+            spaceship.empCooldown = false;
           }
         }
 
@@ -6737,6 +7445,22 @@
         if (keys["ArrowDown"]) {
           spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * spaceship.speedModifier * dt;
           spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * spaceship.speedModifier * dt;
+        }
+        
+        // Change EMP key from E to F and add cooldown check
+        // For the DEFAULT ship type (Nova Striker)
+        if (spaceship.type === SHIP_TYPE.DEFAULT) {
+          // Disable E key for EMP
+          if (keys["KeyE"] || keys["e"] || keys["E"]) {
+            // Do nothing - we've changed to F key
+          }
+          
+          // Enable F key for EMP with cooldown
+          if ((keys["KeyF"] || keys["f"] || keys["F"]) && 
+              !spaceship.empActive && !spaceship.empCooldown) {
+            // Only activate if EMP is not already active or in cooldown
+            activateEMPBlast(); // Use existing function for consistency
+          }
         }
         if (keys["Space"]) {
           // Quick brake
