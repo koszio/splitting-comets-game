@@ -5661,6 +5661,28 @@
         ctx.textAlign = "center";
         ctx.fillText("Select Your Spaceship", canvas.width / 2, canvas.height / 5);
         
+        // Define ship stats
+        const shipStats = {
+          [SHIP_TYPE.DEFAULT]: {
+            speed: 6,     // Medium speed
+            power: 5,     // Medium firepower
+            defense: 7,   // Good defense
+            special: 8    // Strong special ability
+          },
+          [SHIP_TYPE.LASER]: {
+            speed: 4,     // Slow
+            power: 10,    // Maximum firepower
+            defense: 8,   // Strong defense
+            special: 9    // Very strong special
+          },
+          [SHIP_TYPE.MISSILE]: {
+            speed: 9,     // Very fast
+            power: 7,     // Good firepower
+            defense: 5,   // Medium defense
+            special: 7    // Good special ability
+          }
+        };
+        
         // Ships and their descriptions
         const ships = [
           {
@@ -5683,124 +5705,521 @@
           }
         ];
         
-        // Layout parameters
-        const panelWidth = canvas.width * 0.25;
-        const panelHeight = canvas.height * 0.5;
-        const panelSpacing = canvas.width * 0.05;
-        const panelY = canvas.height * 0.3;
+        // We'll only show the currently selected ship
+        const currentShip = ships[selectedShipMenuItem];
+        const currentStats = shipStats[currentShip.type];
         
-        // Calculate positions for 3 panels with even spacing
-        const totalWidth = (panelWidth * 3) + (panelSpacing * 2);
-        const startX = (canvas.width - totalWidth) / 2;
+        // Layout for a single card
+        const centerX = canvas.width / 2;
+        const cardWidth = canvas.width * 0.4;  // Card width
+        const cardHeight = canvas.height * 0.55; // Card height
+        const cardY = canvas.height * 0.3;
         
-        // Draw each ship panel
-        for (let i = 0; i < ships.length; i++) {
-          const ship = ships[i];
-          const x = startX + (panelWidth + panelSpacing) * i;
-          
-          // Create panel with rounded corners and glow for selected item
-          ctx.save();
-          
-          // Selection indicator
-          if (i === selectedShipMenuItem) {
-            // Outer glow for selected panel
-            ctx.shadowColor = "rgba(0, 150, 255, 0.8)";
-            ctx.shadowBlur = 15;
-            
-            // Panel background - brighter when selected
-            ctx.fillStyle = "rgba(0, 150, 255, 0.4)";
-            ctx.strokeStyle = "rgba(100, 200, 255, 0.9)";
-            ctx.lineWidth = 3;
-          } else {
-            // Panel background - darker when not selected
-            ctx.fillStyle = "rgba(0, 100, 255, 0.2)";
-            ctx.strokeStyle = "rgba(100, 200, 255, 0.4)";
-            ctx.lineWidth = 1;
-          }
-          
-          // Draw rounded rectangle for panel
-          roundRect(ctx, x, panelY, panelWidth, panelHeight, 10);
-          
-          // Ship title
-          ctx.fillStyle = "white";
-          ctx.font = "bold 20px sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(ship.name, x + panelWidth/2, panelY + 30);
-          
-          // Ship visualization (draw actual ship)
-          ctx.translate(x + panelWidth/2, panelY + panelHeight * 0.4);
-          
-          // Make ship hover up and down slightly
-          const hoverOffset = Math.sin(performance.now() / 500) * 5;
-          ctx.translate(0, hoverOffset);
-          
-          // Scale the ship to fit nicely in panel
-          const shipScaleFactor = 1.2;
-          ctx.scale(shipScaleFactor, shipScaleFactor);
-          
-          // Create temporary ship object to draw
-          const tempShip = {
-            x: 0,
-            y: 0,
-            size: SHIP_SIZE,
-            angle: -Math.PI/2,  // Face upward
-            type: ship.type
-          };
-          
-          // Save the original spaceship object and replace it temporarily
-          const originalShip = spaceship;
-          spaceship = tempShip;
-          
-          // Draw the ship
-          switch(ship.type) {
-            case SHIP_TYPE.DEFAULT:
-              drawDefaultShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
-              break;
-            case SHIP_TYPE.LASER:
-              drawLaserShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
-              break;
-            case SHIP_TYPE.MISSILE:
-              drawMissileShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
-              break;
-          }
-          
-          // Restore the original spaceship object
-          spaceship = originalShip;
-          
-          ctx.restore();
-          
-          // Ship description
-          ctx.fillStyle = "rgba(200, 200, 255, 0.9)";
-          ctx.font = "italic 16px sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(ship.desc, x + panelWidth/2, panelY + panelHeight * 0.7);
-          
-          // Ship features (bullet points)
-          ctx.font = "14px sans-serif";
-          ctx.textAlign = "left";
-          const featX = x + 20;
-          let featY = panelY + panelHeight * 0.75;
-          
-          for (const feature of ship.features) {
-            ctx.fillText(`• ${feature}`, featX, featY);
-            featY += 20;
-          }
+        // Draw main card panel with 80s anime tech style
+        ctx.save();
+        
+        // Intense glow effect
+        ctx.shadowColor = "rgba(0, 220, 255, 0.9)";
+        ctx.shadowBlur = 20;
+        
+        // Dark tech panel background
+        ctx.fillStyle = "rgba(5, 15, 35, 0.85)";
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.9)";
+        ctx.lineWidth = 3;
+        
+        // Draw card background
+        roundRect(ctx, centerX - cardWidth/2, cardY, cardWidth, cardHeight, 15);
+        
+        // Draw tech grid pattern
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = "rgba(0, 150, 255, 0.25)";
+        
+        // Horizontal grid lines
+        for (let y = cardY + 50; y < cardY + cardHeight; y += 20) {
+            ctx.beginPath();
+            ctx.moveTo(centerX - cardWidth/2, y);
+            ctx.lineTo(centerX + cardWidth/2, y);
+            ctx.stroke();
         }
         
+        // Vertical grid lines
+        for (let x = centerX - cardWidth/2; x < centerX + cardWidth/2; x += 20) {
+            ctx.beginPath();
+            ctx.moveTo(x, cardY + 50);
+            ctx.lineTo(x, cardY + cardHeight);
+            ctx.stroke();
+        }
+        
+        // Scan line effect - moving line across the card
+        const scanLine = (performance.now() / 40) % cardHeight;
+        ctx.fillStyle = "rgba(0, 220, 255, 0.15)";
+        ctx.fillRect(centerX - cardWidth/2, cardY + scanLine, cardWidth, 3);
+        
+        // Add tech corner accents - very 80s anime mecha style
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.9)";
+        ctx.lineWidth = 2;
+        const cornerSize = 20;
+        
+        // Top-left corner
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth/2 + 5, cardY + 5);
+        ctx.lineTo(centerX - cardWidth/2 + 5, cardY + 5 + cornerSize);
+        ctx.moveTo(centerX - cardWidth/2 + 5, cardY + 5);
+        ctx.lineTo(centerX - cardWidth/2 + 5 + cornerSize, cardY + 5);
+        ctx.stroke();
+        
+        // Top-right corner
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth/2 - 5, cardY + 5);
+        ctx.lineTo(centerX + cardWidth/2 - 5, cardY + 5 + cornerSize);
+        ctx.moveTo(centerX + cardWidth/2 - 5, cardY + 5);
+        ctx.lineTo(centerX + cardWidth/2 - 5 - cornerSize, cardY + 5);
+        ctx.stroke();
+        
+        // Bottom-left corner
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth/2 + 5, cardY + cardHeight - 5);
+        ctx.lineTo(centerX - cardWidth/2 + 5, cardY + cardHeight - 5 - cornerSize);
+        ctx.moveTo(centerX - cardWidth/2 + 5, cardY + cardHeight - 5);
+        ctx.lineTo(centerX - cardWidth/2 + 5 + cornerSize, cardY + cardHeight - 5);
+        ctx.stroke();
+        
+        // Bottom-right corner
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth/2 - 5, cardY + cardHeight - 5);
+        ctx.lineTo(centerX + cardWidth/2 - 5, cardY + cardHeight - 5 - cornerSize);
+        ctx.moveTo(centerX + cardWidth/2 - 5, cardY + cardHeight - 5);
+        ctx.lineTo(centerX + cardWidth/2 - 5 - cornerSize, cardY + cardHeight - 5);
+        ctx.stroke();
+        
+        // Title header bar with tech pattern
+        const headerHeight = 50;
+        const headerGradient = ctx.createLinearGradient(0, cardY, 0, cardY + headerHeight);
+        headerGradient.addColorStop(0, "rgba(0, 70, 130, 0.9)");
+        headerGradient.addColorStop(1, "rgba(0, 40, 100, 0.8)");
+        ctx.fillStyle = headerGradient;
+        ctx.fillRect(centerX - cardWidth/2, cardY, cardWidth, headerHeight);
+        
+        // Tech pattern in header
+        ctx.strokeStyle = "rgba(0, 220, 255, 0.6)";
+        ctx.lineWidth = 1;
+        
+        // Left side lines
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(centerX - cardWidth/2, cardY + 12 + i * 10);
+            ctx.lineTo(centerX - cardWidth/2 + 80, cardY + 12 + i * 10);
+            ctx.stroke();
+        }
+        
+        // Right side lines
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(centerX + cardWidth/2, cardY + 12 + i * 10);
+            ctx.lineTo(centerX + cardWidth/2 - 80, cardY + 12 + i * 10);
+            ctx.stroke();
+        }
+        
+        // Ship title with retro tech font style
+        ctx.textAlign = "center";
+        
+        // Shadow glow effect
+        ctx.shadowColor = "rgba(0, 255, 255, 0.9)";
+        ctx.shadowBlur = 10;
+        
+        // Main text in bright cyan
+        ctx.fillStyle = "rgb(0, 255, 255)";
+        ctx.font = "bold 28px monospace";
+        ctx.fillText(currentShip.name, centerX, cardY + 35);
+        
+        // Subtle stroke for tech effect
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        ctx.lineWidth = 0.5;
+        ctx.strokeText(currentShip.name, centerX, cardY + 35);
+        
+        // Ship visualization
+        ctx.save();
+        ctx.translate(centerX, cardY + cardHeight * 0.35);
+        
+        // Make ship hover up and down slightly
+        const hoverOffset = Math.sin(performance.now() / 500) * 5;
+        ctx.translate(0, hoverOffset);
+        
+        // Scale the ship to fit nicely (larger than before)
+        const shipScaleFactor = 1.8;
+        ctx.scale(shipScaleFactor, shipScaleFactor);
+        
+        // Create temporary ship object to draw
+        const tempShip = {
+          x: 0,
+          y: 0,
+          size: SHIP_SIZE,
+          angle: -Math.PI/2,  // Face upward
+          type: currentShip.type
+        };
+        
+        // Save the original spaceship object and replace it temporarily
+        const originalShip = spaceship;
+        spaceship = tempShip;
+        
+        // Draw the ship
+        switch(currentShip.type) {
+          case SHIP_TYPE.DEFAULT:
+            drawDefaultShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+            break;
+          case SHIP_TYPE.LASER:
+            drawLaserShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+            break;
+          case SHIP_TYPE.MISSILE:
+            drawMissileShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+            break;
+        }
+        
+        // Restore the original spaceship object
+        spaceship = originalShip;
+        ctx.restore();
+        
+        // Ship description with tech style
+        ctx.textAlign = "center";
+        
+        // Tech style header box for description
+        const descBoxY = cardY + cardHeight * 0.52;
+        const descBoxHeight = 25;
+        ctx.fillStyle = "rgba(0, 30, 80, 0.7)";
+        ctx.fillRect(centerX - cardWidth * 0.4, descBoxY, cardWidth * 0.8, descBoxHeight);
+        
+        // Tech lines on sides
+        ctx.strokeStyle = "rgba(0, 180, 255, 0.6)";
+        ctx.lineWidth = 1;
+        
+        // Left line
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth * 0.4, descBoxY);
+        ctx.lineTo(centerX - cardWidth * 0.4 - 10, descBoxY + descBoxHeight/2);
+        ctx.lineTo(centerX - cardWidth * 0.4, descBoxY + descBoxHeight);
+        ctx.stroke();
+        
+        // Right line
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth * 0.4, descBoxY);
+        ctx.lineTo(centerX + cardWidth * 0.4 + 10, descBoxY + descBoxHeight/2);
+        ctx.lineTo(centerX + cardWidth * 0.4, descBoxY + descBoxHeight);
+        ctx.stroke();
+        
+        // Description text
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.font = "italic 16px sans-serif";
+        ctx.fillText(currentShip.desc, centerX, descBoxY + 18);
+        
+        // Draw 80s anime-style stat bars with high-tech look
+        // Reset shadow for stats
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        
+        const statsStartY = cardY + cardHeight * 0.63;
+        const statsWidth = cardWidth * 0.7;
+        const statsLeftX = centerX - statsWidth/2;
+        const barHeight = 16;
+        const barSpacing = 28;
+        
+        // Stats to display
+        const stats = [
+          { name: "SPEED", value: currentStats.speed },
+          { name: "POWER", value: currentStats.power },
+          { name: "DEFENSE", value: currentStats.defense },
+          { name: "SPECIAL", value: currentStats.special }
+        ];
+        
+        // Draw "SPECS" header
+        ctx.fillStyle = "rgb(255, 220, 50)";  // Bright yellow/gold title
+        ctx.font = "bold 16px monospace";
+        ctx.textAlign = "left";
+        ctx.fillText("SPECIFICATIONS:", statsLeftX, statsStartY - 15);
+        
+        // Draw tech decorative line
+        ctx.strokeStyle = "rgb(255, 220, 50)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(statsLeftX, statsStartY - 10);
+        ctx.lineTo(statsLeftX + 140, statsStartY - 10);
+        ctx.stroke();
+        
+        // Draw each stat bar with 80s tech style
+        let currentY = statsStartY;
+        
+        ctx.font = "bold 14px monospace";  // Use monospace for tech look
+        ctx.textAlign = "left";
+        
+        for (const stat of stats) {
+          // Label with tech style
+          ctx.fillStyle = "rgb(0, 255, 255)";  // Bright cyan for labels
+          ctx.fillText(stat.name, statsLeftX, currentY + 12);
+          
+          // Black tech bar border with inner glow
+          ctx.fillStyle = "rgb(0, 0, 0)";
+          const barX = statsLeftX + 80;
+          const barWidth = statsWidth - 80;
+          ctx.fillRect(barX - 2, currentY - 2, barWidth + 4, barHeight + 4);
+          
+          // Dark grid background
+          ctx.fillStyle = "rgb(10, 20, 40)";
+          ctx.fillRect(barX, currentY, barWidth, barHeight);
+          
+          // Draw grid lines within bar
+          ctx.strokeStyle = "rgba(0, 100, 150, 0.5)";
+          ctx.lineWidth = 0.5;
+          
+          for (let i = 1; i < 10; i++) {
+            const gridX = barX + i * (barWidth / 10);
+            ctx.beginPath();
+            ctx.moveTo(gridX, currentY);
+            ctx.lineTo(gridX, currentY + barHeight);
+            ctx.stroke();
+          }
+          
+          // Draw filled bar segments with 3D effect
+          const segmentWidth = barWidth / 10; // 10 segments total
+          
+          for (let i = 0; i < stat.value; i++) {
+            // Color gradient from blue to yellow to red
+            let segmentColor;
+            if (i < 3) {
+              // Blue segments for low values
+              segmentColor = "rgb(0, 150, 255)";
+            } else if (i < 7) {
+              // Yellow/green segments for mid values
+              segmentColor = `rgb(${(i-3)*50 + 100}, 255, ${255 - (i-3)*60})`;
+            } else {
+              // Red/orange segments for high values
+              segmentColor = `rgb(255, ${150 - (i-7)*50}, 0)`;
+            }
+            
+            // Draw segment with 3D effect
+            ctx.fillStyle = segmentColor;
+            ctx.fillRect(barX + i * segmentWidth, currentY, segmentWidth - 1, barHeight);
+            
+            // Add highlight to top of segment for 3D look
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.fillRect(barX + i * segmentWidth, currentY, segmentWidth - 1, 2);
+            
+            // Add shadow to bottom of segment
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.fillRect(barX + i * segmentWidth, currentY + barHeight - 2, segmentWidth - 1, 2);
+          }
+          
+          // Add pulsing effect on the last filled segment
+          if (stat.value > 0) {
+            const pulseOpacity = 0.5 + 0.5 * Math.sin(performance.now() / 200);
+            const lastSegmentX = barX + (stat.value - 1) * segmentWidth;
+            
+            ctx.fillStyle = `rgba(255, 255, 255, ${pulseOpacity})`;
+            ctx.fillRect(lastSegmentX, currentY, 2, barHeight);
+          }
+          
+          // Add value number at the end of the bar
+          ctx.fillStyle = "rgb(255, 255, 255)";
+          ctx.textAlign = "right";
+          ctx.font = "bold 12px monospace";
+          ctx.fillText(stat.value.toString().padStart(2, "0"), barX + barWidth + 20, currentY + 12);
+          
+          currentY += barSpacing;
+        }
+        
+        // 80s anime style navigation arrows
+        const arrowY = cardY + cardHeight * 0.45;
+        const pulseOpacity = 0.5 + 0.5 * Math.sin(performance.now() / 300);
+        
+        // Left arrow
+        ctx.save();
+        ctx.shadowColor = "rgba(0, 200, 255, 0.8)";
+        ctx.shadowBlur = 10;
+        
+        // Arrow with tech polygon style
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth - 20, arrowY);
+        ctx.lineTo(centerX - cardWidth - 40, arrowY - 10);
+        ctx.lineTo(centerX - cardWidth - 50, arrowY);
+        ctx.lineTo(centerX - cardWidth - 40, arrowY + 10);
+        ctx.closePath();
+        
+        // Create gradient fill for arrow
+        const leftGradient = ctx.createLinearGradient(
+            centerX - cardWidth - 50, arrowY,
+            centerX - cardWidth - 20, arrowY
+        );
+        leftGradient.addColorStop(0, `rgba(0, 100, 255, ${pulseOpacity})`);
+        leftGradient.addColorStop(1, `rgba(0, 200, 255, ${pulseOpacity})`);
+        ctx.fillStyle = leftGradient;
+        ctx.fill();
+        
+        // Add tech accent lines
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth - 60, arrowY - 20);
+        ctx.lineTo(centerX - cardWidth - 30, arrowY - 20);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth - 60, arrowY + 20);
+        ctx.lineTo(centerX - cardWidth - 30, arrowY + 20);
+        ctx.stroke();
+        
+        // Right arrow with tech polygon style
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth + 20, arrowY);
+        ctx.lineTo(centerX + cardWidth + 40, arrowY - 10);
+        ctx.lineTo(centerX + cardWidth + 50, arrowY);
+        ctx.lineTo(centerX + cardWidth + 40, arrowY + 10);
+        ctx.closePath();
+        
+        // Create gradient fill for arrow
+        const rightGradient = ctx.createLinearGradient(
+            centerX + cardWidth + 20, arrowY,
+            centerX + cardWidth + 50, arrowY
+        );
+        rightGradient.addColorStop(0, `rgba(0, 200, 255, ${pulseOpacity})`);
+        rightGradient.addColorStop(1, `rgba(0, 100, 255, ${pulseOpacity})`);
+        ctx.fillStyle = rightGradient;
+        ctx.fill();
+        
+        // Add tech accent lines
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth + 30, arrowY - 20);
+        ctx.lineTo(centerX + cardWidth + 60, arrowY - 20);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth + 30, arrowY + 20);
+        ctx.lineTo(centerX + cardWidth + 60, arrowY + 20);
+        ctx.stroke();
+        
+        ctx.restore();
+        
+        // Prev/next ship names with tech frame
+        const prevShip = ships[(selectedShipMenuItem - 1 + ships.length) % ships.length];
+        const nextShip = ships[(selectedShipMenuItem + 1) % ships.length];
+        
+        // Left ship name with tech frame
+        const nameBoxWidth = 100;
+        const nameBoxHeight = 25;
+        const nameBoxY = arrowY + 30;
+        
+        // Left name box
+        ctx.fillStyle = "rgba(0, 40, 80, 0.6)";
+        ctx.fillRect(centerX - cardWidth - 60 - nameBoxWidth/2, nameBoxY, nameBoxWidth, nameBoxHeight);
+        
+        // Tech corner accents
+        ctx.strokeStyle = "rgba(0, 150, 255, 0.7)";
+        ctx.lineWidth = 1;
+        
+        // Top-left
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth - 60 - nameBoxWidth/2, nameBoxY);
+        ctx.lineTo(centerX - cardWidth - 60 - nameBoxWidth/2 + 10, nameBoxY);
+        ctx.moveTo(centerX - cardWidth - 60 - nameBoxWidth/2, nameBoxY);
+        ctx.lineTo(centerX - cardWidth - 60 - nameBoxWidth/2, nameBoxY + 10);
+        ctx.stroke();
+        
+        // Bottom-right
+        ctx.beginPath();
+        ctx.moveTo(centerX - cardWidth - 60 + nameBoxWidth/2, nameBoxY + nameBoxHeight);
+        ctx.lineTo(centerX - cardWidth - 60 + nameBoxWidth/2 - 10, nameBoxY + nameBoxHeight);
+        ctx.moveTo(centerX - cardWidth - 60 + nameBoxWidth/2, nameBoxY + nameBoxHeight);
+        ctx.lineTo(centerX - cardWidth - 60 + nameBoxWidth/2, nameBoxY + nameBoxHeight - 10);
+        ctx.stroke();
+        
+        // Left name text
+        ctx.font = "12px monospace";
+        ctx.fillStyle = "rgba(170, 220, 255, 0.9)";
+        ctx.textAlign = "center";
+        ctx.fillText("< " + prevShip.name, centerX - cardWidth - 60, nameBoxY + 17);
+        
+        // Right name box
+        ctx.fillStyle = "rgba(0, 40, 80, 0.6)";
+        ctx.fillRect(centerX + cardWidth + 60 - nameBoxWidth/2, nameBoxY, nameBoxWidth, nameBoxHeight);
+        
+        // Tech corner accents
+        // Top-right
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth + 60 + nameBoxWidth/2, nameBoxY);
+        ctx.lineTo(centerX + cardWidth + 60 + nameBoxWidth/2 - 10, nameBoxY);
+        ctx.moveTo(centerX + cardWidth + 60 + nameBoxWidth/2, nameBoxY);
+        ctx.lineTo(centerX + cardWidth + 60 + nameBoxWidth/2, nameBoxY + 10);
+        ctx.stroke();
+        
+        // Bottom-left
+        ctx.beginPath();
+        ctx.moveTo(centerX + cardWidth + 60 - nameBoxWidth/2, nameBoxY + nameBoxHeight);
+        ctx.lineTo(centerX + cardWidth + 60 - nameBoxWidth/2 + 10, nameBoxY + nameBoxHeight);
+        ctx.moveTo(centerX + cardWidth + 60 - nameBoxWidth/2, nameBoxY + nameBoxHeight);
+        ctx.lineTo(centerX + cardWidth + 60 - nameBoxWidth/2, nameBoxY + nameBoxHeight - 10);
+        ctx.stroke();
+        
+        // Right name text
+        ctx.fillStyle = "rgba(170, 220, 255, 0.9)";
+        ctx.textAlign = "center";
+        ctx.fillText(nextShip.name + " >", centerX + cardWidth + 60, nameBoxY + 17);
+        
+        // 80s-style tech indicators for pages
+        ctx.textAlign = "center";
+        const indicatorY = cardY + cardHeight + 15;
+        const spacing = 30;
+        const indicWidth = 20;
+        const indicHeight = 6;
+        
+        // Background bar
+        ctx.fillStyle = "rgba(0, 40, 80, 0.5)";
+        ctx.fillRect(centerX - spacing * 2, indicatorY, spacing * 4, indicHeight);
+        
+        // Draw indicator for each ship
+        for (let i = 0; i < ships.length; i++) {
+            const x = centerX + (i - 1) * spacing;
+            
+            if (i === selectedShipMenuItem) {
+                // Selected indicator with tech glow
+                ctx.save();
+                ctx.shadowColor = "rgba(0, 255, 255, 0.9)";
+                ctx.shadowBlur = 8;
+                ctx.fillStyle = "rgb(0, 240, 255)";
+                ctx.fillRect(x - indicWidth/2, indicatorY, indicWidth, indicHeight);
+                
+                // Scanning animation
+                const scanPos = (performance.now() / 20) % indicWidth;
+                ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.fillRect(x - indicWidth/2 + scanPos, indicatorY, 2, indicHeight);
+                ctx.restore();
+            } else {
+                // Unselected indicators
+                ctx.fillStyle = "rgba(30, 90, 150, 0.5)";
+                ctx.fillRect(x - indicWidth/2, indicatorY, indicWidth, indicHeight);
+                
+                // Tech line
+                ctx.strokeStyle = "rgba(100, 180, 255, 0.6)";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, indicatorY);
+                ctx.lineTo(x, indicatorY + indicHeight);
+                ctx.stroke();
+            }
+        }
+        
+        ctx.restore();
+        
         // Instructions with subtle backdrop
-        const instructY = panelY + panelHeight + 40;
+        const instructY = cardY + cardHeight + 40;
         
         // Draw semi-transparent backdrop for instructions
         ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-        ctx.fillRect(canvas.width/2 - 250, instructY - 15, 500, 80);
+        ctx.fillRect(centerX - 250, instructY - 15, 500, 80);
         
         // Navigation instructions
         ctx.fillStyle = "rgba(200, 200, 220, 0.9)";
         ctx.font = "18px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("◄ ► : Navigate between ships", canvas.width / 2, instructY + 15);
-        ctx.fillText("ENTER: Select ship and start game", canvas.width / 2, instructY + 45);
-        ctx.fillText("ESC: Return to difficulty selection", canvas.width / 2, instructY + 75);
+        ctx.fillText("◄ ► : Navigate between ships", centerX, instructY + 15);
+        ctx.fillText("ENTER: Select ship and start game", centerX, instructY + 45);
+        ctx.fillText("ESC: Return to difficulty selection", centerX, instructY + 75);
       }
       
       // Draw the Settings screen
