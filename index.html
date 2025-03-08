@@ -642,51 +642,7 @@
         }
       };
       
-      // Add event listener for ESC key to toggle pause menu
-      document.addEventListener('keydown', function(e) {
-        // Handle ESC key for pause/unpause
-        if (e.key === 'Escape' || e.keyCode === 27) {
-          if (gameState === GAME_STATE.PLAYING) {
-            // Pause the game
-            gameState = GAME_STATE.PAUSE_MENU;
-            pauseMenuSelectedItem = 0; // Reset selected item
-            console.log("Game paused");
-          } else if (gameState === GAME_STATE.PAUSE_MENU) {
-            // Resume the game
-            gameState = GAME_STATE.PLAYING;
-            console.log("Game resumed");
-          } else if (gameState === GAME_STATE.HOW_TO_PLAY || 
-                     gameState === GAME_STATE.SETTINGS || 
-                     gameState === GAME_STATE.HIGH_SCORES) {
-            // Return to main menu
-            gameState = GAME_STATE.MAIN_MENU;
-          }
-        }
-        
-        // Handle pause menu navigation
-        if (gameState === GAME_STATE.PAUSE_MENU) {
-          if (e.key === 'ArrowUp' || e.keyCode === 38) {
-            pauseMenuSelectedItem = Math.max(0, pauseMenuSelectedItem - 1);
-          } else if (e.key === 'ArrowDown' || e.keyCode === 40) {
-            pauseMenuSelectedItem = Math.min(2, pauseMenuSelectedItem + 1);
-          } else if (e.key === 'Enter' || e.keyCode === 13) {
-            // Handle pause menu selection
-            switch(pauseMenuSelectedItem) {
-              case 0: // Resume
-                gameState = GAME_STATE.PLAYING;
-                break;
-              case 1: // Restart
-                resetGameState();
-                gameState = GAME_STATE.PLAYING;
-                break;
-              case 2: // Main Menu
-                gameState = GAME_STATE.MAIN_MENU;
-                startMenuMusic();
-                break;
-            }
-          }
-        }
-      });
+      // Pause menu and navigation will be handled in the main keydown listener
       
       // Initialize basic elements when the page loads
       document.addEventListener('DOMContentLoaded', function() {
@@ -2399,88 +2355,19 @@
 
       // INPUT HANDLING
       const keys = {};
-      window.addEventListener("keydown", (e) => {
-        // Special abilities with 'F' key (during gameplay)
-        if ((e.key.toLowerCase() === "f" || e.code === "KeyF") && 
-            gameState === GAME_STATE.PLAYING) {
-          
-          // Missile ship special ability
-          if (spaceship.type === SHIP_TYPE.MISSILE && 
-              spaceship.missileSpecialCooldown <= 0) {
-            // Activate special missile ability
-            fireSpecialMissiles();
-            // Cooldown is now set inside fireSpecialMissiles()
-          }
-          
-          // Laser ship special ability
-          else if (spaceship.type === SHIP_TYPE.LASER && 
-                  !spaceship.laserCooldown && 
-                  !spaceship.laserActive) {
-            // Activate laser beam
-            spaceship.laserActive = true;
-            spaceship.laserTimer = 0;
-            // Reset laser beam endpoint variables
-            spaceship.laserBeamEndX = null;
-            spaceship.laserBeamEndY = null;
-            
-            // Play laser activation sound
-            if (soundEnabled) {
-              bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-              bulletSoundPool[nextBulletSoundIndex].volume = 0.4;
-              bulletSoundPool[nextBulletSoundIndex].play();
-              nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
-            }
-          }
+      document.addEventListener("keydown", function(e) {
+        // Normalize the key for easier comparison
+        const key = e.key.toLowerCase();
+        const code = e.code;
+        
+        // If game is loading, ignore key input
+        if (gameState === "loading") {
+          e.preventDefault();
+          return;
         }
         
-        // Special EMP ability with 'E' key for Nova Striker (DEFAULT ship)
-        if ((e.key.toLowerCase() === "e" || e.code === "KeyE") && 
-            gameState === GAME_STATE.PLAYING) {
-          
-          // Default ship (Nova Striker) special ability
-          if (spaceship.type === SHIP_TYPE.DEFAULT && !spaceship.empCooldown) {
-            // Activate EMP blast
-            activateEMPBlast();
-          }
-        }
-        
-        // ESC key for pause menu toggle
-        if (e.key === "Escape" || e.code === "Escape") {
-          if (gameState === GAME_STATE.PLAYING) {
-            gameState = GAME_STATE.PAUSE_MENU;
-            pauseMenuSelectedItem = 0; // Reset menu selection
-            console.log("Game paused");
-          } else if (gameState === GAME_STATE.PAUSE_MENU) {
-            gameState = GAME_STATE.PLAYING;
-            console.log("Game resumed");
-          }
-        }
-        
-        // Handle pause menu navigation
-        if (gameState === GAME_STATE.PAUSE_MENU) {
-          if (e.key === "ArrowUp" || e.code === "ArrowUp") {
-            pauseMenuSelectedItem = Math.max(0, pauseMenuSelectedItem - 1);
-          } else if (e.key === "ArrowDown" || e.code === "ArrowDown") {
-            pauseMenuSelectedItem = Math.min(2, pauseMenuSelectedItem + 1);
-          } else if (e.key === "Enter" || e.code === "Enter") {
-            // Handle pause menu selection
-            switch(pauseMenuSelectedItem) {
-              case 0: // Resume
-                gameState = GAME_STATE.PLAYING;
-                break;
-              case 1: // Restart
-                resetGameState();
-                gameState = GAME_STATE.PLAYING;
-                break;
-              case 2: // Main Menu
-                restartGame();
-                break;
-            }
-          }
-        }
-        
-        // Music toggle with 'M' key (in any game state)
-        if (e.key.toLowerCase() === "m" || e.code === "KeyM") {
+        // Global music toggle, works in any state
+        if (key === "m" || code === "KeyM") {
           // Get the current state before toggling
           const wasMusicEnabled = musicEnabled;
           const wasSoundEnabled = soundEnabled;
@@ -2532,282 +2419,448 @@
               sound.muted = false;
             }
           }
-        }
-        
-        // Open pause menu with Escape key during gameplay
-        if (gameState === GAME_STATE.PLAYING && (e.key === "Escape" || e.keyCode === 27)) {
-          updateGameState(GAME_STATE.PAUSE_MENU);
-          // Keep game music playing but at lower volume
-          if (musicEnabled && !bgMusic.paused) {
-            bgMusic.volume = 0.05;
-          }
-        }
-        
-        // Handle pause menu navigation
-        else if (gameState === GAME_STATE.PAUSE_MENU) {
-          if (e.key === "ArrowUp" || e.keyCode === 38) {
-            // Navigate up in pause menu
-            selectedPauseMenuItem = (selectedPauseMenuItem - 1 + 4) % 4;
-          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
-            // Navigate down in pause menu
-            selectedPauseMenuItem = (selectedPauseMenuItem + 1) % 4;
-          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
-            // Select current pause menu item
-            switch(selectedPauseMenuItem) {
-              case 0: // Resume Game
-                updateGameState(GAME_STATE.PLAYING);
-                // Restore music volume
-                if (musicEnabled && !bgMusic.paused) {
-                  bgMusic.volume = 0.1;
-                }
-                break;
-              case 1: // Settings
-                previousGameState = GAME_STATE.PAUSE_MENU; // Remember we came from pause menu
-                gameState = GAME_STATE.SETTINGS;
-                break;
-              case 2: // How to Play
-                previousGameState = GAME_STATE.PAUSE_MENU; // Remember we came from pause menu
-                gameState = GAME_STATE.HOW_TO_PLAY;
-                break;
-              case 3: // Exit to Main Menu
-                // Confirm exit dialog
-                if (confirm("Are you sure you want to exit? Your progress will be lost.")) {
-                  // Reset the game state manually
-                  
-                  // Clear all game objects
-                  bullets = [];
-                  sparks = [];
-                  comets = [];
-                  bigComets = [];
-                  smallExplosionParticles = [];
-                  powerUps = [];
-                  
-                  // Reset spaceship
-                  spaceship.x = canvas.width / 2;
-                  spaceship.y = canvas.height / 2;
-                  spaceship.vx = 0;
-                  spaceship.vy = 0;
-                  spaceship.angle = 0;
-                  spaceship.hitPoints = 5;
-                  spaceship.tripleShot = false;
-                  
-                  // Reset game parameters
-                  // Keep the score for display on main menu
-                  // score = 0; 
-                  gameTime = 0;
-                  winTriggered = false;
-                  
-                  // Keep the current difficulty selection
-                  // currentDifficulty = DIFFICULTY.MEDIUM;
-                  
-                  // Reset menu positions but keep difficulty selection
-                  selectedMainMenuItem = 0;
-                  // Keep the selected difficulty item
-                  // selectedDifficultyItem = 1;
-                  selectedPauseMenuItem = 0;
-                  selectedSettingsItem = 0;
-                  
-                  // Set game state directly to main menu (not difficulty select)
-                  previousGameState = null;
-                  updateGameState(GAME_STATE.MAIN_MENU);
-                  
-                  // Start menu music
-                  startMenuMusic();
-                } else {
-                  // If canceled, stay in pause menu
-                  updateGameState(GAME_STATE.PAUSE_MENU);
-                }
-                break;
-            }
-          } else if (e.key === "Escape" || e.keyCode === 27) {
-            // Resume game with Escape key
-            updateGameState(GAME_STATE.PLAYING);
-            // Restore music volume
-            if (musicEnabled && !bgMusic.paused) {
-              bgMusic.volume = 0.1;
-            }
-          }
-        }
-        
-        // Main Menu navigation
-        if (gameState === GAME_STATE.MAIN_MENU) {
-          startMenuMusic();
           
-          if (e.key === "ArrowUp" || e.keyCode === 38) {
-            // Navigate up in main menu
-            selectedMainMenuItem = (selectedMainMenuItem - 1 + 4) % 4;
-          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
-            // Navigate down in main menu
-            selectedMainMenuItem = (selectedMainMenuItem + 1) % 4;
-          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
-            // Select current menu item
-            switch(selectedMainMenuItem) {
-              case 0: // Play Game
-                updateGameState(GAME_STATE.DIFFICULTY_SELECT);
-                break;
-              case 1: // Settings
-                updateGameState(GAME_STATE.SETTINGS);
-                break;
-              case 2: // How to Play
-                updateGameState(GAME_STATE.HOW_TO_PLAY);
-                break;
-              case 3: // High Scores
-                updateGameState(GAME_STATE.HIGH_SCORES);
-                // Refresh high scores when entering the scoreboard
-                loadHighScores();
-                break;
-            }
-          }
-        } 
-        // Difficulty select screen
-        else if (gameState === GAME_STATE.DIFFICULTY_SELECT) {
-          if (e.key === "ArrowUp" || e.keyCode === 38) {
-            // Navigate up in difficulty menu
-            selectedDifficultyItem = (selectedDifficultyItem - 1 + 4) % 4;
-            // Update the current difficulty based on selection
-            switch(selectedDifficultyItem) {
-              case 0: currentDifficulty = DIFFICULTY.EASY; break;
-              case 1: currentDifficulty = DIFFICULTY.MEDIUM; break;
-              case 2: currentDifficulty = DIFFICULTY.HARD; break;
-              case 3: currentDifficulty = DIFFICULTY.INFINITY; break;
-            }
-          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
-            // Navigate down in difficulty menu
-            selectedDifficultyItem = (selectedDifficultyItem + 1) % 4;
-            // Update the current difficulty based on selection
-            switch(selectedDifficultyItem) {
-              case 0: currentDifficulty = DIFFICULTY.EASY; break;
-              case 1: currentDifficulty = DIFFICULTY.MEDIUM; break;
-              case 2: currentDifficulty = DIFFICULTY.HARD; break;
-              case 3: currentDifficulty = DIFFICULTY.INFINITY; break;
-            }
-          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
-            // Go to ship selection screen
-            updateGameState(GAME_STATE.SHIP_SELECT);
-            // Reset to first ship in the selection
-            selectedShipMenuItem = 0;
-          } else if (e.key === "Escape" || e.keyCode === 27) {
-            // Back to main menu
-            gameState = GAME_STATE.MAIN_MENU;
-          }
-        } 
-        // Ship selection screen
-        else if (gameState === GAME_STATE.SHIP_SELECT) {
-          if (e.key === "ArrowLeft" || e.keyCode === 37) {
-            // Navigate left in ship selection
-            selectedShipMenuItem = (selectedShipMenuItem - 1 + 3) % 3;
-          } else if (e.key === "ArrowRight" || e.keyCode === 39) {
-            // Navigate right in ship selection
-            selectedShipMenuItem = (selectedShipMenuItem + 1) % 3;
-          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
-            // Set the selected ship type
-            switch(selectedShipMenuItem) {
-              case 0: selectedShipType = SHIP_TYPE.DEFAULT; break;
-              case 1: selectedShipType = SHIP_TYPE.LASER; break;
-              case 2: selectedShipType = SHIP_TYPE.MISSILE; break;
-            }
-            
-            // Start the game
-            updateGameState(GAME_STATE.PLAYING);
-            score = 0;
-            gameTime = 0;
-            winTriggered = false;
-            
-            // Reset infinity mode time and multiplier
-            infinityModeTime = 0;
-            infinityModeSpawnMultiplier = 1.0;
-            
-            // Initialize ship based on selected type
-            initializeShip(selectedShipType);
-            
-            startGameplayMusic();
-          } else if (e.key === "Escape" || e.keyCode === 27) {
-            // Back to difficulty selection
-            updateGameState(GAME_STATE.DIFFICULTY_SELECT);
-          }
+          // Show feedback
+          const statusText = musicEnabled ? "ON" : "OFF";
+          addTemporaryMessage(`Sound: ${statusText}`, 1000);
+          e.preventDefault();
+          return;
         }
-        // Settings screen
-        else if (gameState === GAME_STATE.SETTINGS) {
-          if (e.key === "ArrowUp" || e.keyCode === 38) {
-            // Navigate up in settings menu
-            selectedSettingsItem = (selectedSettingsItem - 1 + 2) % 2;
-          } else if (e.key === "ArrowDown" || e.keyCode === 40) {
-            // Navigate down in settings menu
-            selectedSettingsItem = (selectedSettingsItem + 1) % 2;
-          } else if (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13) {
-            // Toggle the selected setting
-            if (selectedSettingsItem === 0) {
-              // Toggle music
-              toggleMusic();
-            } else if (selectedSettingsItem === 1) {
-              // Toggle sound effects
-              toggleAllSounds();
-            }
-            
-            // Stop sound from affecting infinity mode multiplier
-            // Reset to default values if we accidentally started changing them
-            if (currentDifficulty === DIFFICULTY.INFINITY) {
-              // Only reset if we're in settings and not actively playing
-              if (gameState !== GAME_STATE.PLAYING) {
-                infinityModeSpawnMultiplier = 1.0;
+        
+        // Main branch: handle keys based on the current game state
+        switch (gameState) {
+          case GAME_STATE.PLAYING:
+            // --- Gameplay-specific keys ---
+            // Special abilities (F key)
+            if (key === "f" || code === "KeyF") {
+              // Missile ship special ability
+              if (spaceship.type === SHIP_TYPE.MISSILE && 
+                  spaceship.missileSpecialCooldown <= 0) {
+                // Activate special missile ability
+                fireSpecialMissiles();
+                // Cooldown is now set inside fireSpecialMissiles()
+                e.preventDefault();
+                return;
+              } 
+              // Laser ship special ability
+              else if (spaceship.type === SHIP_TYPE.LASER && 
+                      !spaceship.laserCooldown && 
+                      !spaceship.laserActive) {
+                // Activate laser beam
+                spaceship.laserActive = true;
+                spaceship.laserTimer = 0;
+                // Reset laser beam endpoint variables
+                spaceship.laserBeamEndX = null;
+                spaceship.laserBeamEndY = null;
+                
+                // Play laser activation sound
+                if (soundEnabled) {
+                  bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+                  bulletSoundPool[nextBulletSoundIndex].volume = 0.4;
+                  bulletSoundPool[nextBulletSoundIndex].play();
+                  nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+                }
+                e.preventDefault();
+                return;
               }
             }
-          } else if (e.key === "Escape" || e.keyCode === 27) {
-            // Return to previous screen (either game or main menu)
-            if (previousGameState === GAME_STATE.PAUSE_MENU) {
-              // Return to game if we came from pause menu
+            
+            // Special EMP ability (E key)
+            if (key === "e" || code === "KeyE") {
+              // Default ship (Nova Striker) special ability
+              if (spaceship.type === SHIP_TYPE.DEFAULT && !spaceship.empCooldown) {
+                // Activate EMP blast
+                activateEMPBlast();
+                e.preventDefault();
+                return;
+              }
+            }
+            
+            // ESC key toggles pause
+            if (key === "escape" || code === "Escape") {
+              updateGameState(GAME_STATE.PAUSE_MENU);
+              pauseMenuSelectedItem = 0; // Reset menu selection
+              selectedPauseMenuItem = 0; // Reset selected item for the other menu system
+              console.log("Game paused");
+              // Keep game music playing but at lower volume
+              if (musicEnabled && !bgMusic.paused) {
+                bgMusic.volume = 0.05;
+              }
+              e.preventDefault();
+              return;
+            }
+            break;
+            
+          case GAME_STATE.PAUSE_MENU:
+            // --- In-game Pause Menu ---
+            // Allow ESC to resume game
+            if (key === "escape" || code === "Escape") {
               updateGameState(GAME_STATE.PLAYING);
-              // Restore gameplay music and volume
-              if (musicEnabled) {
-                // First check if we need to change the track
-                if (currentMusicTrack !== "gameplay") {
-                  startGameplayMusic();
-                } else {
-                  // Just restore volume if track is already correct
-                  bgMusic.volume = 0.1;
-                }
+              // Restore music volume
+              if (musicEnabled && !bgMusic.paused) {
+                bgMusic.volume = 0.1;
               }
-            } else {
-              // Return to main menu if we came from there
-              gameState = previousGameState || GAME_STATE.MAIN_MENU;
-              // Ensure menu music is playing if returning to main menu
-              if (musicEnabled && (previousGameState === GAME_STATE.MAIN_MENU || !previousGameState)) {
-                if (currentMusicTrack !== "menu") {
-                  startMenuMusic();
-                }
-              }
+              console.log("Game resumed");
+              e.preventDefault();
+              return;
             }
-          }
-        } 
-        // How to Play or High Scores screens
-        else if (gameState === GAME_STATE.HOW_TO_PLAY || gameState === GAME_STATE.HIGH_SCORES) {
-          if (e.key === "Escape" || e.keyCode === 27 || e.key === "b" || e.code === "KeyB") {
-            console.log("ESC pressed in high scores or how to play screen");
-            // Go directly to main menu
-            gameState = GAME_STATE.MAIN_MENU;
-            updateGameState(GAME_STATE.MAIN_MENU);
-            startMenuMusic();
-          }
-        } 
-        // Game over or win screens
-        else if ((gameState === GAME_STATE.GAME_OVER || gameState === GAME_STATE.WIN) &&
-          (e.key === "Enter" || e.code === "Enter" || e.keyCode === 13 || 
-           e.key === "Escape" || e.keyCode === 27)) {
-          // Stop any sounds before restarting
-          victorySound.pause();
-          victorySound.currentTime = 0;
-          defeatSound.pause();
-          defeatSound.currentTime = 0;
-          
-          restartGame();
-          gameState = GAME_STATE.MAIN_MENU;
-          startMenuMusic();
+            
+            // Navigation keys for pause menu
+            if (key === "arrowup" || code === "ArrowUp") {
+              // Use whichever menu system is active in the game
+              pauseMenuSelectedItem = Math.max(0, pauseMenuSelectedItem - 1);
+              selectedPauseMenuItem = (selectedPauseMenuItem - 1 + 4) % 4;
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "arrowdown" || code === "ArrowDown") {
+              // Use whichever menu system is active in the game
+              pauseMenuSelectedItem = Math.min(2, pauseMenuSelectedItem + 1);
+              selectedPauseMenuItem = (selectedPauseMenuItem + 1) % 4;
+              e.preventDefault();
+              return;
+            }
+            
+            // Enter key: select pause menu option
+            if (key === "enter" || code === "Enter") {
+              // Handle pause menu selection (there seem to be two different menu systems)
+              // First, try the pauseMenuSelectedItem system
+              switch (pauseMenuSelectedItem) {
+                case 0: // Resume
+                  updateGameState(GAME_STATE.PLAYING);
+                  // Restore music volume
+                  if (musicEnabled && !bgMusic.paused) {
+                    bgMusic.volume = 0.1;
+                  }
+                  break;
+                case 1: // Restart
+                  resetGameState();
+                  updateGameState(GAME_STATE.PLAYING);
+                  break;
+                case 2: // Main Menu
+                  restartGame();
+                  break;
+              }
+              
+              // Also handle the selectedPauseMenuItem system if it's used
+              switch(selectedPauseMenuItem) {
+                case 0: // Resume Game
+                  updateGameState(GAME_STATE.PLAYING);
+                  // Restore music volume
+                  if (musicEnabled && !bgMusic.paused) {
+                    bgMusic.volume = 0.1;
+                  }
+                  break;
+                case 1: // Settings
+                  previousGameState = GAME_STATE.PAUSE_MENU; // Remember we came from pause menu
+                  gameState = GAME_STATE.SETTINGS;
+                  break;
+                case 2: // How to Play
+                  previousGameState = GAME_STATE.PAUSE_MENU; // Remember we came from pause menu
+                  gameState = GAME_STATE.HOW_TO_PLAY;
+                  break;
+                case 3: // Exit to Main Menu
+                  // Confirm exit dialog
+                  if (confirm("Are you sure you want to exit? Your progress will be lost.")) {
+                    // Reset the game state manually
+                    
+                    // Clear all game objects
+                    bullets = [];
+                    sparks = [];
+                    comets = [];
+                    bigComets = [];
+                    smallExplosionParticles = [];
+                    powerUps = [];
+                    
+                    // Reset spaceship
+                    spaceship.x = canvas.width / 2;
+                    spaceship.y = canvas.height / 2;
+                    spaceship.vx = 0;
+                    spaceship.vy = 0;
+                    spaceship.angle = 0;
+                    spaceship.hitPoints = 5;
+                    spaceship.tripleShot = false;
+                    
+                    // Reset game parameters
+                    // Keep the score for display on main menu
+                    // score = 0; 
+                    gameTime = 0;
+                    winTriggered = false;
+                    
+                    // Keep the current difficulty selection
+                    // currentDifficulty = DIFFICULTY.MEDIUM;
+                    
+                    // Reset menu positions but keep difficulty selection
+                    selectedMainMenuItem = 0;
+                    // Keep the selected difficulty item
+                    // selectedDifficultyItem = 1;
+                    selectedPauseMenuItem = 0;
+                    selectedSettingsItem = 0;
+                    
+                    // Set game state directly to main menu (not difficulty select)
+                    previousGameState = null;
+                    updateGameState(GAME_STATE.MAIN_MENU);
+                    
+                    // Start menu music
+                    startMenuMusic();
+                  } else {
+                    // If canceled, stay in pause menu
+                    updateGameState(GAME_STATE.PAUSE_MENU);
+                  }
+                  break;
+              }
+              e.preventDefault();
+              return;
+            }
+            break;
+            
+          case GAME_STATE.MAIN_MENU:
+            // Handle main menu navigation
+            if (key === "arrowup" || code === "ArrowUp") {
+              selectedMainMenuItem = (selectedMainMenuItem - 1 + 4) % 4;
+              startMenuMusic();
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "arrowdown" || code === "ArrowDown") {
+              selectedMainMenuItem = (selectedMainMenuItem + 1) % 4;
+              startMenuMusic();
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "enter" || code === "Enter") {
+              switch(selectedMainMenuItem) {
+                case 0: // Play Game
+                  updateGameState(GAME_STATE.DIFFICULTY_SELECT);
+                  break;
+                case 1: // Settings
+                  updateGameState(GAME_STATE.SETTINGS);
+                  break;
+                case 2: // How to Play
+                  updateGameState(GAME_STATE.HOW_TO_PLAY);
+                  break;
+                case 3: // High Scores
+                  updateGameState(GAME_STATE.HIGH_SCORES);
+                  // Refresh high scores when entering the scoreboard
+                  loadHighScores();
+                  break;
+              }
+              e.preventDefault();
+              return;
+            }
+            break;
+            
+          case GAME_STATE.DIFFICULTY_SELECT:
+            // Handle difficulty menu navigation
+            if (key === "arrowup" || code === "ArrowUp") {
+              selectedDifficultyItem = (selectedDifficultyItem - 1 + 4) % 4;
+              // Update the current difficulty based on selection
+              switch(selectedDifficultyItem) {
+                case 0: currentDifficulty = DIFFICULTY.EASY; break;
+                case 1: currentDifficulty = DIFFICULTY.MEDIUM; break;
+                case 2: currentDifficulty = DIFFICULTY.HARD; break;
+                case 3: currentDifficulty = DIFFICULTY.INFINITY; break;
+              }
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "arrowdown" || code === "ArrowDown") {
+              selectedDifficultyItem = (selectedDifficultyItem + 1) % 4;
+              // Update the current difficulty based on selection
+              switch(selectedDifficultyItem) {
+                case 0: currentDifficulty = DIFFICULTY.EASY; break;
+                case 1: currentDifficulty = DIFFICULTY.MEDIUM; break;
+                case 2: currentDifficulty = DIFFICULTY.HARD; break;
+                case 3: currentDifficulty = DIFFICULTY.INFINITY; break;
+              }
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "enter" || code === "Enter") {
+              // Go to ship selection screen
+              updateGameState(GAME_STATE.SHIP_SELECT);
+              // Reset to first ship in the selection
+              selectedShipMenuItem = 0;
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "escape" || code === "Escape") {
+              // Back to main menu
+              gameState = GAME_STATE.MAIN_MENU;
+              e.preventDefault();
+              return;
+            }
+            break;
+
+          case GAME_STATE.SHIP_SELECT:
+            // Handle ship selection navigation
+            if (key === "arrowleft" || code === "ArrowLeft") {
+              // Navigate left in ship selection
+              selectedShipMenuItem = (selectedShipMenuItem - 1 + 3) % 3;
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "arrowright" || code === "ArrowRight") {
+              // Navigate right in ship selection
+              selectedShipMenuItem = (selectedShipMenuItem + 1) % 3;
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "enter" || code === "Enter") {
+              // Set the selected ship type
+              switch(selectedShipMenuItem) {
+                case 0: selectedShipType = SHIP_TYPE.DEFAULT; break;
+                case 1: selectedShipType = SHIP_TYPE.LASER; break;
+                case 2: selectedShipType = SHIP_TYPE.MISSILE; break;
+              }
+              
+              // Start the game
+              updateGameState(GAME_STATE.PLAYING);
+              score = 0;
+              gameTime = 0;
+              winTriggered = false;
+              
+              // Reset infinity mode time and multiplier
+              infinityModeTime = 0;
+              infinityModeSpawnMultiplier = 1.0;
+              
+              // Initialize ship based on selected type
+              initializeShip(selectedShipType);
+              
+              startGameplayMusic();
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "escape" || code === "Escape") {
+              // Back to difficulty selection
+              updateGameState(GAME_STATE.DIFFICULTY_SELECT);
+              e.preventDefault();
+              return;
+            }
+            break;
+            
+          case GAME_STATE.SETTINGS:
+            // Handle settings menu navigation
+            if (key === "arrowup" || code === "ArrowUp") {
+              // Navigate up in settings menu
+              selectedSettingsItem = (selectedSettingsItem - 1 + 2) % 2;
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "arrowdown" || code === "ArrowDown") {
+              // Navigate down in settings menu
+              selectedSettingsItem = (selectedSettingsItem + 1) % 2;
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "enter" || code === "Enter") {
+              // Toggle the selected setting
+              if (selectedSettingsItem === 0) {
+                // Toggle music
+                toggleMusic();
+              } else if (selectedSettingsItem === 1) {
+                // Toggle sound effects
+                toggleAllSounds();
+              }
+              
+              // Stop sound from affecting infinity mode multiplier
+              // Reset to default values if we accidentally started changing them
+              if (currentDifficulty === DIFFICULTY.INFINITY) {
+                // Only reset if we're in settings and not actively playing
+                if (gameState !== GAME_STATE.PLAYING) {
+                  infinityModeSpawnMultiplier = 1.0;
+                }
+              }
+              e.preventDefault();
+              return;
+            }
+            
+            if (key === "escape" || code === "Escape") {
+              // Return to previous screen (either game or main menu)
+              if (previousGameState === GAME_STATE.PAUSE_MENU) {
+                // Return to game if we came from pause menu
+                updateGameState(GAME_STATE.PLAYING);
+                // Restore gameplay music and volume
+                if (musicEnabled) {
+                  // First check if we need to change the track
+                  if (currentMusicTrack !== "gameplay") {
+                    startGameplayMusic();
+                  } else {
+                    // Just restore volume if track is already correct
+                    bgMusic.volume = 0.1;
+                  }
+                }
+              } else {
+                // Return to main menu if we came from there
+                gameState = previousGameState || GAME_STATE.MAIN_MENU;
+                // Ensure menu music is playing if returning to main menu
+                if (musicEnabled && (previousGameState === GAME_STATE.MAIN_MENU || !previousGameState)) {
+                  if (currentMusicTrack !== "menu") {
+                    startMenuMusic();
+                  }
+                }
+              }
+              e.preventDefault();
+              return;
+            }
+            break;
+            
+          case GAME_STATE.HOW_TO_PLAY:
+          case GAME_STATE.HIGH_SCORES:
+            // ESC to go back from these screens
+            if (key === "escape" || code === "Escape" || key === "b" || code === "KeyB") {
+              console.log("ESC or B pressed in high scores or how to play screen");
+              if (previousGameState) {
+                gameState = previousGameState;
+                previousGameState = null;
+              } else {
+                gameState = GAME_STATE.MAIN_MENU;
+                updateGameState(GAME_STATE.MAIN_MENU);
+                startMenuMusic();
+              }
+              e.preventDefault();
+              return;
+            }
+            break;
+            
+          case GAME_STATE.GAME_OVER:
+          case GAME_STATE.WIN:
+            // Any key to return to main menu
+            if (key === "enter" || code === "Enter" || key === "escape" || code === "Escape") {
+              // Stop any sounds before restarting
+              victorySound.pause();
+              victorySound.currentTime = 0;
+              defeatSound.pause();
+              defeatSound.currentTime = 0;
+              
+              restartGame();
+              gameState = GAME_STATE.MAIN_MENU;
+              startMenuMusic();
+              e.preventDefault();
+              return;
+            }
+            break;
+            
+          default:
+            break;
         }
         
+        // Store key state for movement handling
         keys[e.key] = true;
         e.preventDefault();
       });
-      window.addEventListener("keyup", (e) => {
+      document.addEventListener("keyup", (e) => {
         keys[e.key] = false;
         e.preventDefault();
       });
