@@ -408,7 +408,8 @@
       const SHIP_TYPE = {
         DEFAULT: "default",
         LASER: "laser",
-        MISSILE: "missile"
+        MISSILE: "missile",
+        ANIME: "anime"
       };
       
       // Selected ship type (default to first ship)
@@ -612,6 +613,7 @@
               case 0: shipTypeToUse = SHIP_TYPE.DEFAULT; break;
               case 1: shipTypeToUse = SHIP_TYPE.LASER; break;
               case 2: shipTypeToUse = SHIP_TYPE.MISSILE; break;
+              case 3: shipTypeToUse = SHIP_TYPE.ANIME; break;
               default: shipTypeToUse = SHIP_TYPE.DEFAULT;
             }
             
@@ -1948,6 +1950,8 @@
           maxHP = 7; // Heavy cruiser has more HP
         } else if (spaceship.type === SHIP_TYPE.MISSILE) {
           maxHP = 5; // Missile ship now has same HP as default
+        } else if (spaceship.type === SHIP_TYPE.ANIME) {
+          maxHP = 6; // Anime ship has above average HP
         } else {
           maxHP = 5; // Default ship has standard HP
         }
@@ -2441,7 +2445,15 @@
                 // Cooldown is now set inside fireSpecialMissiles()
                 e.preventDefault();
                 return;
-              } 
+              }
+              // Anime ship special ability
+              else if (spaceship.type === SHIP_TYPE.ANIME && 
+                      !spaceship.animeCooldown) {
+                // Activate anime special effect
+                fireAnimeSpecial();
+                e.preventDefault();
+                return;
+              }
               // Laser ship special ability
               else if (spaceship.type === SHIP_TYPE.LASER && 
                       !spaceship.laserCooldown && 
@@ -2702,14 +2714,14 @@
             // Handle ship selection navigation
             if (key === "arrowleft" || code === "ArrowLeft") {
               // Navigate left in ship selection
-              selectedShipMenuItem = (selectedShipMenuItem - 1 + 3) % 3;
+              selectedShipMenuItem = (selectedShipMenuItem - 1 + 4) % 4;
               e.preventDefault();
               return;
             }
             
             if (key === "arrowright" || code === "ArrowRight") {
               // Navigate right in ship selection
-              selectedShipMenuItem = (selectedShipMenuItem + 1) % 3;
+              selectedShipMenuItem = (selectedShipMenuItem + 1) % 4;
               e.preventDefault();
               return;
             }
@@ -2720,6 +2732,7 @@
                 case 0: selectedShipType = SHIP_TYPE.DEFAULT; break;
                 case 1: selectedShipType = SHIP_TYPE.LASER; break;
                 case 2: selectedShipType = SHIP_TYPE.MISSILE; break;
+                case 3: selectedShipType = SHIP_TYPE.ANIME; break;
               }
               
               // Start the game
@@ -3304,6 +3317,11 @@
         spaceship.laserCooldownTimer = 0;
         spaceship.missileSpecialCooldown = 0;
         
+        // Reset anime ship properties
+        spaceship.animeParticles = [];
+        spaceship.animeCooldown = false;
+        spaceship.animeCooldownTimer = 0;
+        
         // Reset shield properties
         spaceship.hasShield = false;
         spaceship.shieldHealth = 0;
@@ -3345,6 +3363,13 @@
             spaceship.size = SHIP_SIZE * 0.85;
             spaceship.speedModifier = 1.1; // Faster
             spaceship.hitPoints = 5; // Now equal to the standard fighter
+            break;
+            
+          case SHIP_TYPE.ANIME:
+            // Anime styled ship with special effects
+            spaceship.size = SHIP_SIZE * 0.95;
+            spaceship.speedModifier = 1.05; // Slightly faster
+            spaceship.hitPoints = 6; // More health than default
             break;
         }
       }
@@ -3568,6 +3593,9 @@
             break;
           case SHIP_TYPE.MISSILE:
             drawMissileShip(shipGrad);
+            break;
+          case SHIP_TYPE.ANIME:
+            drawAnimeShip(shipGrad);
             break;
           default:
             drawDefaultShip(shipGrad);
@@ -3926,6 +3954,207 @@
       }
       
       // Draw shield for laser ship
+      // Anime ship function
+      function drawAnimeShip(shipGrad) {
+        // Main ship body - anime inspired design with sharp angles
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size, 0); // Nose of the ship
+        // Bottom hull with angular design
+        ctx.lineTo(spaceship.size * 0.5, spaceship.size * 0.4);
+        ctx.lineTo(spaceship.size * 0.1, spaceship.size * 0.6);
+        ctx.lineTo(-spaceship.size * 0.4, spaceship.size * 0.5);
+        ctx.lineTo(-spaceship.size * 0.7, spaceship.size * 0.2);
+        ctx.lineTo(-spaceship.size * 0.8, 0); // Tail
+        // Top hull with angular design
+        ctx.lineTo(-spaceship.size * 0.7, -spaceship.size * 0.2);
+        ctx.lineTo(-spaceship.size * 0.4, -spaceship.size * 0.5);
+        ctx.lineTo(spaceship.size * 0.1, -spaceship.size * 0.6);
+        ctx.lineTo(spaceship.size * 0.5, -spaceship.size * 0.4);
+        ctx.closePath();
+        
+        // Vibrant gradient for anime aesthetic
+        const animeGrad = ctx.createLinearGradient(spaceship.size, 0, -spaceship.size, 0);
+        animeGrad.addColorStop(0, "#ff3366"); // Bright anime pink/red at front
+        animeGrad.addColorStop(0.5, "#663399"); // Purple in middle
+        animeGrad.addColorStop(1, "#0066ff"); // Blue at back
+        
+        ctx.fillStyle = animeGrad;
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Add contrasting lines for anime style detailing
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.7, 0);
+        ctx.lineTo(spaceship.size * 0.3, spaceship.size * 0.3);
+        ctx.lineTo(-spaceship.size * 0.5, spaceship.size * 0.2);
+        ctx.strokeStyle = "#00ffff"; // Cyan accent lines
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Mirror on top
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.7, 0);
+        ctx.lineTo(spaceship.size * 0.3, -spaceship.size * 0.3);
+        ctx.lineTo(-spaceship.size * 0.5, -spaceship.size * 0.2);
+        ctx.stroke();
+        
+        // Engine effects with anime style glow
+        ctx.beginPath();
+        ctx.moveTo(-spaceship.size * 0.8, 0);
+        ctx.lineTo(-spaceship.size * 1.0, -spaceship.size * 0.3);
+        ctx.lineTo(-spaceship.size * 1.0, spaceship.size * 0.3);
+        ctx.closePath();
+        
+        // Glowing engine gradient
+        const engineGrad = ctx.createRadialGradient(
+          -spaceship.size * 0.8, 0, 0,
+          -spaceship.size * 0.8, 0, spaceship.size * 0.5
+        );
+        engineGrad.addColorStop(0, "rgba(255, 255, 255, 0.9)");
+        engineGrad.addColorStop(0.3, "rgba(0, 255, 255, 0.7)");
+        engineGrad.addColorStop(1, "rgba(0, 50, 255, 0)");
+        
+        ctx.fillStyle = engineGrad;
+        ctx.fill();
+        
+        // Cockpit with anime character styling
+        ctx.beginPath();
+        ctx.ellipse(spaceship.size * 0.3, 0, spaceship.size * 0.25, spaceship.size * 0.15, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(200, 255, 255, 0.5)";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.fill();
+        ctx.stroke();
+        
+        // Ready indicator for special ability
+        if (!spaceship.animeCooldown) {
+          // Anime-style power aura
+          ctx.beginPath();
+          ctx.arc(spaceship.size * 0.3, 0, spaceship.size * 0.4, 0, Math.PI * 2);
+          const auraGrad = ctx.createRadialGradient(
+            spaceship.size * 0.3, 0, spaceship.size * 0.2,
+            spaceship.size * 0.3, 0, spaceship.size * 0.4
+          );
+          auraGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
+          auraGrad.addColorStop(0.5, "rgba(255, 100, 255, 0.2)");
+          auraGrad.addColorStop(1, "rgba(100, 200, 255, 0)");
+          ctx.fillStyle = auraGrad;
+          ctx.fill();
+        }
+      }
+      
+      // Fire anime special attack
+      function fireAnimeSpecial() {
+        // Create colorful anime-style particle explosion
+        const numParticles = 60;
+        spaceship.animeParticles = [];
+        
+        // Create particles in all directions
+        for (let i = 0; i < numParticles; i++) {
+          // Random angle
+          const angle = Math.random() * Math.PI * 2;
+          // Random speed between 3 and 8
+          const speed = 3 + Math.random() * 5;
+          // Random size between 2 and 6
+          const size = 2 + Math.random() * 4;
+          // Random lifetime between 1 and 2 seconds
+          const lifetime = 1 + Math.random();
+          // Random color - bright anime colors
+          const colorIndex = Math.floor(Math.random() * 5);
+          const colors = ["#ff3366", "#33ffcc", "#ff9933", "#9933ff", "#33ccff"];
+          
+          spaceship.animeParticles.push({
+            x: spaceship.x,
+            y: spaceship.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: size,
+            lifetime: lifetime,
+            timeRemaining: lifetime,
+            color: colors[colorIndex]
+          });
+        }
+        
+        // Set cooldown
+        spaceship.animeCooldown = true;
+        spaceship.animeCooldownTimer = spaceship.animeMaxCooldown;
+        
+        // Apply weapon damage (high damage in a circular area)
+        const blastRadius = 250;
+        
+        // Apply force and damage to nearby comets
+        comets.forEach(comet => {
+          const dx = comet.x - spaceship.x;
+          const dy = comet.y - spaceship.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          // If comet is within blast radius
+          if (distance < blastRadius) {
+            // Calculate damage based on distance (closer = more damage)
+            const damageMultiplier = 1 - (distance / blastRadius);
+            const damage = 30 * damageMultiplier; // High damage
+            
+            // Apply damage
+            comet.integrity -= damage;
+            
+            // Calculate force direction (away from ship)
+            const angle = Math.atan2(dy, dx);
+            const force = 2 * damageMultiplier; // Force proportional to damage
+            
+            // Apply force
+            comet.vx += Math.cos(angle) * force;
+            comet.vy += Math.sin(angle) * force;
+            
+            // Add visual effect to the comet
+            comet.glowTimer = 0.5; // Half-second glow
+            comet.glowColor = "#ff33ff"; // Pink glow
+          }
+        });
+      }
+      
+      // Update and draw anime particles
+      function updateAnimeParticles(deltaTime) {
+        if (!spaceship.animeParticles || spaceship.animeParticles.length === 0) return;
+        
+        // Draw each particle
+        ctx.save();
+        
+        for (let i = spaceship.animeParticles.length - 1; i >= 0; i--) {
+          const p = spaceship.animeParticles[i];
+          
+          // Update position
+          p.x += p.vx * deltaTime;
+          p.y += p.vy * deltaTime;
+          
+          // Update lifetime
+          p.timeRemaining -= deltaTime;
+          
+          // Remove dead particles
+          if (p.timeRemaining <= 0) {
+            spaceship.animeParticles.splice(i, 1);
+            continue;
+          }
+          
+          // Calculate opacity based on remaining lifetime
+          const opacity = p.timeRemaining / p.lifetime;
+          
+          // Draw particle
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color + Math.floor(opacity * 255).toString(16).padStart(2, '0');
+          ctx.fill();
+          
+          // Add glow effect
+          ctx.shadowBlur = p.size * 3;
+          ctx.shadowColor = p.color;
+          ctx.fill();
+        }
+        
+        ctx.restore();
+      }
+      
       function drawLaserShipShield() {
         // Get current time for animation
         const time = performance.now() / 1000;
@@ -5694,6 +5923,9 @@
             case SHIP_TYPE.MISSILE:
               drawMissileShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
               break;
+            case SHIP_TYPE.ANIME:
+              drawAnimeShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+              break;
           }
           
           // Restore original ship
@@ -5732,6 +5964,12 @@
             power: 7,     // Good firepower
             defense: 5,   // Medium defense
             special: 7    // Good special ability
+          },
+          [SHIP_TYPE.ANIME]: {
+            speed: 7,     // Above average speed
+            power: 8,     // Good firepower
+            defense: 6,   // Above average defense
+            special: 10   // Maximum special ability
           }
         };
         
@@ -5754,6 +5992,12 @@
             name: "Stealth Interceptor",
             desc: "Fast with 7-missile spread",
             features: ["Faster movement", "7-missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
+          },
+          {
+            type: SHIP_TYPE.ANIME,
+            name: "Anime Blazer",
+            desc: "Stylish ship with special anime powers",
+            features: ["Anime blast (F key)", "Colorful visual effects", "Medium speed", "Unique anime-inspired weapons"]
           }
         ];
         
@@ -5924,6 +6168,9 @@
             break;
           case SHIP_TYPE.MISSILE:
             drawMissileShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+            break;
+          case SHIP_TYPE.ANIME:
+            drawAnimeShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
             break;
         }
         
@@ -7279,6 +7526,20 @@
             if (spaceship.missileSpecialCooldown < 0) spaceship.missileSpecialCooldown = 0;
           }
           
+          // Update anime ship cooldown timer
+          if (spaceship.animeCooldown) {
+            spaceship.animeCooldownTimer -= dt;
+            if (spaceship.animeCooldownTimer <= 0) {
+              spaceship.animeCooldown = false;
+              spaceship.animeCooldownTimer = 0;
+            }
+          }
+          
+          // Update anime particles if present
+          if (spaceship.type === SHIP_TYPE.ANIME && spaceship.animeParticles && spaceship.animeParticles.length > 0) {
+            updateAnimeParticles(dt);
+          }
+          
           // Handle sequential missile firing
           if (missileSequenceState.isActive) {
             // Check if it's time to fire the next missile in the sequence
@@ -7620,7 +7881,8 @@
             if (pu.type === "health") {
               // Refill HP based on ship type
               const maxHP = spaceship.type === SHIP_TYPE.LASER ? 7 :
-                           spaceship.type === SHIP_TYPE.MISSILE ? 4 : 5;
+                           spaceship.type === SHIP_TYPE.MISSILE ? 4 :
+                           spaceship.type === SHIP_TYPE.ANIME ? 6 : 5;
               
               // Restore 3 HP or full if less than 3 remaining
               spaceship.hitPoints = Math.min(maxHP, spaceship.hitPoints + 3);
