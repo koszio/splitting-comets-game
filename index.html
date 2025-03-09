@@ -5655,7 +5655,59 @@
       }
       
       // Draw the Ship Selection screen
+      // Preload flag to check if ships have been preloaded
+      let shipsPreloaded = false;
+      
+      // Preload all ship assets to prevent freezing on first navigation
+      function preloadShipAssets() {
+        if (shipsPreloaded) return; // Only preload once
+        
+        console.log("Preloading ship assets...");
+        
+        // Create temporary ships of each type to initialize any required assets
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Preload each ship type
+        [SHIP_TYPE.DEFAULT, SHIP_TYPE.LASER, SHIP_TYPE.MISSILE].forEach(shipType => {
+          const tempShip = {
+            x: 0,
+            y: 0,
+            size: SHIP_SIZE,
+            angle: -Math.PI/2,
+            type: shipType
+          };
+          
+          // Save original ship
+          const originalShip = spaceship;
+          // Use temp ship
+          spaceship = tempShip;
+          
+          // Draw ship to initialize/load any assets
+          switch(shipType) {
+            case SHIP_TYPE.DEFAULT:
+              drawDefaultShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+              break;
+            case SHIP_TYPE.LASER:
+              drawLaserShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+              break;
+            case SHIP_TYPE.MISSILE:
+              drawMissileShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+              break;
+          }
+          
+          // Restore original ship
+          spaceship = originalShip;
+        });
+        
+        shipsPreloaded = true;
+        console.log("Ship assets preloaded");
+      }
+      
       function drawShipSelect() {
+        // Preload all ship assets on first draw to prevent freezing
+        preloadShipAssets();
+        
         ctx.fillStyle = "white";
         ctx.font = "36px sans-serif";
         ctx.textAlign = "center";
