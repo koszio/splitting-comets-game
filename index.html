@@ -5948,12 +5948,15 @@
         let currentY = statsStartY;
         
         ctx.font = "bold 14px monospace";  // Use monospace for tech look
-        ctx.textAlign = "left";
+        ctx.textAlign = "right";  // Change to right alignment for consistent width
+        
+        // Set a fixed position for all labels to ensure alignment
+        const labelX = statsLeftX + 75;
         
         for (const stat of stats) {
           // Label with tech style
           ctx.fillStyle = "rgb(0, 255, 255)";  // Bright cyan for labels
-          ctx.fillText(stat.name, statsLeftX, currentY + 12);
+          ctx.fillText(stat.name, labelX, currentY + 12);
           
           // Black tech bar border with inner glow
           ctx.fillStyle = "rgb(0, 0, 0)";
