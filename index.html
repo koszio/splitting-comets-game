@@ -3566,6 +3566,11 @@
           drawEMPWave();
         }
         
+        // Draw anime particles if any exist
+        if (spaceship.type === SHIP_TYPE.ANIME && spaceship.animeParticles && spaceship.animeParticles.length > 0) {
+          updateAnimeParticles(0);
+        }
+        
         ctx.save();
         ctx.translate(spaceship.x, spaceship.y);
         ctx.rotate(spaceship.angle);
@@ -4047,6 +4052,11 @@
       
       // Fire anime special attack
       function fireAnimeSpecial() {
+        // Play anime special sound effect
+        if (soundEnabled) {
+          playSound('explosion');
+        }
+        
         // Create colorful anime-style particle explosion
         const numParticles = 60;
         spaceship.animeParticles = [];
