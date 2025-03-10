@@ -2612,8 +2612,8 @@
               }
             }
             
-            // Special EMP ability (E key)
-            if (key === "e" || code === "KeyE") {
+            // Special EMP ability (E or F key)
+            if (key === "e" || code === "KeyE" || key === "f" || code === "KeyF") {
               // Default ship (Nova Striker) special ability
               if (spaceship.type === SHIP_TYPE.DEFAULT && !spaceship.empCooldown) {
                 // Activate EMP blast
@@ -3616,11 +3616,27 @@
       
       // Activate EMP blast (for DEFAULT ship type - Nova Striker)
       function activateEMPBlast() {
-        if (spaceship.type !== SHIP_TYPE.DEFAULT) return;
+        // First log the current state for debugging
+        console.log("activateEMPBlast called. Current state:", {
+          shipType: spaceship.type,
+          empActive: spaceship.empActive,
+          empCooldown: spaceship.empCooldown,
+          empCooldownTimer: spaceship.empCooldownTimer
+        });
         
-        // Add stricter cooldown check
-        if (spaceship.empActive || spaceship.empCooldown) {
-          console.log("EMP is active or in cooldown");
+        if (spaceship.type !== SHIP_TYPE.DEFAULT) {
+          console.log("Wrong ship type for EMP");
+          return;
+        }
+        
+        // Add stricter cooldown check with detailed logging
+        if (spaceship.empActive) {
+          console.log("EMP is currently active - can't activate again");
+          return;
+        }
+        
+        if (spaceship.empCooldown) {
+          console.log("EMP is in cooldown - time remaining:", spaceship.empCooldownTimer.toFixed(2));
           return;
         }
         
@@ -3637,7 +3653,7 @@
         spaceship.empActive = true;
         spaceship.empEffectTimer = 0;
         spaceship.empWaveRadius = 0;
-        console.log("EMP activated");
+        console.log("EMP activated successfully!");
       }
 
       function restartGame() {
@@ -3695,7 +3711,7 @@
         ctx.save();
         
         // Calculate fade based on expansion progress (more transparent as it grows)
-        const progressFactor = Math.min(1, spaceship.empWaveRadius / 500);
+        const progressFactor = Math.min(1, spaceship.empWaveRadius / 200);
         const alphaBase = 0.8 - progressFactor * 0.7; // Fade from 0.8 to 0.1 as it expands
         
         // Adjust opacity based on time and radius 
@@ -3718,13 +3734,80 @@
         ctx.restore();
       }
       
+      // Draw EMP cooldown/recharge bar
+      function drawEMPBar() {
+        // Only show for DEFAULT ship type (always show it regardless of EMP status)
+        if (spaceship.type !== SHIP_TYPE.DEFAULT) {
+          return;
+        }
+        
+        // Exact match for health bar dimensions and style
+        const barWidth = 100;
+        const barHeight = 10;
+        
+        // Calculate the time left for the bar fill
+        let timeLeft, fillColor;
+        
+        if (spaceship.empActive) {
+          // EMP is active - show active time left
+          timeLeft = 1 - (spaceship.empEffectTimer / 5.0); // 5 seconds duration
+          fillColor = "#3399ff"; // Bright blue for active EMP (matches health bar style)
+        } else if (spaceship.empCooldown) {
+          // EMP is cooling down
+          timeLeft = 1 - (spaceship.empCooldownTimer / 20.0); // 20 seconds cooldown
+          fillColor = "#3366cc"; // Darker blue for charging
+        } else {
+          // EMP is ready to use
+          timeLeft = 1.0; // Full bar
+          fillColor = "#33ccff"; // Bright cyan when ready
+        }
+        
+        ctx.save();
+        
+        // Position centered at the top of the screen, BELOW health bar
+        const x = canvas.width / 2 - barWidth / 2; // Center horizontally
+        const y = 85; // Position well below health bar as requested
+        
+        // Bar background - exact match with health bar
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // Add clean border
+        ctx.strokeStyle = "#ffffff"; // White border like health bar
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Fill bar with solid color (matching health bar style)
+        ctx.fillStyle = fillColor;
+        
+        // Fill bar based on status
+        ctx.fillRect(x, y, barWidth * timeLeft, barHeight);
+        
+        // Add label text with cleaner style
+        ctx.font = "bold 10px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        
+        let labelText;
+        if (spaceship.empActive) {
+          labelText = "EMP ACTIVE";
+        } else if (spaceship.empCooldown) {
+          labelText = "EMP CHARGING";
+        } else {
+          labelText = "EMP READY";
+        }
+        
+        ctx.fillText(labelText, x + barWidth/2, y + barHeight/2 + 3);
+        
+        ctx.restore();
+      }
+      
       function drawSpaceship() {
         // Draw EMP wave if active
         if (spaceship.type === SHIP_TYPE.DEFAULT && spaceship.empActive) {
           drawEMPWave();
         }
         
-        // No special anime wave effect to avoid crashing
         
         // Particles are drawn in the regular update loop
         
@@ -7508,6 +7591,11 @@
         if (spaceship.type === SHIP_TYPE.XWING) {
           drawTimeWarpBar();
         }
+        
+        // Draw EMP cooldown bar for DEFAULT ship
+        if (spaceship.type === SHIP_TYPE.DEFAULT) {
+          drawEMPBar();
+        }
 
         // Power-ups
         for (let pu of powerUps) {
@@ -8378,8 +8466,8 @@
             
             // If comet is within EMP wave radius, slow it down
             if (distance <= spaceship.empWaveRadius) {
-              comet.vx *= 0.8;
-              comet.vy *= 0.8;
+              comet.vx *= 0.25;
+              comet.vy *= 0.25;
             }
           }
           
@@ -8399,22 +8487,42 @@
           if (spaceship.empEffectTimer >= 5.0) {
             spaceship.empActive = false;
             spaceship.empCooldown = true;
-            spaceship.empCooldownTimer = 12.0;
+            spaceship.empCooldownTimer = 20.0; // Increased to 20 seconds as requested
           }
         }
         
-        // Update EMP cooldown
+        // if not in playing state, do minimal updates
+        if (gameState !== GAME_STATE.PLAYING) {
+          // CRITICAL FIX: The EMP cooldown should keep counting down even in non-playing states
+          // Otherwise it gets stuck and never recharges if the player pauses!
+          if (spaceship.empCooldown) {
+            spaceship.empCooldownTimer -= dt;
+            // Add logging to debug the EMP cooldown
+            if (spaceship.empCooldownTimer % 3 < 0.1) {
+              console.log("EMP Cooldown Timer (non-playing):", spaceship.empCooldownTimer.toFixed(2));
+            }
+            if (spaceship.empCooldownTimer <= 0) {
+              spaceship.empCooldownTimer = 0;
+              spaceship.empCooldown = false;
+              spaceship.empActive = false; // Make sure EMP active flag is also false
+              console.log("EMP Ready! Cooldown complete.");
+            }
+          }
+          return;
+        }
+        
+        // Update EMP cooldown (during normal gameplay)
         if (spaceship.empCooldown) {
           spaceship.empCooldownTimer -= dt;
+          console.log("EMP Cooldown Timer:", spaceship.empCooldownTimer.toFixed(2), "empCooldown:", spaceship.empCooldown);
+          
+          // Force cooldown timer to 0 and reset cooldown flag when timer reaches 0
           if (spaceship.empCooldownTimer <= 0) {
+            spaceship.empCooldownTimer = 0;
             spaceship.empCooldown = false;
+            spaceship.empActive = false; // Make sure EMP active flag is also false
+            console.log("EMP Ready! Cooldown complete.");
           }
-        }
-
-
-        // if not in playing state, do minimal
-        if (gameState !== GAME_STATE.PLAYING) {
-          return;
         }
 
         // Increase global time so comet morph can happen
