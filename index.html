@@ -162,6 +162,17 @@
       function updateGameState(newState) {
         gameState = newState;
         window.gameState = newState;
+        
+        // If entering gameplay mode, ensure first wave spawns immediately for non-infinity modes
+        if (newState === GAME_STATE.PLAYING && currentDifficulty !== DIFFICULTY.INFINITY) {
+          // Force spawn first wave if wave system is active
+          console.log("Game starting: Forcing first wave spawn");
+          // Reset wave counters to 1 to ensure we're on first wave
+          waveNumber = 1;
+          waveTimer = 0;
+          // Spawn first wave immediately
+          spawnWave(currentDifficulty, waveNumber);
+        }
       }
 
       // Function to toggle music on/off
@@ -1946,6 +1957,56 @@
         ctx.restore();
       }
       
+      // Draw wave announcement and timer
+      function drawWaveInfo() {
+        // Only show in non-infinity modes during gameplay
+        if (currentDifficulty === DIFFICULTY.INFINITY || gameState !== GAME_STATE.PLAYING) {
+          return;
+        }
+        
+        ctx.save();
+        
+        // Draw wave counter (always visible)
+        ctx.font = "16px sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillStyle = "white";
+        ctx.fillText(`WAVE: ${waveNumber}`, canvas.width - 20, 30);
+        
+        // Calculate wave duration based on difficulty
+        let waveDuration = WAVE_DURATION;
+        if (currentDifficulty === DIFFICULTY.HARD) {
+          const hardModeSpeedMultiplier = Math.max(0.6, 1.0 - (waveNumber * 0.02));
+          waveDuration = WAVE_DURATION * hardModeSpeedMultiplier;
+        }
+        
+        // Draw wave timer (next wave in X seconds)
+        const timeToNextWave = Math.max(0, Math.floor(waveDuration - waveTimer));
+        ctx.fillText(`NEXT WAVE: ${timeToNextWave}s`, canvas.width - 20, 50);
+        
+        // Draw wave announcement if active
+        if (waveAnnouncing) {
+          // Calculate scale and opacity based on announcement timer
+          const progress = waveAnnouncementTimer / WAVE_ANNOUNCEMENT_DURATION;
+          const scale = 1 + Math.sin(progress * Math.PI) * 0.3; // Pulse effect
+          const opacity = Math.sin(progress * Math.PI);
+          
+          // Draw announcement text
+          ctx.textAlign = "center";
+          ctx.font = "bold 36px sans-serif";
+          ctx.fillStyle = `rgba(255, 50, 50, ${opacity})`;
+          ctx.translate(canvas.width / 2, canvas.height / 3);
+          ctx.scale(scale, scale);
+          ctx.fillText(`WAVE ${waveNumber + 1} INCOMING!`, 0, 0);
+          
+          // Add glow effect
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = "red";
+          ctx.fillText(`WAVE ${waveNumber + 1} INCOMING!`, 0, 0);
+        }
+        
+        ctx.restore();
+      }
+
       function drawHealthBar(x, y, barWidth, barHeight) {
         // Use default values if not provided - now centered with bigger dimensions
         barWidth = barWidth || 150; // Wider bar (was 100)
@@ -2316,6 +2377,14 @@
       // Timers
       let lastBulletTime = 0;
       let cometSpawnTimer = 0;
+      
+      // Wave system variables
+      let waveNumber = 1;
+      let waveTimer = 0;
+      const WAVE_DURATION = 20; // 20 seconds between waves
+      let waveAnnouncing = false;
+      let waveAnnouncementTimer = 0;
+      const WAVE_ANNOUNCEMENT_DURATION = 3; // 3 seconds for wave announcement
 
       // Big Comet logic
       function updateBigComets(dt) {
@@ -3261,6 +3330,75 @@
       // -------------- PLACEHOLDERS FILLED BELOW -------------- //
 
       // Explosion Effects
+      // Function to spawn a wave of comets based on difficulty and wave number
+      function spawnWave(difficulty, waveNum) {
+        // Configure wave properties based on difficulty and wave number
+        let numSmallComets = 0;
+        let numBigComets = 0;
+        let cometTierMultiplier = 1.0; // Higher values = bigger comets on average
+        
+        switch(difficulty) {
+          case DIFFICULTY.EASY:
+            // Starting with 8-10 comets (increased from 3-5)
+            numSmallComets = 8 + Math.min(waveNum, 15); // More comets to start, +1 per wave, max +15
+            // Introduce big comets at wave 4 (earlier than before)
+            numBigComets = Math.max(0, Math.floor((waveNum - 4) / 2)); // +1 every 2 waves starting from wave 4
+            cometTierMultiplier = 0.8 + (waveNum * 0.05); // Slowly increase comet size
+            break;
+            
+          case DIFFICULTY.MEDIUM:
+            // Starting with 10-12 comets (increased from 5-8)
+            numSmallComets = 10 + Math.min(waveNum * 2, 25); // +2 per wave, max +25
+            // Start with 1 big comet, add more over time
+            numBigComets = 1 + Math.floor(waveNum / 2); // +1 every 2 waves
+            cometTierMultiplier = 0.9 + (waveNum * 0.07); // Medium comet size increase
+            break;
+            
+          case DIFFICULTY.HARD:
+            // More intense waves for hard mode
+            const baseCount = 12 + Math.min(waveNum * 3, 36); // More comets, faster scaling
+            
+            // Add wave pattern variation (every 3rd wave is more intense)
+            const isIntenseWave = (waveNum % 3 === 0);
+            numSmallComets = isIntenseWave ? Math.floor(baseCount * 1.4) : baseCount;
+            
+            // Start with 2 big comets, add more rapidly
+            numBigComets = 2 + Math.min(Math.floor(waveNum * 0.7), 10); // Faster big comet scaling, max 12
+            
+            // Hard mode has faster comet size scaling
+            cometTierMultiplier = 1.0 + (waveNum * 0.1);
+            break;
+            
+          default:
+            // Fallback if something goes wrong
+            numSmallComets = 8;
+            numBigComets = 1;
+        }
+        
+        // Spawn small comets with varying sizes based on tier multiplier
+        for (let i = 0; i < numSmallComets; i++) {
+          // Determine comet tier based on wave progression
+          // Later waves have higher chance of bigger comets
+          let tier = 1;
+          
+          // 50% chance to adjust tier based on wave progression
+          if (Math.random() < 0.5) {
+            const maxTierForWave = Math.min(MAX_COMET_TIER, Math.ceil(cometTierMultiplier));
+            tier = 1 + Math.floor(Math.random() * maxTierForWave);
+          }
+          
+          spawnComet(tier);
+        }
+        
+        // Spawn big comets
+        for (let i = 0; i < numBigComets; i++) {
+          spawnBigComet();
+        }
+        
+        // Log the wave spawning (helps with debugging)
+        console.log(`Wave ${waveNum} spawned: ${numSmallComets} comets, ${numBigComets} big comets`);
+      }
+      
       function createSmallExplosion(x, y) {
         if (soundEnabled) {
           let exp = new Audio(explosionSoundURL);
@@ -3689,6 +3827,17 @@
         powerUpSpawnTimer = 0;
         tripleShootPowerUpTimer = 0;
         tripleShootPowerUpSpawned = false;
+        
+        // Reset wave system
+        waveNumber = 1; // Start at wave 1
+        waveTimer = 0; // Reset timer
+        waveAnnouncing = false;
+        waveAnnouncementTimer = 0;
+        
+        // Spawn the first wave immediately
+        if (currentDifficulty !== DIFFICULTY.INFINITY) {
+          spawnWave(currentDifficulty, waveNumber);
+        }
         
         // Score and game state
         // Don't reset score so player can see their previous score
@@ -8020,6 +8169,9 @@
         if (spaceship.type === SHIP_TYPE.DEFAULT) {
           drawEMPBar();
         }
+        
+        // Draw wave information (only in wave-based game modes)
+        drawWaveInfo();
 
         // Power-ups
         for (let pu of powerUps) {
@@ -8996,6 +9148,62 @@
         // Increase global time so comet morph can happen
         gameTime += dt;
 
+        // Update wave system (only in non-infinity modes)
+        if (currentDifficulty !== DIFFICULTY.INFINITY) {
+          // Special case for very start of game - ensure first wave spawns
+          if (gameTime < 0.5 && waveNumber === 1 && comets.length === 0 && bigComets.length === 0) {
+            console.log("First wave forced spawn");
+            spawnWave(currentDifficulty, waveNumber);
+          }
+          
+          // Get wave interval based on difficulty (Hard mode has faster waves)
+          let waveDuration = WAVE_DURATION;
+          if (currentDifficulty === DIFFICULTY.HARD) {
+            // Hard mode gets progressively faster waves
+            const hardModeSpeedMultiplier = Math.max(0.6, 1.0 - (waveNumber * 0.02)); // Gradually speeds up to 40% faster
+            waveDuration = WAVE_DURATION * hardModeSpeedMultiplier;
+          }
+          
+          // Update wave timer
+          waveTimer += dt;
+          
+          // Check if we should announce next wave (3 seconds before wave starts)
+          if (!waveAnnouncing && waveTimer >= waveDuration - 3) {
+            waveAnnouncing = true;
+            waveAnnouncementTimer = 0;
+            
+            // Play wave announcement sound
+            if (soundEnabled) {
+              bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+              bulletSoundPool[nextBulletSoundIndex].volume = 0.5;
+              bulletSoundPool[nextBulletSoundIndex].play();
+              nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+            }
+          }
+          
+          // Update announcement timer if announcing
+          if (waveAnnouncing) {
+            waveAnnouncementTimer += dt;
+            
+            // End announcement after duration
+            if (waveAnnouncementTimer >= WAVE_ANNOUNCEMENT_DURATION) {
+              waveAnnouncing = false;
+            }
+          }
+          
+          // Check if it's time for a new wave
+          if (waveTimer >= waveDuration) {
+            // Reset wave timer
+            waveTimer = 0;
+            
+            // Increment wave number
+            waveNumber++;
+            
+            // Spawn wave of comets based on difficulty and wave number
+            spawnWave(currentDifficulty, waveNumber);
+          }
+        }
+
         // Triple shot timer is now updated earlier in the update cycle
         
         // Update missile barrage system
@@ -9785,44 +9993,41 @@
 
         // spawn new comets over time based on difficulty
         if (spawnAllowed) {
-          cometSpawnTimer += dt;
-          
-          // Get base spawn interval
-          let spawnInterval = randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX);
-          
-          // Apply difficulty multiplier (higher multiplier = lower rate)
-          let difficultyMultiplier;
+          // For Infinity mode, keep using the original random spawn logic
           if (currentDifficulty === DIFFICULTY.INFINITY) {
-            // For infinity mode, use the dynamic multiplier
-            difficultyMultiplier = 1 / infinityModeSpawnMultiplier;
-          } else {
-            // For other modes, use the fixed multiplier
-            difficultyMultiplier = 1 / SPAWN_RATE_MULTIPLIER[currentDifficulty];
-          }
-          
-          // Apply the multiplier to spawn interval
-          spawnInterval *= difficultyMultiplier;
-          
-          if (cometSpawnTimer > spawnInterval) {
-            // Scale spawn count based on area
-            let area = canvas.width * canvas.height;
-            let scaleFactor = area / 480000;
-            scaleFactor = Math.max(0.5, Math.min(2, scaleFactor));
+            cometSpawnTimer += dt;
             
-            // Determine base spawn count
-            let baseSpawnCount = COMET_SPAWN_BATCH_MIN + 
-              Math.floor(Math.random() * (COMET_SPAWN_BATCH_MAX - COMET_SPAWN_BATCH_MIN + 1));
+            // Get base spawn interval
+            let spawnInterval = randomRange(COMET_SPAWN_MIN, COMET_SPAWN_MAX);
             
-            // Apply difficulty modifier to spawn count
-            let spawnCount = Math.floor(baseSpawnCount * scaleFactor);
+            // Use the dynamic multiplier for infinity mode
+            let difficultyMultiplier = 1 / infinityModeSpawnMultiplier;
             
-            // Spawn the comets
-            for (let i = 0; i < spawnCount; i++) {
-              spawnComet();
+            // Apply the multiplier to spawn interval
+            spawnInterval *= difficultyMultiplier;
+            
+            if (cometSpawnTimer > spawnInterval) {
+              // Scale spawn count based on area
+              let area = canvas.width * canvas.height;
+              let scaleFactor = area / 480000;
+              scaleFactor = Math.max(0.5, Math.min(2, scaleFactor));
+              
+              // Determine base spawn count
+              let baseSpawnCount = COMET_SPAWN_BATCH_MIN + 
+                Math.floor(Math.random() * (COMET_SPAWN_BATCH_MAX - COMET_SPAWN_BATCH_MIN + 1));
+              
+              // Apply difficulty modifier to spawn count
+              let spawnCount = Math.floor(baseSpawnCount * scaleFactor);
+              
+              // Spawn the comets
+              for (let i = 0; i < spawnCount; i++) {
+                spawnComet();
+              }
+              
+              cometSpawnTimer = 0;
             }
-            
-            cometSpawnTimer = 0;
           }
+          // For other difficulties, spawning is now handled by the wave system
         }
       }
 
