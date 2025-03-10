@@ -1801,9 +1801,61 @@
 
       // Win state
       if (gameState == WIN) {
-          // Draw explosion particles
+          // Draw black hole explosion particles with enhanced visuals
+          std::vector<Vector2> blackHoleCenters;
+          std::vector<float> blackHoleRadii;
+          
+          // Find black hole centers by looking for dark particles
           for (const auto& p : explosionParticles) {
-              DrawCircle(p.position.x, p.position.y, p.size, p.color);
+              if (p.color.r < 30 && p.color.g < 30 && p.color.b < 50) {
+                  bool foundNearby = false;
+                  for (size_t i = 0; i < blackHoleCenters.size(); i++) {
+                      float dx = blackHoleCenters[i].x - p.position.x;
+                      float dy = blackHoleCenters[i].y - p.position.y;
+                      if (sqrt(dx*dx + dy*dy) < 50.0f) {
+                          if (p.size > blackHoleRadii[i]) {
+                              blackHoleRadii[i] = p.size * 3.0f;
+                          }
+                          foundNearby = true;
+                          break;
+                      }
+                  }
+                  if (!foundNearby) {
+                      blackHoleCenters.push_back(p.position);
+                      blackHoleRadii.push_back(p.size * 3.0f);
+                  }
+              }
+          }
+          
+          // Draw black hole effects
+          for (size_t i = 0; i < blackHoleCenters.size(); i++) {
+              DrawCircleGradient(
+                  blackHoleCenters[i].x, blackHoleCenters[i].y,
+                  blackHoleRadii[i] * 1.2f,
+                  (Color){0, 0, 0, 255},
+                  (Color){20, 0, 30, 150}
+              );
+              DrawCircleGradient(
+                  blackHoleCenters[i].x, blackHoleCenters[i].y,
+                  blackHoleRadii[i] * 2.0f,
+                  (Color){20, 0, 60, 100},
+                  (Color){0, 0, 0, 0}
+              );
+          }
+          
+          // Draw other particles
+          for (const auto& p : explosionParticles) {
+              if (p.color.r >= 30 || p.color.g >= 30 || p.color.b >= 50) {
+                  if (p.color.r > 100 || p.color.g > 100 || p.color.b > 100) {
+                      DrawCircleGradient(
+                          p.position.x, p.position.y,
+                          p.size * 2.0f,
+                          ColorAlpha(p.color, 0.3f),
+                          ColorAlpha(p.color, 0.0f)
+                      );
+                  }
+                  DrawCircle(p.position.x, p.position.y, p.size, p.color);
+              }
           }
 
           DrawText("WIN!", SCREEN_WIDTH/2 - MeasureText("WIN!", 48)/2, SCREEN_HEIGHT/2, 48, GREEN);
@@ -1816,9 +1868,61 @@
 
       // Game over state
       if (gameState == GAMEOVER) {
-          // Draw explosion particles
+          // Draw black hole explosion particles with enhanced visuals
+          std::vector<Vector2> blackHoleCenters;
+          std::vector<float> blackHoleRadii;
+          
+          // Find black hole centers by looking for dark particles
           for (const auto& p : explosionParticles) {
-              DrawCircle(p.position.x, p.position.y, p.size, p.color);
+              if (p.color.r < 30 && p.color.g < 30 && p.color.b < 50) {
+                  bool foundNearby = false;
+                  for (size_t i = 0; i < blackHoleCenters.size(); i++) {
+                      float dx = blackHoleCenters[i].x - p.position.x;
+                      float dy = blackHoleCenters[i].y - p.position.y;
+                      if (sqrt(dx*dx + dy*dy) < 50.0f) {
+                          if (p.size > blackHoleRadii[i]) {
+                              blackHoleRadii[i] = p.size * 3.0f;
+                          }
+                          foundNearby = true;
+                          break;
+                      }
+                  }
+                  if (!foundNearby) {
+                      blackHoleCenters.push_back(p.position);
+                      blackHoleRadii.push_back(p.size * 3.0f);
+                  }
+              }
+          }
+          
+          // Draw black hole effects
+          for (size_t i = 0; i < blackHoleCenters.size(); i++) {
+              DrawCircleGradient(
+                  blackHoleCenters[i].x, blackHoleCenters[i].y,
+                  blackHoleRadii[i] * 1.2f,
+                  (Color){0, 0, 0, 255},
+                  (Color){20, 0, 30, 150}
+              );
+              DrawCircleGradient(
+                  blackHoleCenters[i].x, blackHoleCenters[i].y,
+                  blackHoleRadii[i] * 2.0f,
+                  (Color){20, 0, 60, 100},
+                  (Color){0, 0, 0, 0}
+              );
+          }
+          
+          // Draw other particles
+          for (const auto& p : explosionParticles) {
+              if (p.color.r >= 30 || p.color.g >= 30 || p.color.b >= 50) {
+                  if (p.color.r > 100 || p.color.g > 100 || p.color.b > 100) {
+                      DrawCircleGradient(
+                          p.position.x, p.position.y,
+                          p.size * 2.0f,
+                          ColorAlpha(p.color, 0.3f),
+                          ColorAlpha(p.color, 0.0f)
+                      );
+                  }
+                  DrawCircle(p.position.x, p.position.y, p.size, p.color);
+              }
           }
 
           DrawText("GAME OVER", SCREEN_WIDTH/2 - MeasureText("GAME OVER", 48)/2, SCREEN_HEIGHT/2, 48, RED);
@@ -1888,8 +1992,80 @@
       DrawNormalComets();
       DrawBigComets();
 
-      // Draw explosion particles
+      // Draw explosion particles (now black hole effects)
+      // First, group explosion particles by position to identify black hole centers
+      std::vector<Vector2> blackHoleCenters;
+      std::vector<float> blackHoleRadii;
+      
+      // Find black hole centers by looking for dark particles
       for (const auto& p : explosionParticles) {
-          DrawCircle(p.position.x, p.position.y, p.size, p.color);
+          // Dark particles (singularity)
+          if (p.color.r < 30 && p.color.g < 30 && p.color.b < 50) {
+              bool foundNearby = false;
+              
+              // Check if we already have a center nearby
+              for (size_t i = 0; i < blackHoleCenters.size(); i++) {
+                  float dx = blackHoleCenters[i].x - p.position.x;
+                  float dy = blackHoleCenters[i].y - p.position.y;
+                  if (sqrt(dx*dx + dy*dy) < 50.0f) {
+                      // Update radius if this particle is larger
+                      if (p.size > blackHoleRadii[i]) {
+                          blackHoleRadii[i] = p.size * 3.0f;
+                      }
+                      foundNearby = true;
+                      break;
+                  }
+              }
+              
+              // If no nearby center, create a new one
+              if (!foundNearby) {
+                  blackHoleCenters.push_back(p.position);
+                  blackHoleRadii.push_back(p.size * 3.0f);
+              }
+          }
+      }
+      
+      // Draw black hole effects at the centers
+      for (size_t i = 0; i < blackHoleCenters.size(); i++) {
+          const Vector2& center = blackHoleCenters[i];
+          float radius = blackHoleRadii[i];
+          
+          // Draw dark core (event horizon)
+          DrawCircleGradient(
+              center.x, center.y,
+              radius * 1.2f,
+              (Color){0, 0, 0, 255},  // Black center
+              (Color){20, 0, 30, 150}  // Dark purple edge
+          );
+          
+          // Draw outer glow
+          DrawCircleGradient(
+              center.x, center.y,
+              radius * 2.0f,
+              (Color){20, 0, 60, 100},  // Dark purple
+              (Color){0, 0, 0, 0}       // Transparent edge
+          );
+      }
+      
+      // Draw individual particles
+      for (const auto& p : explosionParticles) {
+          // Skip the dark core particles as we've drawn them as black holes
+          if (p.color.r >= 30 || p.color.g >= 30 || p.color.b >= 50) {
+              // For bright particles (accretion disk), draw with a glow effect
+              if (p.color.r > 100 || p.color.g > 100 || p.color.b > 100) {
+                  // Draw a larger, faded background for glow
+                  DrawCircleGradient(
+                      p.position.x, p.position.y,
+                      p.size * 2.0f,
+                      ColorAlpha(p.color, 0.3f),
+                      ColorAlpha(p.color, 0.0f)
+                  );
+                  // Draw the main particle
+                  DrawCircle(p.position.x, p.position.y, p.size, p.color);
+              } else {
+                  // For other particles, just draw normally
+                  DrawCircle(p.position.x, p.position.y, p.size, p.color);
+              }
+          }
       }
   }
