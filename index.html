@@ -3741,25 +3741,37 @@
           return;
         }
         
-        // Exact match for health bar dimensions and style
-        const barWidth = 100;
-        const barHeight = 10;
+        // Match health bar dimensions exactly
+        const barWidth = 150;
+        const barHeight = 20;
+        const empBarHeight = barHeight; // Same height as health bar
         
         // Calculate the time left for the bar fill
-        let timeLeft, fillColor;
+        let timeLeft, fillColor, fillAlpha = 0.7;
         
         if (spaceship.empActive) {
           // EMP is active - show active time left
           timeLeft = 1 - (spaceship.empEffectTimer / 5.0); // 5 seconds duration
-          fillColor = "#3399ff"; // Bright blue for active EMP (matches health bar style)
+          fillColor = "0, 150, 255"; // Blue for active EMP (matches shield style)
+          // Add pulsing effect during active state
+          fillAlpha = 0.7 + Math.sin(gameTime * 20) * 0.3;
         } else if (spaceship.empCooldown) {
           // EMP is cooling down
           timeLeft = 1 - (spaceship.empCooldownTimer / 20.0); // 20 seconds cooldown
-          fillColor = "#3366cc"; // Darker blue for charging
+          // Color based on charge progress
+          if (timeLeft < 0.3) {
+            fillColor = "255, 170, 0"; // Orange for low charge
+          } else if (timeLeft < 0.7) {
+            fillColor = "0, 220, 220"; // Cyan for medium charge
+          } else {
+            fillColor = "0, 150, 255"; // Blue for almost charged
+          }
         } else {
           // EMP is ready to use
           timeLeft = 1.0; // Full bar
-          fillColor = "#33ccff"; // Bright cyan when ready
+          fillColor = "0, 150, 255"; // Blue for ready (matches shield style)
+          // Add subtle pulse when ready
+          fillAlpha = 0.7 + Math.sin(gameTime * 5) * 0.2;
         }
         
         ctx.save();
@@ -3768,36 +3780,37 @@
         const x = canvas.width / 2 - barWidth / 2; // Center horizontally
         const y = 85; // Position well below health bar as requested
         
-        // Bar background - exact match with health bar
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-        ctx.fillRect(x, y, barWidth, barHeight);
-        
-        // Add clean border
-        ctx.strokeStyle = "#ffffff"; // White border like health bar
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, barWidth, barHeight);
-        
-        // Fill bar with solid color (matching health bar style)
-        ctx.fillStyle = fillColor;
+        // Draw background and border - match shield style
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // Dark background
+        ctx.fillRect(x, y, barWidth, empBarHeight); // Fill the background
+        ctx.strokeRect(x, y, barWidth, empBarHeight);
         
         // Fill bar based on status
-        ctx.fillRect(x, y, barWidth * timeLeft, barHeight);
+        ctx.fillStyle = `rgba(${fillColor}, ${fillAlpha})`;
         
-        // Add label text with cleaner style
-        ctx.font = "bold 10px Arial";
+        // Ensure minimum width of 2px when bar has any value
+        const fillWidth = timeLeft > 0 ? Math.max(2, barWidth * timeLeft) : 0;
+        ctx.fillRect(x, y, fillWidth, empBarHeight);
+        
+        // Add "EMP:" label on the left side
         ctx.fillStyle = "white";
-        ctx.textAlign = "center";
+        ctx.font = "12px sans-serif"; // Match health bar font
+        ctx.textAlign = "right";
+        ctx.fillText("EMP:", x - 8, y + empBarHeight/2 + 4); // Centered vertically
         
-        let labelText;
-        if (spaceship.empActive) {
-          labelText = "EMP ACTIVE";
-        } else if (spaceship.empCooldown) {
-          labelText = "EMP CHARGING";
-        } else {
-          labelText = "EMP READY";
+        // Add segments to the EMP bar for visual clarity (5 segments for 20 sec cooldown)
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+        ctx.lineWidth = 1;
+        
+        for (let i = 1; i < 5; i++) {
+          const segX = x + (barWidth / 5) * i;
+          ctx.beginPath();
+          ctx.moveTo(segX, y);
+          ctx.lineTo(segX, y + empBarHeight);
+          ctx.stroke();
         }
-        
-        ctx.fillText(labelText, x + barWidth/2, y + barHeight/2 + 3);
         
         ctx.restore();
       }
