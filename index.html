@@ -409,7 +409,7 @@
         DEFAULT: "default",
         LASER: "laser",
         MISSILE: "missile",
-        ANIME: "anime"
+        XWING: "xwing"  // Renamed from ANIME to XWING
       };
       
       // Selected ship type (default to first ship)
@@ -613,7 +613,7 @@
               case 0: shipTypeToUse = SHIP_TYPE.DEFAULT; break;
               case 1: shipTypeToUse = SHIP_TYPE.LASER; break;
               case 2: shipTypeToUse = SHIP_TYPE.MISSILE; break;
-              case 3: shipTypeToUse = SHIP_TYPE.ANIME; break;
+              case 3: shipTypeToUse = SHIP_TYPE.XWING; break;
               default: shipTypeToUse = SHIP_TYPE.DEFAULT;
             }
             
@@ -1880,6 +1880,72 @@
         ctx.restore();
       }
 
+      // Draw the X-Wing time warp cooldown bar
+      function drawTimeWarpBar(x, y, barWidth, barHeight) {
+        // Use default values if not provided
+        barWidth = barWidth || 150; 
+        barHeight = barHeight || 20; // Make slightly taller
+        
+        // Center below the health bar
+        x = x || (canvas.width / 2 - barWidth / 2);
+        y = y || 85; // Position closer to health bar
+        
+        ctx.save();
+        
+        // Draw bar outline
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Draw background
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // Calculate percentage using the global variable
+        const chargeLevel = g_timeWarpCharge;
+        const fillWidth = (chargeLevel / 100) * barWidth;
+        
+        // Add color based on charge level
+        let fillColor;
+        if (chargeLevel >= 100) {
+          // Ready - cyan pulsing
+          const pulseFactor = 0.7 + 0.3 * Math.sin(performance.now() / 200);
+          fillColor = `rgba(0, 255, 255, ${pulseFactor * 0.8})`;
+        } else {
+          // Charging - blue to cyan gradient
+          const gradient = ctx.createLinearGradient(x, 0, x + fillWidth, 0);
+          gradient.addColorStop(0, "rgba(0, 100, 255, 0.8)");
+          gradient.addColorStop(1, "rgba(0, 200, 255, 0.8)");
+          fillColor = gradient;
+        }
+        
+        // Fill the charge level
+        ctx.fillStyle = fillColor;
+        ctx.fillRect(x, y, fillWidth, barHeight);
+        
+        // Add label with shadow for better visibility
+        ctx.font = "bold 12px sans-serif";
+        ctx.textAlign = "center";
+        
+        // Add text shadow for better visibility
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
+        if (chargeLevel >= 100) {
+          // Ready text
+          ctx.fillStyle = "#33ffff"; // Bright cyan
+          ctx.fillText("TIME WARP READY", x + barWidth/2, y + barHeight/2 + 4);
+        } else {
+          // Charging text
+          ctx.fillStyle = "white";
+          ctx.fillText(`TIME WARP: ${Math.floor(chargeLevel)}%`, x + barWidth/2, y + barHeight/2 + 4);
+        }
+        
+        ctx.restore();
+      }
+      
       function drawHealthBar(x, y, barWidth, barHeight) {
         // Use default values if not provided - now centered with bigger dimensions
         barWidth = barWidth || 150; // Wider bar (was 100)
@@ -1950,8 +2016,8 @@
           maxHP = 7; // Heavy cruiser has more HP
         } else if (spaceship.type === SHIP_TYPE.MISSILE) {
           maxHP = 5; // Missile ship now has same HP as default
-        } else if (spaceship.type === SHIP_TYPE.ANIME) {
-          maxHP = 6; // Anime ship has above average HP
+        } else if (spaceship.type === SHIP_TYPE.XWING) {
+          maxHP = 6; // X-Wing has above average HP
         } else {
           maxHP = 5; // Default ship has standard HP
         }
@@ -2297,6 +2363,8 @@
           // Apply movement with reduced speed based on hit count
           // The more hits, the slower it moves
           const speedFactor = Math.max(0.2, 1 - (bc.hitCount / BIG_COMET_HEALTH) * 0.8);
+          
+          // Always apply normal movement - no special time warp effects
           bc.x += bc.vx * dt * speedFactor;
           bc.y += bc.vy * dt * speedFactor;
           
@@ -2446,11 +2514,78 @@
                 e.preventDefault();
                 return;
               }
-              // Anime ship special ability
-              else if (spaceship.type === SHIP_TYPE.ANIME && 
-                      !spaceship.animeCooldown) {
-                // Activate anime special effect
-                fireAnimeSpecial();
+              // X-Wing time warp special ability
+              else if (spaceship.type === SHIP_TYPE.XWING) {
+                // Double check cooldown using global variables - only use if fully charged
+                const isReady = !g_timeWarpOnCooldown && g_timeWarpCharge >= 100;
+                if (isReady) {
+                  console.log("X-Wing time warp activated");
+                  
+                  // Much larger blast radius - at least half the screen
+                  const blastRadius = Math.max(canvas.width, canvas.height) / 2;
+                  const cometsToRemove = [];
+                
+                  // Instead of slow motion, just make all comets temporarily freeze in place
+                  // The effect will be applied directly to the comets in the handler
+                  // This avoids the complicated dt manipulation that causes freezes
+                  spaceship.animeSlowMotionActive = true;
+                  spaceship.animeSlowMotionTimer = 2; // 2 seconds of time freeze effect
+                  
+                  // Reset cooldown to 0 immediately
+                  g_timeWarpCharge = 0;
+                  g_timeWarpOnCooldown = true;
+                
+                  // Dampen all music/sounds
+                  if (musicEnabled && bgMusic) {
+                    // Save current volume
+                    spaceship.originalMusicVolume = bgMusic.volume;
+                    // Lower volume dramatically
+                    bgMusic.volume = bgMusic.volume * 0.2;
+                  }
+                
+                  // Find comets in range to destroy
+                  comets.forEach(comet => {
+                    const dx = comet.x - spaceship.x;
+                    const dy = comet.y - spaceship.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // If comet is within blast radius
+                    if (distance < blastRadius) {
+                      // Mark for removal
+                      cometsToRemove.push(comet);
+                      console.log("Destroying comet in range");
+                      
+                      // No explosion visual here - we'll let them explode during slow motion
+                      
+                      // Increase score
+                      score += 100;
+                    }
+                  });
+                
+                  // Start explosions right away but spread them out
+                  // This creates a longer-lasting explosion effect during slow motion
+                  cometsToRemove.forEach((comet, i) => {
+                    // Stagger the explosions for a more dramatic effect
+                    const delay = i * 100; // 100ms between each comet explosion
+                    
+                    setTimeout(() => {
+                      // Create larger explosion animations
+                      createHugeExplosion(comet.x, comet.y);
+                      
+                      // Remove comet after a delay to let explosion be visible
+                      setTimeout(() => {
+                        const index = comets.indexOf(comet);
+                        if (index > -1) {
+                          comets.splice(index, 1);
+                        }
+                      }, 1500); // Keep comet visible for 1.5 seconds after explosion
+                    }, delay); // Staggered start times
+                  });
+                } else {
+                  // Ability is on cooldown - provide feedback
+                  console.log("Time warp on cooldown: " + Math.floor(spaceship.animeChargeLevel) + "% charged");
+                }
+                
                 e.preventDefault();
                 return;
               }
@@ -2732,7 +2867,7 @@
                 case 0: selectedShipType = SHIP_TYPE.DEFAULT; break;
                 case 1: selectedShipType = SHIP_TYPE.LASER; break;
                 case 2: selectedShipType = SHIP_TYPE.MISSILE; break;
-                case 3: selectedShipType = SHIP_TYPE.ANIME; break;
+                case 3: selectedShipType = SHIP_TYPE.XWING; break;
               }
               
               // Start the game
@@ -3292,8 +3427,14 @@
       }
 
 
+      // For time warp charging - global variables to ensure persistence
+      let g_timeWarpCharge = 0;
+      let g_timeWarpOnCooldown = true;
+      
       // Initialize ship based on selected type
       function initializeShip(shipType) {
+        console.log("Initializing ship of type:", shipType);
+        
         // Reset basic properties
         spaceship.x = canvas.width / 2;
         spaceship.y = canvas.height / 2;
@@ -3317,10 +3458,17 @@
         spaceship.laserCooldownTimer = 0;
         spaceship.missileSpecialCooldown = 0;
         
-        // Reset anime ship properties
+        // Reset X-Wing ship properties
         spaceship.animeParticles = [];
-        spaceship.animeCooldown = false;
+        spaceship.animeCooldown = true; // Start with ability on cooldown
         spaceship.animeCooldownTimer = 0;
+        spaceship.animeMaxCooldown = 20; // 20 second cooldown
+        spaceship.animeChargeLevel = 0; // 0% charged initially
+        
+        // Time warp properties
+        spaceship.animeSlowMotionActive = false;
+        spaceship.animeSlowMotionTimer = 0;
+        spaceship.originalMusicVolume = 0.1; // Default music volume
         
         // Reset shield properties
         spaceship.hasShield = false;
@@ -3365,11 +3513,21 @@
             spaceship.hitPoints = 5; // Now equal to the standard fighter
             break;
             
-          case SHIP_TYPE.ANIME:
-            // Anime styled ship with special effects
+          case SHIP_TYPE.XWING:
+            // X-Wing styled fighter ship
             spaceship.size = SHIP_SIZE * 0.95;
             spaceship.speedModifier = 1.05; // Slightly faster
             spaceship.hitPoints = 6; // More health than default
+            
+            // X-Wing specific cooldown properties
+            console.log("Setting X-Wing specific properties");
+            // Ensure new X-Wing ships start with 0 charge
+            g_timeWarpCharge = 0;
+            g_timeWarpOnCooldown = true;
+            spaceship.timeWarpMaxCooldown = 20; // 20 seconds cooldown
+            // Make sure slow motion is initially disabled
+            spaceship.animeSlowMotionActive = false;
+            spaceship.animeSlowMotionTimer = 0;
             break;
         }
       }
@@ -3566,10 +3724,9 @@
           drawEMPWave();
         }
         
-        // Draw anime particles if any exist
-        if (spaceship.type === SHIP_TYPE.ANIME && spaceship.animeParticles && spaceship.animeParticles.length > 0) {
-          updateAnimeParticles(0);
-        }
+        // No special anime wave effect to avoid crashing
+        
+        // Particles are drawn in the regular update loop
         
         ctx.save();
         ctx.translate(spaceship.x, spaceship.y);
@@ -3599,8 +3756,8 @@
           case SHIP_TYPE.MISSILE:
             drawMissileShip(shipGrad);
             break;
-          case SHIP_TYPE.ANIME:
-            drawAnimeShip(shipGrad);
+          case SHIP_TYPE.XWING:
+            drawXWingShip(shipGrad);
             break;
           default:
             drawDefaultShip(shipGrad);
@@ -3960,141 +4117,193 @@
       
       // Draw shield for laser ship
       // Anime ship function
-      function drawAnimeShip(shipGrad) {
-        // Main ship body - anime inspired design with sharp angles
+      function drawXWingShip(shipGrad) {
+        // Central body
         ctx.beginPath();
-        ctx.moveTo(spaceship.size, 0); // Nose of the ship
-        // Bottom hull with angular design
-        ctx.lineTo(spaceship.size * 0.5, spaceship.size * 0.4);
+        ctx.moveTo(spaceship.size * 0.8, 0); // Nose of the ship
+        ctx.lineTo(spaceship.size * 0.4, spaceship.size * 0.15); // Upper right body
+        ctx.lineTo(-spaceship.size * 0.5, spaceship.size * 0.15); // Upper right back
+        ctx.lineTo(-spaceship.size * 0.7, 0); // Back center
+        ctx.lineTo(-spaceship.size * 0.5, -spaceship.size * 0.15); // Lower right back  
+        ctx.lineTo(spaceship.size * 0.4, -spaceship.size * 0.15); // Lower right body
+        ctx.closePath();
+        
+        // Fill with gradient
+        ctx.fillStyle = shipGrad;
+        ctx.fill();
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // X-Wing upper right wing
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.4, spaceship.size * 0.15);
         ctx.lineTo(spaceship.size * 0.1, spaceship.size * 0.6);
-        ctx.lineTo(-spaceship.size * 0.4, spaceship.size * 0.5);
-        ctx.lineTo(-spaceship.size * 0.7, spaceship.size * 0.2);
-        ctx.lineTo(-spaceship.size * 0.8, 0); // Tail
-        // Top hull with angular design
-        ctx.lineTo(-spaceship.size * 0.7, -spaceship.size * 0.2);
-        ctx.lineTo(-spaceship.size * 0.4, -spaceship.size * 0.5);
+        ctx.lineTo(-spaceship.size * 0.4, spaceship.size * 0.6);
+        ctx.lineTo(-spaceship.size * 0.5, spaceship.size * 0.15);
+        ctx.closePath();
+        ctx.fillStyle = "#555";
+        ctx.fill();
+        ctx.stroke();
+        
+        // X-Wing upper left wing
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.4, -spaceship.size * 0.15);
         ctx.lineTo(spaceship.size * 0.1, -spaceship.size * 0.6);
-        ctx.lineTo(spaceship.size * 0.5, -spaceship.size * 0.4);
+        ctx.lineTo(-spaceship.size * 0.4, -spaceship.size * 0.6);
+        ctx.lineTo(-spaceship.size * 0.5, -spaceship.size * 0.15);
         ctx.closePath();
-        
-        // Vibrant gradient for anime aesthetic
-        const animeGrad = ctx.createLinearGradient(spaceship.size, 0, -spaceship.size, 0);
-        animeGrad.addColorStop(0, "#ff3366"); // Bright anime pink/red at front
-        animeGrad.addColorStop(0.5, "#663399"); // Purple in middle
-        animeGrad.addColorStop(1, "#0066ff"); // Blue at back
-        
-        ctx.fillStyle = animeGrad;
+        ctx.fillStyle = "#555";
         ctx.fill();
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Add contrasting lines for anime style detailing
+        // Add engines on wings
+        // Upper right engine
         ctx.beginPath();
-        ctx.moveTo(spaceship.size * 0.7, 0);
-        ctx.lineTo(spaceship.size * 0.3, spaceship.size * 0.3);
-        ctx.lineTo(-spaceship.size * 0.5, spaceship.size * 0.2);
-        ctx.strokeStyle = "#00ffff"; // Cyan accent lines
-        ctx.lineWidth = 1.5;
+        ctx.rect(-spaceship.size * 0.4, spaceship.size * 0.45, spaceship.size * 0.2, spaceship.size * 0.15);
+        ctx.fillStyle = "#333";
+        ctx.fill();
+        ctx.strokeStyle = "#777";
+        ctx.lineWidth = 1;
         ctx.stroke();
         
-        // Mirror on top
+        // Upper left engine
         ctx.beginPath();
-        ctx.moveTo(spaceship.size * 0.7, 0);
-        ctx.lineTo(spaceship.size * 0.3, -spaceship.size * 0.3);
-        ctx.lineTo(-spaceship.size * 0.5, -spaceship.size * 0.2);
+        ctx.rect(-spaceship.size * 0.4, -spaceship.size * 0.45 - spaceship.size * 0.15, spaceship.size * 0.2, spaceship.size * 0.15);
+        ctx.fillStyle = "#333";
+        ctx.fill();
+        ctx.strokeStyle = "#777";
+        ctx.lineWidth = 1;
         ctx.stroke();
         
-        // Engine effects with anime style glow
-        ctx.beginPath();
-        ctx.moveTo(-spaceship.size * 0.8, 0);
-        ctx.lineTo(-spaceship.size * 1.0, -spaceship.size * 0.3);
-        ctx.lineTo(-spaceship.size * 1.0, spaceship.size * 0.3);
-        ctx.closePath();
+        // Calculate engine thrust based on ship velocity
+        // Get current velocity magnitude (0 to 1 range, where 1 is max speed)
+        // Safely check if vx/vy exist (they might not in selection screen)
+        const shipVx = spaceship.vx || 0;
+        const shipVy = spaceship.vy || 0;
+        const shipSpeedMagnitude = Math.min(1, Math.hypot(shipVx, shipVy) / 8);
         
-        // Glowing engine gradient
-        const engineGrad = ctx.createRadialGradient(
-          -spaceship.size * 0.8, 0, 0,
-          -spaceship.size * 0.8, 0, spaceship.size * 0.5
+        // Adjust thrust length based on velocity and add pulsing effect
+        const thrustPulse = 1 + 0.2 * Math.sin(performance.now() / 100);
+        const baseLength = spaceship.size * 0.15; // Base flame length
+        const thrustLength = baseLength * (0.7 + shipSpeedMagnitude * 1.3 * thrustPulse);
+        
+        // Engine glow effects
+        // Upper right engine glow
+        ctx.beginPath();
+        ctx.rect(-spaceship.size * 0.7, spaceship.size * 0.48, thrustLength, spaceship.size * 0.09);
+        const engineGlow = ctx.createLinearGradient(
+          -spaceship.size * 0.55, 0,
+          -spaceship.size * (0.7 + thrustLength/spaceship.size), 0
         );
-        engineGrad.addColorStop(0, "rgba(255, 255, 255, 0.9)");
-        engineGrad.addColorStop(0.3, "rgba(0, 255, 255, 0.7)");
-        engineGrad.addColorStop(1, "rgba(0, 50, 255, 0)");
-        
-        ctx.fillStyle = engineGrad;
+        engineGlow.addColorStop(0, "rgba(255, 100, 50, 0.9)");
+        engineGlow.addColorStop(1, "rgba(255, 200, 50, 0.1)");
+        ctx.fillStyle = engineGlow;
         ctx.fill();
         
-        // Cockpit with anime character styling
+        // Upper left engine glow
         ctx.beginPath();
-        ctx.ellipse(spaceship.size * 0.3, 0, spaceship.size * 0.25, spaceship.size * 0.15, 0, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(200, 255, 255, 0.5)";
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
+        ctx.rect(-spaceship.size * 0.7, -spaceship.size * 0.48 - spaceship.size * 0.09, thrustLength, spaceship.size * 0.09);
+        ctx.fillStyle = engineGlow;
+        ctx.fill();
+        
+        // Add extra thrusting effect when actively thrusting (pressing up arrow)
+        if (spaceship.thrusting || false) { // Add false as fallback for selection screen
+          // Bigger, brighter flame with more variance
+          const extraThrustPulse = 1 + 0.5 * Math.sin(performance.now() / 50);
+          const extraThrustLength = thrustLength * 1.5 * extraThrustPulse;
+          
+          // Right extra thrust
+          ctx.beginPath();
+          ctx.rect(-spaceship.size * 0.7 - thrustLength, spaceship.size * 0.49, extraThrustLength, spaceship.size * 0.07);
+          const extraGlow = ctx.createLinearGradient(
+            -spaceship.size * 0.7 - thrustLength, 0,
+            -spaceship.size * 0.7 - thrustLength - extraThrustLength, 0
+          );
+          extraGlow.addColorStop(0, "rgba(255, 220, 50, 0.9)");
+          extraGlow.addColorStop(1, "rgba(255, 250, 200, 0)");
+          ctx.fillStyle = extraGlow;
+          ctx.fill();
+          
+          // Left extra thrust
+          ctx.beginPath();
+          ctx.rect(-spaceship.size * 0.7 - thrustLength, -spaceship.size * 0.49 - spaceship.size * 0.07, extraThrustLength, spaceship.size * 0.07);
+          ctx.fillStyle = extraGlow;
+          ctx.fill();
+        }
+        
+        // Cockpit
+        ctx.beginPath();
+        ctx.arc(spaceship.size * 0.4, 0, spaceship.size * 0.12, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(100, 200, 255, 0.6)";
+        ctx.strokeStyle = "#aaccff";
+        ctx.lineWidth = 1.5;
         ctx.fill();
         ctx.stroke();
         
-        // Ready indicator for special ability
-        if (!spaceship.animeCooldown) {
-          // Anime-style power aura
+        // Add details - red markings on wings
+        ctx.beginPath();
+        ctx.rect(spaceship.size * 0.1, spaceship.size * 0.55, spaceship.size * 0.1, spaceship.size * 0.05);
+        ctx.rect(spaceship.size * 0.1, -spaceship.size * 0.55 - spaceship.size * 0.05, spaceship.size * 0.1, spaceship.size * 0.05);
+        ctx.fillStyle = "#cc3333";
+        ctx.fill();
+        
+        // No charge indicator on the ship - will be in the HUD instead
+        
+        // Only add cockpit glow when ability is ready (using global variables)
+        if (!g_timeWarpOnCooldown && g_timeWarpCharge >= 100) {
+          // Add glow around cockpit when ready
           ctx.beginPath();
-          ctx.arc(spaceship.size * 0.3, 0, spaceship.size * 0.4, 0, Math.PI * 2);
-          const auraGrad = ctx.createRadialGradient(
-            spaceship.size * 0.3, 0, spaceship.size * 0.2,
-            spaceship.size * 0.3, 0, spaceship.size * 0.4
+          ctx.arc(spaceship.size * 0.4, 0, spaceship.size * 0.18, 0, Math.PI * 2);
+          const readyGlow = ctx.createRadialGradient(
+            spaceship.size * 0.4, 0, spaceship.size * 0.1,
+            spaceship.size * 0.4, 0, spaceship.size * 0.18
           );
-          auraGrad.addColorStop(0, "rgba(255, 255, 255, 0)");
-          auraGrad.addColorStop(0.5, "rgba(255, 100, 255, 0.2)");
-          auraGrad.addColorStop(1, "rgba(100, 200, 255, 0)");
-          ctx.fillStyle = auraGrad;
+          readyGlow.addColorStop(0, "rgba(255, 255, 255, 0)");
+          readyGlow.addColorStop(0.5, "rgba(100, 200, 255, 0.3)");
+          readyGlow.addColorStop(1, "rgba(100, 150, 255, 0)");
+          ctx.fillStyle = readyGlow;
           ctx.fill();
         }
       }
       
-      // Fire anime special attack
+      // Fire X-Wing time warp special ability
       function fireAnimeSpecial() {
-        // Play anime special sound effect
-        if (soundEnabled) {
-          playSound('explosion');
-        }
+        console.log("FIRE ANIME SPECIAL - cooldown check", g_timeWarpOnCooldown);
         
-        // Create colorful anime-style particle explosion
-        const numParticles = 60;
-        spaceship.animeParticles = [];
-        
-        // Create particles in all directions
-        for (let i = 0; i < numParticles; i++) {
-          // Random angle
-          const angle = Math.random() * Math.PI * 2;
-          // Random speed between 3 and 8
-          const speed = 3 + Math.random() * 5;
-          // Random size between 2 and 6
-          const size = 2 + Math.random() * 4;
-          // Random lifetime between 1 and 2 seconds
-          const lifetime = 1 + Math.random();
-          // Random color - bright anime colors
-          const colorIndex = Math.floor(Math.random() * 5);
-          const colors = ["#ff3366", "#33ffcc", "#ff9933", "#9933ff", "#33ccff"];
+        try {
+          // STRICT cooldown check - this is our main safety
+          if (g_timeWarpOnCooldown === true || g_timeWarpCharge < 100) {
+            console.log("STRICT CHECK: Ability on cooldown! Cannot use.");
+            return;
+          }
           
-          spaceship.animeParticles.push({
-            x: spaceship.x,
-            y: spaceship.y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            size: size,
-            lifetime: lifetime,
-            timeRemaining: lifetime,
-            color: colors[colorIndex]
-          });
+          // Set cooldown to true immediately
+          g_timeWarpOnCooldown = true;
+          g_timeWarpCharge = 0;
+        } catch (error) {
+          console.error("Error in fireAnimeSpecial:", error);
+          // Reset to safe values if there's an error
+          g_timeWarpOnCooldown = true;
+          g_timeWarpCharge = 0;
         }
         
-        // Set cooldown
-        spaceship.animeCooldown = true;
-        spaceship.animeCooldownTimer = spaceship.animeMaxCooldown;
+        // Play special sound effect
+        if (soundEnabled) {
+          let exp = new Audio(explosionSoundURL);
+          exp.volume = 0.3;
+          exp.play().catch(err => console.error("Time warp sound error:", err));
+        }
         
-        // Apply weapon damage (high damage in a circular area)
-        const blastRadius = 250;
+        // Cooldown was already set at the start of the function
         
-        // Apply force and damage to nearby comets
+        // Apply weapon damage in a circular area
+        const blastRadius = 150;
+        
+        // Simple visual feedback - just make the ship flash in anime colors
+        spaceship.hitFlashTimer = 0.3;
+        
+        // Apply damage to nearby comets
         comets.forEach(comet => {
           const dx = comet.x - spaceship.x;
           const dy = comet.y - spaceship.y;
@@ -4102,26 +4311,67 @@
           
           // If comet is within blast radius
           if (distance < blastRadius) {
-            // Calculate damage based on distance (closer = more damage)
-            const damageMultiplier = 1 - (distance / blastRadius);
-            const damage = 30 * damageMultiplier; // High damage
-            
-            // Apply damage
-            comet.integrity -= damage;
-            
-            // Calculate force direction (away from ship)
-            const angle = Math.atan2(dy, dx);
-            const force = 2 * damageMultiplier; // Force proportional to damage
-            
-            // Apply force
-            comet.vx += Math.cos(angle) * force;
-            comet.vy += Math.sin(angle) * force;
-            
-            // Add visual effect to the comet
-            comet.glowTimer = 0.5; // Half-second glow
-            comet.glowColor = "#ff33ff"; // Pink glow
+            // Apply high damage to all comets in range
+            comet.integrity -= 40;
           }
         });
+      }
+      
+      // Draw anime wave effect
+      function drawAnimeWave() {
+        if (!spaceship.animeWaveActive) return;
+        
+        ctx.save();
+        
+        // Calculate fade based on expansion progress (more transparent as it grows)
+        const progressFactor = Math.min(1, spaceship.animeWaveRadius / 300);
+        const alphaBase = 0.8 - progressFactor * 0.7; // Fade from 0.8 to 0.1 as it expands
+        
+        // Adjust opacity based on time and radius
+        ctx.globalAlpha = alphaBase - (spaceship.animeEffectTimer / 4.0) * 0.3; // Additional fade over time
+        
+        // Draw anime-themed ring
+        const ringWidth = 20 - progressFactor * 12; // Ring gets thinner as it expands
+        
+        // Create a strong glow for the ring
+        ctx.shadowBlur = 15 - progressFactor * 10;
+        ctx.shadowColor = 'rgba(255, 100, 255, 0.8)';
+        
+        // Anime-themed gradient effect
+        const gradient = ctx.createRadialGradient(
+          spaceship.x, spaceship.y, spaceship.animeWaveRadius - ringWidth,
+          spaceship.x, spaceship.y, spaceship.animeWaveRadius + 2
+        );
+        
+        // Vibrant anime colors
+        gradient.addColorStop(0, 'rgba(255, 100, 255, ' + alphaBase + ')'); // Pink
+        gradient.addColorStop(0.3, 'rgba(150, 100, 255, ' + alphaBase + ')'); // Purple
+        gradient.addColorStop(0.6, 'rgba(100, 150, 255, ' + alphaBase + ')'); // Blue
+        gradient.addColorStop(1, 'rgba(100, 200, 255, 0)'); // Transparent cyan
+        
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = ringWidth;
+        
+        // Draw the wave as a ring
+        ctx.beginPath();
+        ctx.arc(spaceship.x, spaceship.y, spaceship.animeWaveRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Add sparkle effects
+        const sparkleCount = 12;
+        for (let i = 0; i < sparkleCount; i++) {
+          const angle = (i / sparkleCount) * Math.PI * 2;
+          const sparkX = spaceship.x + Math.cos(angle) * spaceship.animeWaveRadius;
+          const sparkY = spaceship.y + Math.sin(angle) * spaceship.animeWaveRadius;
+          
+          // Draw sparkle
+          ctx.beginPath();
+          ctx.arc(sparkX, sparkY, 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, ' + (alphaBase * 1.2) + ')';
+          ctx.fill();
+        }
+        
+        ctx.restore();
       }
       
       // Update and draw anime particles
@@ -4131,37 +4381,49 @@
         // Draw each particle
         ctx.save();
         
+        // Enable glow for all particles
+        ctx.shadowBlur = 15;
+        
         for (let i = spaceship.animeParticles.length - 1; i >= 0; i--) {
           const p = spaceship.animeParticles[i];
           
           // Update position
-          p.x += p.vx * deltaTime;
-          p.y += p.vy * deltaTime;
-          
-          // Update lifetime
-          p.timeRemaining -= deltaTime;
-          
-          // Remove dead particles
-          if (p.timeRemaining <= 0) {
-            spaceship.animeParticles.splice(i, 1);
-            continue;
+          if (deltaTime > 0) {
+            p.x += p.vx * deltaTime;
+            p.y += p.vy * deltaTime;
+            
+            // Update lifetime
+            p.timeRemaining -= deltaTime;
+            
+            // Remove dead particles
+            if (p.timeRemaining <= 0) {
+              spaceship.animeParticles.splice(i, 1);
+              continue;
+            }
           }
           
           // Calculate opacity based on remaining lifetime
           const opacity = p.timeRemaining / p.lifetime;
           
+          // Make particles larger and more visible
+          const size = p.size * 3;  // Triple the size
+          
+          // Set color with opacity
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = opacity;
+          
+          // Set strong glow
+          ctx.shadowBlur = size * 2;
+          ctx.shadowColor = p.color;
+          
           // Draw particle
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = p.color + Math.floor(opacity * 255).toString(16).padStart(2, '0');
-          ctx.fill();
-          
-          // Add glow effect
-          ctx.shadowBlur = p.size * 3;
-          ctx.shadowColor = p.color;
+          ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
           ctx.fill();
         }
         
+        // Reset global alpha
+        ctx.globalAlpha = 1;
         ctx.restore();
       }
       
@@ -5919,8 +6181,24 @@
           
           // Save original ship
           const originalShip = spaceship;
-          // Use temp ship
-          spaceship = tempShip;
+          // Create a safe temporary ship with all needed properties
+          const safeTempShip = {
+            x: 0,
+            y: 0,
+            size: SHIP_SIZE,
+            angle: 0,
+            vx: 0,
+            vy: 0,
+            thrusting: false,
+            type: shipType,
+            animeCooldown: true,
+            animeChargeLevel: 50,
+            animeCooldownTimer: 0,
+            animeMaxCooldown: 20
+          };
+          
+          // Use safe temp ship
+          spaceship = safeTempShip;
           
           // Draw ship to initialize/load any assets
           switch(shipType) {
@@ -5933,8 +6211,8 @@
             case SHIP_TYPE.MISSILE:
               drawMissileShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
               break;
-            case SHIP_TYPE.ANIME:
-              drawAnimeShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+            case SHIP_TYPE.XWING:
+              drawXWingShip(tempCtx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
               break;
           }
           
@@ -5975,7 +6253,7 @@
             defense: 5,   // Medium defense
             special: 7    // Good special ability
           },
-          [SHIP_TYPE.ANIME]: {
+          [SHIP_TYPE.XWING]: {
             speed: 7,     // Above average speed
             power: 8,     // Good firepower
             defense: 6,   // Above average defense
@@ -6004,16 +6282,32 @@
             features: ["Faster movement", "7-missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
           },
           {
-            type: SHIP_TYPE.ANIME,
-            name: "Anime Blazer",
-            desc: "Stylish ship with special anime powers",
-            features: ["Anime blast (F key)", "Colorful visual effects", "Medium speed", "Unique anime-inspired weapons"]
+            type: SHIP_TYPE.XWING,
+            name: "Star Striker",
+            desc: "X-Wing fighter with time manipulation",
+            features: ["Time warp (F key)", "Slows down time", "Medium speed", "Classic X-Wing design"]
           }
         ];
         
         // We'll only show the currently selected ship
         const currentShip = ships[selectedShipMenuItem];
         const currentStats = shipStats[currentShip.type];
+        
+        // Create a temporary spaceship object for the selection screen to avoid missing properties
+        const tempShipForDisplay = {
+          x: 0,
+          y: 0,
+          size: SHIP_SIZE,
+          angle: 0,
+          vx: 0,
+          vy: 0,
+          thrusting: false,
+          type: currentShip.type,
+          animeCooldown: true,
+          animeChargeLevel: 50, // Half charged for display
+          animeCooldownTimer: 0,
+          animeMaxCooldown: 20
+        };
         
         // Layout for a single card
         const centerX = canvas.width / 2;
@@ -6164,9 +6458,9 @@
           type: currentShip.type
         };
         
-        // Save the original spaceship object and replace it temporarily
+        // Save the original spaceship object and replace it with our display-safe object
         const originalShip = spaceship;
-        spaceship = tempShip;
+        spaceship = tempShipForDisplay;
         
         // Draw the ship
         switch(currentShip.type) {
@@ -6179,8 +6473,8 @@
           case SHIP_TYPE.MISSILE:
             drawMissileShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
             break;
-          case SHIP_TYPE.ANIME:
-            drawAnimeShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+          case SHIP_TYPE.XWING:
+            drawXWingShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
             break;
         }
         
@@ -6995,6 +7289,11 @@
         
         // Draw health bar centered at the top
         drawHealthBar();
+        
+        // Draw X-Wing cooldown bar below health bar if applicable
+        if (spaceship.type === SHIP_TYPE.XWING) {
+          drawTimeWarpBar();
+        }
 
         // Power-ups
         for (let pu of powerUps) {
@@ -7471,27 +7770,58 @@
         }
       }
 
-      // Game Loop
+      // Game Loop with DETERMINISTIC FIXED TIMESTEP
+      // This approach completely eliminates timing issues by using a fixed timestep
+      const FIXED_TIMESTEP = 1000/60; // 60 FPS (16.67ms)
       let lastLoopTime = performance.now();
+      let accumulator = 0;
+      // Game speed is always 1.0 - time warp disabled
+      let gameSpeed = 1.0;
+      
       function gameLoop(now) {
-        const dt = (now - lastLoopTime) / 1000;
-        lastLoopTime = now;
-        
-        // Update menu background if in menu screens
-        const isMenuScreen = 
-          gameState === GAME_STATE.MAIN_MENU || 
-          gameState === GAME_STATE.DIFFICULTY_SELECT ||
-          gameState === GAME_STATE.SETTINGS ||
-          gameState === GAME_STATE.HOW_TO_PLAY ||
-          gameState === GAME_STATE.HIGH_SCORES;
-        
-        if (isMenuScreen) {
-          updateMenuBackground(dt);
+        try {
+          // Calculate time since last loop (capped at 100ms to prevent spiral of death)
+          const frameTime = Math.min(now - lastLoopTime, 100);
+          lastLoopTime = now;
+          
+          // Add frame time to accumulator
+          accumulator += frameTime;
+          
+          // Process fixed updates - may process multiple fixed updates in a single frame
+          // if frame rate drops, or zero if frame rate is very high
+          while (accumulator >= FIXED_TIMESTEP) {
+            // Convert ms to seconds for game logic
+            const dt = FIXED_TIMESTEP / 1000;
+            
+            // Update menu background if in menu screens
+            const isMenuScreen = 
+              gameState === GAME_STATE.MAIN_MENU || 
+              gameState === GAME_STATE.DIFFICULTY_SELECT ||
+              gameState === GAME_STATE.SETTINGS ||
+              gameState === GAME_STATE.HOW_TO_PLAY ||
+              gameState === GAME_STATE.HIGH_SCORES;
+            
+            if (isMenuScreen) {
+              updateMenuBackground(dt);
+            }
+            
+            // Process game logic with fixed timestep
+            updateExplosionParticles(dt);
+            update(dt);
+            
+            // Reduce accumulator by the fixed timestep amount
+            accumulator -= FIXED_TIMESTEP;
+          }
+          
+          // Always render at every frame
+          draw();
+        } catch (error) {
+          console.error("Game loop error:", error);
+          // Reset accumulator to prevent spiral of death
+          accumulator = 0;
         }
         
-        updateExplosionParticles(dt);
-        update(dt);
-        draw();
+        // Request next frame
         requestAnimationFrame(gameLoop);
       }
       requestAnimationFrame(gameLoop);
@@ -7545,9 +7875,40 @@
             }
           }
           
-          // Update anime particles if present
-          if (spaceship.type === SHIP_TYPE.ANIME && spaceship.animeParticles && spaceship.animeParticles.length > 0) {
-            updateAnimeParticles(dt);
+          // CRITICAL FIX: Disable all time warp effects and replace with simple score boost
+          if (spaceship.type === SHIP_TYPE.XWING) {
+            // Always keep normal game speed
+            gameSpeed = 1.0;
+            
+            // Very simple charge logic - no complex effects
+            if (g_timeWarpOnCooldown) {
+              // Increase charge by fixed amount per second (5% per second)
+              g_timeWarpCharge += dt * 5;
+              
+              // Cap at 100%
+              if (g_timeWarpCharge >= 100) {
+                g_timeWarpCharge = 100;
+                g_timeWarpOnCooldown = false;
+              }
+            }
+            // Handle key input for speed boost
+            if ((keys["x"] || keys["X"]) && !spaceship.speedBoostActive) {
+              // Activate speed boost instead of time warp
+              spaceship.speedBoostActive = true;
+              spaceship.speedBoostTimer = 3; // 3 seconds of boost
+              spaceship.speedModifier = 2.0; // Double speed during boost
+              console.log("Speed boost activated!");
+            }
+            
+            // Handle active speed boost
+            if (spaceship.speedBoostActive) {
+              spaceship.speedBoostTimer -= dt;
+              if (spaceship.speedBoostTimer <= 0) {
+                spaceship.speedBoostActive = false;
+                spaceship.speedModifier = 1.05; // Return to normal X-Wing speed
+                console.log("Speed boost ended");
+              }
+            }
           }
           
           // Handle sequential missile firing
@@ -7892,7 +8253,7 @@
               // Refill HP based on ship type
               const maxHP = spaceship.type === SHIP_TYPE.LASER ? 7 :
                            spaceship.type === SHIP_TYPE.MISSILE ? 4 :
-                           spaceship.type === SHIP_TYPE.ANIME ? 6 : 5;
+                           spaceship.type === SHIP_TYPE.XWING ? 6 : 5;
               
               // Restore 3 HP or full if less than 3 remaining
               spaceship.hitPoints = Math.min(maxHP, spaceship.hitPoints + 3);
@@ -8236,65 +8597,104 @@
           }
         }
 
-        // Movement controls
-        if (keys["ArrowUp"]) {
-          spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * spaceship.speedModifier * dt;
-          spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * spaceship.speedModifier * dt;
-        }
-        if (keys["ArrowDown"]) {
-          spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * spaceship.speedModifier * dt;
-          spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * spaceship.speedModifier * dt;
-        }
-        
-        // Change EMP key from E to F and add cooldown check
-        // For the DEFAULT ship type (Nova Striker)
-        if (spaceship.type === SHIP_TYPE.DEFAULT) {
-          // Disable E key for EMP
-          if (keys["KeyE"] || keys["e"] || keys["E"]) {
-            // Do nothing - we've changed to F key
-          }
+        try {
+          // CRITICAL FIX: Completely simplified ship movement logic with safeguards
+          // This addresses all potential freezing issues by removing complex time calculations
           
-          // Enable F key for EMP with cooldown
-          if ((keys["KeyF"] || keys["f"] || keys["F"]) && 
-              !spaceship.empActive && !spaceship.empCooldown) {
-            // Only activate if EMP is not already active or in cooldown
-            activateEMPBlast(); // Use existing function for consistency
-          }
-        }
-        if (keys["Space"]) {
-          // Quick brake
-          let speed = Math.sqrt(spaceship.vx ** 2 + spaceship.vy ** 2);
-          if (speed > 0) {
-            let deceleration = SHIP_REVERSE * dt;
-            let newSpeed = Math.max(0, speed - deceleration);
-            spaceship.vx = (spaceship.vx / speed) * newSpeed;
-            spaceship.vy = (spaceship.vy / speed) * newSpeed;
-          }
-        }
-        if (keys["ArrowLeft"]) {
-          // Apply rotation speed reduction when laser is active
-          if (spaceship.type === SHIP_TYPE.LASER && spaceship.laserActive) {
-            // Significantly slower rotation when laser is active (85% reduction)
-            spaceship.angle -= SHIP_ROT_SPEED * dt * 0.75;
-          } else {
+          // Fixed values to ensure consistent movement without timing issues
+          const SHIP_MOVE_SPEED = 10;
+          const SHIP_ROTATE_SPEED = 0.1;
+          
+          // Handle ship rotation with standard arrow keys
+          if (keys["ArrowLeft"]) {
             spaceship.angle -= SHIP_ROT_SPEED * dt;
           }
-        }
-        if (keys["ArrowRight"]) {
-          // Apply rotation speed reduction when laser is active
-          if (spaceship.type === SHIP_TYPE.LASER && spaceship.laserActive) {
-            // Significantly slower rotation when laser is active (85% reduction)
-            spaceship.angle += SHIP_ROT_SPEED * dt * 0.75;
-          } else {
+          if (keys["ArrowRight"]) {
             spaceship.angle += SHIP_ROT_SPEED * dt;
           }
+          
+          // Handle ship movement with standard arrow keys
+          if (keys["ArrowUp"]) {
+            spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * dt;
+            spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * dt;
+          }
+          if (keys["ArrowDown"]) {
+            spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * dt;
+            spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * dt;
+          }
+          
+          // Quick brake with Space key
+          if (keys[" "]) {
+            let speed = Math.sqrt(spaceship.vx ** 2 + spaceship.vy ** 2);
+            if (speed > 0) {
+              let deceleration = SHIP_REVERSE * dt;
+              let newSpeed = Math.max(0, speed - deceleration);
+              spaceship.vx = (spaceship.vx / speed) * newSpeed;
+              spaceship.vy = (spaceship.vy / speed) * newSpeed;
+            }
+          }
+          
+          // Special abilities
+          // EMP blast for DEFAULT ship
+          if (spaceship.type === SHIP_TYPE.DEFAULT) {
+            if ((keys["f"] || keys["F"] || keys["e"] || keys["E"]) && 
+                !spaceship.empActive && !spaceship.empCooldown) {
+              console.log("Activating EMP Blast!");
+              
+              // Safe initialization of properties
+              spaceship.empActive = true;
+              spaceship.empCooldown = true;
+              
+              // Create EMP effect - push all comets away
+              for (let c of comets) {
+                const dx = c.x - spaceship.x;
+                const dy = c.y - spaceship.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 300) { // EMP range
+                  const nx = dx / dist;
+                  const ny = dy / dist;
+                  const force = 300 - dist; // Power based on distance
+                  c.vx += nx * force * 0.5;
+                  c.vy += ny * force * 0.5;
+                }
+              }
+              
+              // Set cooldown timeout
+              setTimeout(() => {
+                spaceship.empActive = false;
+                spaceship.empCooldown = false;
+              }, 5000);
+              
+              // Also try to call the official function if it exists
+              try {
+                if (typeof activateEMPBlast === "function") {
+                  activateEMPBlast();
+                }
+              } catch (error) {
+                console.error("Error calling activateEMPBlast:", error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error in ship movement code:", error);
         }
-
-        // Spaceship movement
-        spaceship.x += spaceship.vx * dt;
-        spaceship.y += spaceship.vy * dt;
-        spaceship.vx *= FRICTION;
-        spaceship.vy *= FRICTION;
+        // CRITICAL FIX: Simple position update with velocity
+        // Use regular dt with error checking for position updates
+        try {
+          // Apply position update with fixed dt
+          spaceship.x += spaceship.vx * dt;
+          spaceship.y += spaceship.vy * dt;
+          
+          // Apply friction with clamping to prevent extreme values
+          const MAX_VELOCITY = 1000;
+          spaceship.vx = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, spaceship.vx * FRICTION));
+          spaceship.vy = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, spaceship.vy * FRICTION));
+        } catch (error) {
+          console.error("Error updating ship position:", error);
+          // Emergency reset if something went wrong
+          spaceship.vx = 0;
+          spaceship.vy = 0;
+        }
         
         // Apply different bounce behavior based on ship type
         if (spaceship.type === SHIP_TYPE.LASER) {
@@ -8429,6 +8829,7 @@
             c.hitEffectTimer -= dt;
             if (c.hitEffectTimer < 0) c.hitEffectTimer = 0;
           }
+          // Always apply normal movement - no special time warp effects
           c.x += c.vx * dt;
           c.y += c.vy * dt;
           c.vx *= COMET_FRICTION;
