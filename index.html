@@ -4294,19 +4294,38 @@
         ctx.strokeStyle = "#99AACC";
         ctx.stroke();
         
-        // Enhanced engine flames - more powerful looking
+        // Physics-based dynamic engine flames for Heavy Cruiser
         ctx.save();
         ctx.globalAlpha = 0.8; // More visible
-        let flameLength = spaceship.size * 0.7; // Longer flames
-        let flameWidth = spaceship.size * 0.5; // Wider flames
         
-        // Animate flame
+        // Get the current time for subtle animation effects
         const flameTime = performance.now() / 100;
-        const flameFlicker = 0.85 + Math.sin(flameTime) * 0.15;
+        
+        // Calculate thrust based on ship velocity and acceleration
+        // First, calculate the absolute velocity of the ship
+        const shipSpeed = Math.sqrt(spaceship.vx * spaceship.vx + spaceship.vy * spaceship.vy);
+        
+        // Convert to angle-relative forward velocity (how fast we're moving in the direction we're facing)
+        const forwardVelocity = spaceship.vx * Math.cos(spaceship.angle) + spaceship.vy * Math.sin(spaceship.angle);
+        
+        // Heavy Cruiser has more powerful engines - higher base and max thrust
+        // Calculate a thrust factor between 0.5 (idle) and 1.5 (max thrust)
+        // Use Math.abs to ensure we get flame when moving in any direction
+        const thrustFactor = 0.5 + Math.min(1.0, Math.abs(forwardVelocity) / 250);
+        
+        // Set flame dimensions based on thrust
+        let flameLength = spaceship.size * thrustFactor;
+        let flameWidth = spaceship.size * (0.4 + thrustFactor * 0.2);
+        
+        // Add only a very subtle flicker effect (10% variation max)
+        const flameFlicker = 0.95 + Math.sin(flameTime) * 0.05;
         flameLength *= flameFlicker;
         
-        // More vibrant flame gradient
-        let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.95, 0, -spaceship.size * 0.95 - flameLength, 0);
+        // Engine position for laser ship
+        const engineX = -spaceship.size * 0.95;
+        
+        // More vibrant flame gradient with transparency
+        let flameGrad = ctx.createLinearGradient(engineX, 0, engineX - flameLength, 0);
         flameGrad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
         flameGrad.addColorStop(0.4, "rgba(255, 120, 30, 0.8)");
         flameGrad.addColorStop(0.8, "rgba(220, 50, 10, 0.6)");
@@ -4314,41 +4333,69 @@
         
         ctx.fillStyle = flameGrad;
         ctx.beginPath();
-        ctx.moveTo(-spaceship.size * 0.95, flameWidth / 2);
         
         // Create a more dynamic flame shape with curves
+        ctx.moveTo(engineX, flameWidth / 2);
+        
+        // Curved path to the flame tip
         ctx.quadraticCurveTo(
-          -spaceship.size * 0.95 - flameLength * 0.7, flameWidth * 0.2,
-          -spaceship.size * 0.95 - flameLength, 0
+          engineX - flameLength * 0.7, flameWidth * 0.2,
+          engineX - flameLength, 0
         );
         
+        // Curved path back to the starting point
         ctx.quadraticCurveTo(
-          -spaceship.size * 0.95 - flameLength * 0.7, -flameWidth * 0.2,
-          -spaceship.size * 0.95, -flameWidth / 2
+          engineX - flameLength * 0.7, -flameWidth * 0.2,
+          engineX, -flameWidth / 2
         );
         
         ctx.closePath();
         ctx.fill();
         
-        // Add inner core to flame
-        const innerFlameGrad = ctx.createLinearGradient(-spaceship.size * 0.95, 0, -spaceship.size * 0.95 - flameLength * 0.6, 0);
+        // Add inner flame core for more depth and realism
+        // Inner flame length also depends on thrust
+        const innerFlameLength = flameLength * 0.7; // Larger inner core for Heavy Cruiser
+        const innerFlameGrad = ctx.createLinearGradient(engineX, 0, engineX - innerFlameLength, 0);
         innerFlameGrad.addColorStop(0, "rgba(255, 255, 200, 0.9)");
         innerFlameGrad.addColorStop(0.5, "rgba(255, 200, 50, 0.7)");
         innerFlameGrad.addColorStop(1, "rgba(255, 120, 30, 0)");
         
         ctx.fillStyle = innerFlameGrad;
         ctx.beginPath();
-        ctx.moveTo(-spaceship.size * 0.95, flameWidth / 4);
+        ctx.moveTo(engineX, flameWidth / 4);
         ctx.quadraticCurveTo(
-          -spaceship.size * 0.95 - flameLength * 0.4, flameWidth * 0.1,
-          -spaceship.size * 0.95 - flameLength * 0.6, 0
+          engineX - innerFlameLength * 0.5, flameWidth * 0.1,
+          engineX - innerFlameLength, 0
         );
         ctx.quadraticCurveTo(
-          -spaceship.size * 0.95 - flameLength * 0.4, -flameWidth * 0.1,
-          -spaceship.size * 0.95, -flameWidth / 4
+          engineX - innerFlameLength * 0.5, -flameWidth * 0.1,
+          engineX, -flameWidth / 4
         );
         ctx.closePath();
         ctx.fill();
+        
+        // Add sparks only when thrust is high enough
+        if (thrustFactor > 0.7) { // Higher threshold for Heavy Cruiser
+          // Spark count depends on thrust - more particles for Heavy Cruiser
+          const sparkCount = Math.floor(3 + thrustFactor * 6);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+          
+          for (let i = 0; i < sparkCount; i++) {
+            // Use sine and cosine of time with different frequencies for varied animation
+            const offsetX = Math.sin(flameTime * 0.3 + i * 7.5) * flameWidth * 0.15;
+            const offsetY = Math.cos(flameTime * 0.2 + i * 3.3) * flameWidth * 0.1;
+            
+            // Calculate position along the flame, spread based on thrust
+            const sparkX = engineX - flameLength * (0.3 + 0.6 * (i / sparkCount));
+            const sparkY = offsetY;
+            
+            // Draw spark with size related to thrust
+            const sparkSize = spaceship.size * (0.03 + 0.02 * thrustFactor);
+            ctx.beginPath();
+            ctx.arc(sparkX + offsetX, sparkY, sparkSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
         
         ctx.restore();
         
@@ -5081,22 +5128,118 @@
         ctx.fillStyle = missileReadyColor;
         ctx.fill();
         
-        // Engine flame - regular orange/red like fighter
-        ctx.save();
-        ctx.globalAlpha = 0.7;
-        let flameLength = spaceship.size * 0.8;
-        let flameWidth = spaceship.size * 0.3;
-        let flameGrad = ctx.createLinearGradient(-spaceship.size * 0.5, 0, -spaceship.size * 0.5 - flameLength, 0);
-        flameGrad.addColorStop(0, "yellow");
-        flameGrad.addColorStop(1, "red");
-        ctx.fillStyle = flameGrad;
-        ctx.beginPath();
-        ctx.moveTo(-spaceship.size * 0.5, flameWidth / 2);
-        ctx.lineTo(-spaceship.size * 0.5 - flameLength, 0);
-        ctx.lineTo(-spaceship.size * 0.5, -flameWidth / 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+        // Physics-based dynamic engine flame
+        drawMissileShipFlames();
+        
+        // Function to draw missile ship flames based on velocity
+        function drawMissileShipFlames() {
+          ctx.save();
+          ctx.globalAlpha = 0.8; // More visible
+          
+          // Get the current time for subtle animation effects
+          const flameTime = performance.now() / 100;
+          
+          // Calculate thrust based on ship velocity and acceleration
+          // First, calculate the absolute velocity of the ship
+          const shipSpeed = Math.sqrt(spaceship.vx * spaceship.vx + spaceship.vy * spaceship.vy);
+          
+          // Convert to angle-relative forward velocity (how fast we're moving in the direction we're facing)
+          const forwardVelocity = spaceship.vx * Math.cos(spaceship.angle) + spaceship.vy * Math.sin(spaceship.angle);
+          
+          // Calculate a thrust factor between 0.4 (idle) and 1.3 (max thrust)
+          // Use Math.abs to ensure we get flame when moving in any direction
+          const thrustFactor = 0.4 + Math.min(0.9, Math.abs(forwardVelocity) / 300);
+          
+          // Set flame dimensions based on thrust
+          let flameLength = spaceship.size * thrustFactor;
+          let flameWidth = spaceship.size * (0.3 + thrustFactor * 0.1);
+          
+          // Add only a very subtle flicker effect (10% variation max)
+          const flameFlicker = 0.95 + Math.sin(flameTime) * 0.05;
+          flameLength *= flameFlicker;
+          
+          // Engine position for missile ship
+          const engineX = -spaceship.size * 0.5;
+          
+          // More vibrant flame gradient with transparency
+          let flameGrad = ctx.createLinearGradient(engineX, 0, engineX - flameLength, 0);
+          flameGrad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
+          flameGrad.addColorStop(0.4, "rgba(255, 120, 30, 0.8)");
+          flameGrad.addColorStop(0.8, "rgba(220, 50, 10, 0.6)");
+          flameGrad.addColorStop(1, "rgba(180, 20, 0, 0)");
+          
+          ctx.fillStyle = flameGrad;
+          ctx.beginPath();
+          
+          // Create a more dynamic flame shape with curves instead of straight lines
+          ctx.moveTo(engineX, flameWidth / 2);
+          
+          // Curved path to the flame tip
+          ctx.quadraticCurveTo(
+            engineX - flameLength * 0.7, flameWidth * 0.3,
+            engineX - flameLength, 0
+          );
+          
+          // Curved path back to the starting point
+          ctx.quadraticCurveTo(
+            engineX - flameLength * 0.7, -flameWidth * 0.3,
+            engineX, -flameWidth / 2
+          );
+          
+          ctx.closePath();
+          ctx.fill();
+          
+          // Add inner flame core for more depth and realism
+          // Inner flame length also depends on thrust
+          const innerFlameLength = flameLength * 0.6;
+          const innerFlameGrad = ctx.createLinearGradient(engineX, 0, engineX - innerFlameLength, 0);
+          innerFlameGrad.addColorStop(0, "rgba(255, 255, 200, 0.9)");
+          innerFlameGrad.addColorStop(0.5, "rgba(255, 200, 50, 0.7)");
+          innerFlameGrad.addColorStop(1, "rgba(255, 120, 30, 0)");
+          
+          ctx.fillStyle = innerFlameGrad;
+          ctx.beginPath();
+          ctx.moveTo(engineX, flameWidth / 4);
+          
+          // Curved path for inner flame
+          ctx.quadraticCurveTo(
+            engineX - innerFlameLength * 0.7, flameWidth * 0.1,
+            engineX - innerFlameLength, 0
+          );
+          
+          ctx.quadraticCurveTo(
+            engineX - innerFlameLength * 0.7, -flameWidth * 0.1,
+            engineX, -flameWidth / 4
+          );
+          
+          ctx.closePath();
+          ctx.fill();
+          
+          // Add sparks only when thrust is high enough
+          if (thrustFactor > 0.6) {
+            // Spark count depends on thrust
+            const sparkCount = Math.floor(2 + thrustFactor * 5);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+            
+            for (let i = 0; i < sparkCount; i++) {
+              // Use sine and cosine of time with different frequencies for varied animation
+              const offsetX = Math.sin(flameTime * 0.3 + i * 7.5) * flameWidth * 0.15;
+              const offsetY = Math.cos(flameTime * 0.2 + i * 3.3) * flameWidth * 0.1;
+              
+              // Calculate position along the flame, spread based on thrust
+              const sparkX = engineX - flameLength * (0.3 + 0.6 * (i / sparkCount));
+              const sparkY = offsetY;
+              
+              // Draw spark with size related to thrust
+              const sparkSize = spaceship.size * (0.02 + 0.02 * thrustFactor);
+              ctx.beginPath();
+              ctx.arc(sparkX + offsetX, sparkY, sparkSize, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          
+          ctx.restore();
+        }
         
         // Cockpit (similar to fighter)
         let cockpitRadius = spaceship.size * 0.25;
