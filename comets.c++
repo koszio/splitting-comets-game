@@ -724,52 +724,142 @@
       return GetQuadrant(x1, y1) == GetQuadrant(x2, y2);
   }
 
-  // Create a small explosion
+  // Create a small black hole effect
   void CreateSmallExplosion(float x, float y) {
       if (soundEnabled) {
           PlaySound(explosionSound);
       }
 
-      const int count = 10;
-      for (int i = 0; i < count; i++) {
+      // Black hole core particles (dark with inward movement)
+      const int coreCount = 15;
+      for (int i = 0; i < coreCount; i++) {
           float angle = RandomRange(0.0f, 2.0f * PI);
-          float speed = RandomRange(50.0f, 150.0f);
-
+          float distance = RandomRange(10.0f, 30.0f);
+          float startX = x + cosf(angle) * distance;
+          float startY = y + sinf(angle) * distance;
+          
+          // Particles move inward toward the center
           ExplosionParticle particle;
-          particle.position = (Vector2){x, y};
-          particle.velocity = (Vector2){cosf(angle) * speed, sinf(angle) * speed};
-          particle.lifetime = RandomRange(0.3f, 0.7f);
-          particle.size = RandomRange(2.0f, 4.0f);
-          particle.color = ORANGE;
+          particle.position = (Vector2){startX, startY};
+          // Negative speed means moving toward center
+          particle.velocity = (Vector2){(x - startX) * 2.0f, (y - startY) * 2.0f};
+          particle.lifetime = RandomRange(0.5f, 0.9f);
+          particle.size = RandomRange(3.0f, 5.0f);
+          // Dark purple for black hole effect
+          particle.color = (Color){20, 0, 30, 255};
+
+          explosionParticles.push_back(particle);
+      }
+      
+      // Event horizon particles (larger, with orbit-like movement)
+      const int horizonCount = 8;
+      for (int i = 0; i < horizonCount; i++) {
+          float angle = RandomRange(0.0f, 2.0f * PI);
+          float distance = RandomRange(20.0f, 40.0f);
+          
+          ExplosionParticle particle;
+          particle.position = (Vector2){x + cosf(angle) * distance, y + sinf(angle) * distance};
+          // Tangential velocity for orbit-like effect
+          particle.velocity = (Vector2){cosf(angle + PI/2) * 100.0f, sinf(angle + PI/2) * 100.0f};
+          particle.lifetime = RandomRange(0.4f, 0.8f);
+          particle.size = RandomRange(4.0f, 7.0f);
+          // Deep blue for event horizon
+          particle.color = (Color){0, 20, 80, 200};
 
           explosionParticles.push_back(particle);
       }
   }
 
-  // Create a huge explosion
+  // Create a huge black hole effect
   void CreateHugeExplosion(float x, float y) {
       if (soundEnabled) {
           PlaySound(explosionSound);
       }
 
-      const int count = 50;
-      for (int i = 0; i < count; i++) {
+      // Massive black hole core (larger than small explosion)
+      const int coreCount = 30;
+      for (int i = 0; i < coreCount; i++) {
           float angle = RandomRange(0.0f, 2.0f * PI);
-          float speed = RandomRange(100.0f, 300.0f);
-
+          float distance = RandomRange(30.0f, 70.0f);
+          float startX = x + cosf(angle) * distance;
+          float startY = y + sinf(angle) * distance;
+          
+          // Particles spiral inward toward the center
           ExplosionParticle particle;
-          particle.position = (Vector2){x, y};
-          particle.velocity = (Vector2){cosf(angle) * speed, sinf(angle) * speed};
-          particle.lifetime = RandomRange(0.8f, 1.5f);
-          particle.size = RandomRange(5.0f, 10.0f);
-          particle.color = ORANGE;
+          particle.position = (Vector2){startX, startY};
+          
+          // Spiral effect: inward + tangential movement
+          float tangentialFactor = RandomRange(0.5f, 1.5f);
+          particle.velocity = (Vector2){
+              (x - startX) * 3.0f + cosf(angle + PI/2) * 50.0f * tangentialFactor,
+              (y - startY) * 3.0f + sinf(angle + PI/2) * 50.0f * tangentialFactor
+          };
+          
+          particle.lifetime = RandomRange(1.0f, 2.0f);
+          particle.size = RandomRange(5.0f, 12.0f);
+          
+          // Darker center for black hole effect
+          particle.color = (Color){10, 0, 20, 255};
+
+          explosionParticles.push_back(particle);
+      }
+      
+      // Outer event horizon ring (larger, with more dramatic orbital movement)
+      const int horizonCount = 15;
+      for (int i = 0; i < horizonCount; i++) {
+          float angle = RandomRange(0.0f, 2.0f * PI);
+          float distance = RandomRange(50.0f, 100.0f);
+          
+          ExplosionParticle particle;
+          particle.position = (Vector2){x + cosf(angle) * distance, y + sinf(angle) * distance};
+          
+          // Strong orbital effect
+          particle.velocity = (Vector2){
+              cosf(angle + PI/2) * 150.0f + (x - particle.position.x) * 0.5f,
+              sinf(angle + PI/2) * 150.0f + (y - particle.position.y) * 0.5f
+          };
+          
+          particle.lifetime = RandomRange(1.2f, 2.5f);
+          particle.size = RandomRange(8.0f, 15.0f);
+          
+          // Blue-purple for event horizon
+          particle.color = (Color){20, 30, 120, 200};
+
+          explosionParticles.push_back(particle);
+      }
+      
+      // Add some accretion disk particles (bright, fast-moving)
+      const int diskCount = 20;
+      for (int i = 0; i < diskCount; i++) {
+          float angle = RandomRange(0.0f, 2.0f * PI);
+          float distance = RandomRange(40.0f, 80.0f);
+          
+          ExplosionParticle particle;
+          particle.position = (Vector2){x + cosf(angle) * distance, y + sinf(angle) * distance};
+          
+          // Fast orbital velocity
+          particle.velocity = (Vector2){
+              cosf(angle + PI/2) * RandomRange(200.0f, 300.0f),
+              sinf(angle + PI/2) * RandomRange(200.0f, 300.0f)
+          };
+          
+          particle.lifetime = RandomRange(0.5f, 1.0f);
+          particle.size = RandomRange(2.0f, 5.0f);
+          
+          // Bright blue-white for accretion disk
+          particle.color = (Color){150, 200, 255, 230};
 
           explosionParticles.push_back(particle);
       }
   }
 
-  // Update explosion particles
+  // Update explosion particles with black hole gravity effect
   void UpdateExplosionParticles(float dt) {
+      // Group explosion particles by position to identify black hole centers
+      std::vector<Vector2> blackHoleCenters;
+      std::vector<float> blackHoleStrengths;
+      
+      // Process particles first
       for (int i = explosionParticles.size() - 1; i >= 0; i--) {
           ExplosionParticle& p = explosionParticles[i];
 
@@ -780,6 +870,71 @@
 
           if (p.lifetime <= 0) {
               explosionParticles.erase(explosionParticles.begin() + i);
+          }
+          // If this is a dark purple/blue particle (part of black hole core)
+          else if ((p.color.r < 30 && p.color.g < 30 && p.color.b < 50) && 
+                  p.lifetime > 0.3f) {
+              // Check if we already have a black hole center nearby
+              bool foundNearby = false;
+              for (size_t j = 0; j < blackHoleCenters.size(); j++) {
+                  float dx = blackHoleCenters[j].x - p.position.x;
+                  float dy = blackHoleCenters[j].y - p.position.y;
+                  if (sqrt(dx*dx + dy*dy) < 50.0f) {
+                      // Update existing black hole strength
+                      blackHoleStrengths[j] += p.size * 0.2f;
+                      foundNearby = true;
+                      break;
+                  }
+              }
+              
+              // If no nearby black hole center, create a new one
+              if (!foundNearby) {
+                  blackHoleCenters.push_back(p.position);
+                  blackHoleStrengths.push_back(p.size * 0.5f);
+              }
+          }
+      }
+      
+      // Apply gravitational pull from black holes to comets
+      for (auto& comet : comets) {
+          for (size_t i = 0; i < blackHoleCenters.size(); i++) {
+              const Vector2& center = blackHoleCenters[i];
+              float strength = blackHoleStrengths[i];
+              
+              float dx = center.x - comet.position.x;
+              float dy = center.y - comet.position.y;
+              float distSq = dx*dx + dy*dy;
+              float dist = sqrt(distSq);
+              
+              // Only affect comets within range
+              const float MAX_EFFECT_DIST = 150.0f;
+              if (dist < MAX_EFFECT_DIST && dist > 5.0f) {
+                  // Normalize direction and apply force inversely proportional to distance
+                  float nx = dx / dist;
+                  float ny = dy / dist;
+                  float force = strength * (1.0f - dist/MAX_EFFECT_DIST) * 500.0f * dt;
+                  
+                  // Apply pull force toward black hole center
+                  comet.velocity.x += nx * force;
+                  comet.velocity.y += ny * force;
+                  
+                  // Also apply some orbital velocity for more interesting effect
+                  float tangentialFactor = 0.3f;
+                  comet.velocity.x += ny * force * tangentialFactor;
+                  comet.velocity.y -= nx * force * tangentialFactor;
+                  
+                  // Apply slow effect
+                  if (comet.slowEffectTimer <= 0) {
+                      comet.oldVX = comet.velocity.x;
+                      comet.oldVY = comet.velocity.y;
+                      comet.slowEffectTimer = 0.4f;
+                  }
+                  
+                  // Destroy comet if it gets too close to black hole center
+                  if (dist < comet.radius * 0.8f) {
+                      comet.hitPoints = 0;
+                  }
+              }
           }
       }
   }
