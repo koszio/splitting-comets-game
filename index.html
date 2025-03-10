@@ -8764,7 +8764,7 @@
             // Apply damage to the closest comet only
             if (isNormalComet) {
               // It's a normal comet
-              closestComet.hitPoints -= 20.0 * dt; // Greatly increased laser damage (from 2.5 to 10.0 per second)
+              closestComet.hitPoints -= 24.0 * dt; // 20% more damage (from 20.0 to 24.0 per second)
               closestComet.hitEffectTimer = 10;
               
               // Create hit effect
@@ -8807,22 +8807,66 @@
               }
             } else {
               // It's a big comet
-              closestComet.hitPoints -= 20 * dt; // Much higher damage per second
+              closestComet.hitPoints -= 24 * dt; // 20% more damage (from 20 to 24 per second)
               closestComet.hitCount++; // Increment hit counter
               closestComet.hitFlashTimer = 0.1;
               
-              // Add visual effects
-              if (Math.random() < 0.3) { // Throttle particles
+              // Add more dramatic visual effects for big comet impacts
+              // Create larger, more frequent impact flashes
+              if (Math.random() < 0.5) { // Higher chance for particles
+                // Create bigger impact effect
                 createBulletImpact(
                   beamEndX,
                   beamEndY,
-                  0.7, "cyan"
+                  1.2, "cyan" // Larger size (increased from 0.7 to 1.2)
                 );
               }
               
-              // Shake effect
-              closestComet.shakeAmount = 3 + (closestComet.hitCount / BIG_COMET_HEALTH) * 8;
-              closestComet.shakeTimer = 0.2 + (closestComet.hitCount / BIG_COMET_HEALTH) * 0.4;
+              // Add occasional energy discharge effects
+              if (Math.random() < 0.3) { // Add occasional electrical arcs
+                // Create lightning-like discharge at impact point
+                const dischargePoints = 4 + Math.floor(Math.random() * 3); // 4-6 points
+                const maxLength = closestComet.radius * 0.6; // Length relative to comet size
+                
+                ctx.save();
+                ctx.strokeStyle = "rgba(50, 220, 255, 0.8)";
+                ctx.lineWidth = 2;
+                
+                for (let i = 0; i < dischargePoints; i++) {
+                  const angle = Math.random() * Math.PI * 2;
+                  const length = maxLength * (0.4 + Math.random() * 0.6);
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(beamEndX, beamEndY);
+                  
+                  // Create jagged line with 3-5 segments
+                  let currentX = beamEndX;
+                  let currentY = beamEndY;
+                  const segments = 3 + Math.floor(Math.random() * 3);
+                  
+                  for (let j = 0; j < segments; j++) {
+                    const segmentLength = length / segments;
+                    const jitter = 0.4; // How jagged the lightning is
+                    const segmentAngle = angle + (Math.random() * jitter - jitter/2);
+                    
+                    // Calculate next point
+                    const nextX = currentX + Math.cos(segmentAngle) * segmentLength;
+                    const nextY = currentY + Math.sin(segmentAngle) * segmentLength;
+                    
+                    ctx.lineTo(nextX, nextY);
+                    currentX = nextX;
+                    currentY = nextY;
+                  }
+                  
+                  ctx.stroke();
+                }
+                
+                ctx.restore();
+              }
+              
+              // Enhanced shake effect
+              closestComet.shakeAmount = 4 + (closestComet.hitCount / BIG_COMET_HEALTH) * 10;
+              closestComet.shakeTimer = 0.25 + (closestComet.hitCount / BIG_COMET_HEALTH) * 0.5;
             }
           }
           
