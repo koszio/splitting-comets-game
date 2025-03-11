@@ -160,8 +160,18 @@
       
       // Make sure gameState is accessible to auth.js as a string
       function updateGameState(newState) {
+        const oldState = gameState;
         gameState = newState;
         window.gameState = newState;
+        
+        // Dispatch custom event for state change
+        const event = new CustomEvent('gameStateChange', {
+          detail: {
+            oldState: oldState,
+            newState: newState
+          }
+        });
+        window.dispatchEvent(event);
       }
 
       // Function to toggle music on/off
@@ -625,8 +635,18 @@
             return;
           }
           
-          // For all other state changes, just set the state
+          // For all other state changes, set the state and dispatch event
+          const oldState = gameState;
           gameState = newValue;
+          
+          // Dispatch custom event for state change
+          const event = new CustomEvent('gameStateChange', {
+            detail: {
+              oldState: oldState,
+              newState: newValue
+            }
+          });
+          window.dispatchEvent(event);
         }
       });
       
