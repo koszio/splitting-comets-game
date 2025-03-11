@@ -2562,23 +2562,26 @@
                     }
                   });
                 
-                  // Start explosions right away but spread them out
-                  // This creates a longer-lasting explosion effect during slow motion
+                  // Create a main black hole at the ship's position
+                  createBlackHoleEffect(spaceship.x, spaceship.y);
+                  
+                  // Start black hole effects on each comet and spread them out
+                  // This creates a dramatic black hole swallowing effect during slow motion
                   cometsToRemove.forEach((comet, i) => {
-                    // Stagger the explosions for a more dramatic effect
-                    const delay = i * 100; // 100ms between each comet explosion
+                    // Stagger the black hole effects for a more dramatic effect
+                    const delay = i * 150; // 150ms between each comet being affected
                     
                     setTimeout(() => {
-                      // Create larger explosion animations
-                      createHugeExplosion(comet.x, comet.y);
+                      // Create black hole effects at comet locations
+                      createBlackHoleEffect(comet.x, comet.y);
                       
-                      // Remove comet after a delay to let explosion be visible
+                      // Remove comet after a delay to let black hole effect be visible
                       setTimeout(() => {
                         const index = comets.indexOf(comet);
                         if (index > -1) {
                           comets.splice(index, 1);
                         }
-                      }, 1500); // Keep comet visible for 1.5 seconds after explosion
+                      }, 2000); // Keep comet visible for 2 seconds as black hole consumes it
                     }, delay); // Staggered start times
                   });
                 } else {
@@ -3278,7 +3281,8 @@
             vy: Math.sin(angle) * speed,
             lifetime: randomRange(0.3, 0.7),
             size: randomRange(2, 4),
-            color: "orange"
+            color: "orange",
+            type: "normal"
           });
         }
       }
@@ -3300,21 +3304,262 @@
             vy: Math.sin(angle) * speed,
             lifetime: randomRange(0.8, 1.5),
             size: randomRange(5, 10),
-            color: "orange"
+            color: "orange",
+            type: "normal"
+          });
+        }
+      }
+      
+      // Special black hole effect for the Star Striker's warp weapon
+      function createBlackHoleEffect(x, y) {
+        if (soundEnabled) {
+          let exp = new Audio(explosionSoundURL);
+          exp.volume = 0.6;
+          exp.play().catch(err => console.error("Black hole creation error:", err));
+        }
+        
+        // Create the central black core
+        smallExplosionParticles.push({
+          x: x,
+          y: y,
+          targetX: x,
+          targetY: y,
+          vx: 0,
+          vy: 0,
+          lifetime: 3.0, // 3 seconds duration
+          size: 30,
+          opacity: 1.0,
+          color: "black",
+          type: "blackhole-core"
+        });
+        
+        // Create spiraling particles that get sucked into the black hole
+        for (let i = 0; i < 80; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 50 + Math.random() * 150;
+          const startX = x + Math.cos(angle) * distance;
+          const startY = y + Math.sin(angle) * distance;
+          
+          // Negative velocity means moving toward center
+          smallExplosionParticles.push({
+            x: startX,
+            y: startY,
+            targetX: x,
+            targetY: y,
+            vx: Math.cos(angle) * -20,
+            vy: Math.sin(angle) * -20,
+            lifetime: 1.5 + Math.random() * 1.5,
+            size: 2 + Math.random() * 4,
+            color: `hsl(${200 + Math.random() * 60}, 100%, 50%)`,
+            opacity: 0.7 + Math.random() * 0.3,
+            rotationSpeed: (Math.random() - 0.5) * 0.1,
+            type: "blackhole-particle"
+          });
+        }
+        
+        // Create event horizon ring effect
+        for (let i = 0; i < 36; i++) {
+          const angle = i * (Math.PI * 2 / 36);
+          smallExplosionParticles.push({
+            x: x + Math.cos(angle) * 40,
+            y: y + Math.sin(angle) * 40,
+            targetX: x,
+            targetY: y,
+            angle: angle,
+            vx: 0,
+            vy: 0,
+            lifetime: 3.0,
+            size: 3,
+            color: "rgba(0, 200, 255, 0.8)",
+            opacity: 0.8,
+            type: "blackhole-ring"
+          });
+        }
+        
+        // Create outer accretion disk particles (bright, fast-moving)
+        for (let i = 0; i < 20; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 60 + Math.random() * 40;
+          const startX = x + Math.cos(angle) * distance;
+          const startY = y + Math.sin(angle) * distance;
+          
+          // Tangential velocity for orbital effect
+          const perpAngle = angle + Math.PI/2;
+          smallExplosionParticles.push({
+            x: startX,
+            y: startY,
+            targetX: x,
+            targetY: y,
+            vx: Math.cos(perpAngle) * 100,
+            vy: Math.sin(perpAngle) * 100,
+            lifetime: 1.0 + Math.random() * 1.0,
+            size: 2 + Math.random() * 3,
+            color: "rgba(150, 220, 255, 0.9)",
+            opacity: 0.9,
+            type: "blackhole-disk"
           });
         }
       }
 
       function updateExplosionParticles(dt) {
+        // Create a list of black hole centers for gravitational effects
+        const blackHoleCenters = [];
+        
+        // First pass: identify black hole centers
+        for (let i = 0; i < smallExplosionParticles.length; i++) {
+          const p = smallExplosionParticles[i];
+          if (p.type === "blackhole-core") {
+            blackHoleCenters.push({
+              x: p.x,
+              y: p.y,
+              size: p.size,
+              strength: p.size * 0.5 * (p.lifetime / 3.0) // Strength decreases as lifetime decreases
+            });
+          }
+        }
+        
+        // Second pass: update all particles
         for (let i = smallExplosionParticles.length - 1; i >= 0; i--) {
           const p = smallExplosionParticles[i];
-          p.x += p.vx * dt;
-          p.y += p.vy * dt;
           p.lifetime -= dt;
-          p.size *= 0.98;
+          
+          // Remove dead particles
           if (p.lifetime <= 0) {
             smallExplosionParticles.splice(i, 1);
+            continue;
           }
+          
+          // Handle different particle types
+          if (p.type === "normal") {
+            // Normal explosion particles
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.size *= 0.98;
+          } 
+          else if (p.type === "blackhole-core") {
+            // Black hole core grows then shrinks
+            const normalizedLife = p.lifetime / 3.0; // Assuming 3.0 is initial lifetime
+            if (normalizedLife > 0.7) {
+              // Growing phase
+              p.size = 30 * (1 + (1 - normalizedLife) * 2);
+            } else {
+              // Shrinking phase
+              p.size = 30 * normalizedLife * 1.5;
+            }
+          } 
+          else if (p.type === "blackhole-particle") {
+            // Particles get pulled toward black hole center with spiral motion
+            const dx = p.targetX - p.x;
+            const dy = p.targetY - p.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist > 5) {
+              // Calculate angle for rotation
+              const angle = Math.atan2(dy, dx);
+              const rotated = angle + p.rotationSpeed;
+              
+              // Increase pull force as particles get closer
+              const pullForce = 0.5 + (1 - Math.min(dist, 100) / 100) * 2;
+              
+              // Update velocity with both pull and rotation components
+              p.vx = Math.cos(rotated) * dist * 0.2 + dx * pullForce * dt * 50;
+              p.vy = Math.sin(rotated) * dist * 0.2 + dy * pullForce * dt * 50;
+              
+              // Apply the new velocity
+              p.x += p.vx * dt;
+              p.y += p.vy * dt;
+            } else {
+              // Particles near center slow down and fade
+              p.vx *= 0.9;
+              p.vy *= 0.9;
+              p.opacity *= 0.95;
+              p.x += p.vx * dt;
+              p.y += p.vy * dt;
+            }
+          } 
+          else if (p.type === "blackhole-ring") {
+            // Ring particles orbit and pulsate
+            const normalizedLife = p.lifetime / 3.0;
+            const pulseFreq = Date.now() / 200;
+            const radius = 40 + Math.sin(pulseFreq) * 10 * normalizedLife;
+            
+            // Update angle for rotation (faster as they get closer to death)
+            p.angle += 0.5 * dt * (1 + (1 - normalizedLife) * 2);
+            
+            // Update position based on angle and radius
+            p.x = p.targetX + Math.cos(p.angle) * radius;
+            p.y = p.targetY + Math.sin(p.angle) * radius;
+            
+            // Pulsate size
+            p.size = 3 + Math.sin(pulseFreq * 1.5) * 2 * normalizedLife;
+          }
+          else if (p.type === "blackhole-disk") {
+            // Accretion disk particles orbit fast and have trails
+            const dx = p.targetX - p.x;
+            const dy = p.targetY - p.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const angle = Math.atan2(dy, dx);
+            
+            // Orbital velocity perpendicular to radius
+            const perpAngle = angle + Math.PI/2;
+            
+            // Adjust speed based on distance (closer = faster)
+            const orbitalSpeed = 200 / Math.max(dist, 20);
+            
+            // Gradually pull inward but maintain orbit
+            p.vx = Math.cos(perpAngle) * dist * orbitalSpeed * dt;
+            p.vy = Math.sin(perpAngle) * dist * orbitalSpeed * dt;
+            
+            // Add slight inward pull
+            p.vx += dx * 0.1 * dt;
+            p.vy += dy * 0.1 * dt;
+            
+            // Apply velocity
+            p.x += p.vx;
+            p.y += p.vy;
+          }
+        }
+        
+        // Apply gravitational pull from black holes to comets
+        if (blackHoleCenters.length > 0 && comets) {
+          for (let i = 0; i < comets.length; i++) {
+            const comet = comets[i];
+            
+            // Check each black hole's influence
+            for (let j = 0; j < blackHoleCenters.length; j++) {
+              const center = blackHoleCenters[j];
+              const dx = center.x - comet.x;
+              const dy = center.y - comet.y;
+              const distSq = dx*dx + dy*dy;
+              const dist = Math.sqrt(distSq);
+              
+              // Only affect comets within range
+              const MAX_EFFECT_DIST = 150;
+              if (dist < MAX_EFFECT_DIST && dist > 5) {
+                // Normalize direction and apply force inversely proportional to distance
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const force = center.strength * (1.0 - dist/MAX_EFFECT_DIST) * 500 * dt;
+                
+                // Apply pull force toward black hole center
+                comet.vx += nx * force;
+                comet.vy += ny * force;
+                
+                // Also apply some orbital velocity for more interesting effect
+                const tangentialFactor = 0.3;
+                comet.vx += ny * force * tangentialFactor;
+                comet.vy -= nx * force * tangentialFactor;
+                
+                // If comet gets too close to black hole center, destroy it
+                if (dist < comet.radius * 0.8) {
+                  comet.markedForRemoval = true;
+                }
+              }
+            }
+          }
+          
+          // Remove comets that were marked for removal by black holes
+          comets = comets.filter(comet => !comet.markedForRemoval);
         }
       }
 
@@ -8487,12 +8732,132 @@
         // Big Comets
         drawBigComets(ctx);
 
-        // Explosion Particles
+        // Explosion Particles & Black Hole Effects
+        // First pass: Draw black hole cores
         for (let p of smallExplosionParticles) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.fill();
+          if (p.type === "blackhole-core") {
+            // Create a radial gradient for black hole core
+            const gradient = ctx.createRadialGradient(
+              p.x, p.y, 0,
+              p.x, p.y, p.size
+            );
+            
+            gradient.addColorStop(0, "rgba(0, 0, 0, 1.0)");
+            gradient.addColorStop(0.4, "rgba(20, 20, 50, 0.8)");
+            gradient.addColorStop(0.8, "rgba(50, 100, 200, 0.4)");
+            gradient.addColorStop(1, "rgba(100, 200, 255, 0)");
+            
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Add distortion effect around black hole
+            ctx.save();
+            ctx.globalCompositeOperation = "lighten";
+            const innerGlow = ctx.createRadialGradient(
+              p.x, p.y, 0,
+              p.x, p.y, p.size * 0.6
+            );
+            innerGlow.addColorStop(0, "rgba(0, 80, 150, 0.3)");
+            innerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+            
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2);
+            ctx.fillStyle = innerGlow;
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+        
+        // Second pass: Draw ring particles
+        for (let p of smallExplosionParticles) {
+          if (p.type === "blackhole-ring") {
+            ctx.save();
+            ctx.globalAlpha = p.opacity || 1.0;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = p.color;
+            
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+        
+        // Third pass: Draw accretion disk particles with trails
+        for (let p of smallExplosionParticles) {
+          if (p.type === "blackhole-disk") {
+            ctx.save();
+            
+            // Calculate trail direction (opposite to velocity)
+            const angle = Math.atan2(p.vy, p.vx);
+            const trailLength = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * 0.2;
+            
+            // Create trail gradient
+            const trailGradient = ctx.createLinearGradient(
+              p.x, p.y,
+              p.x - Math.cos(angle) * trailLength,
+              p.y - Math.sin(angle) * trailLength
+            );
+            
+            trailGradient.addColorStop(0, p.color);
+            trailGradient.addColorStop(1, "rgba(0, 0, 20, 0)");
+            
+            // Draw particle trail
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            
+            // Create a wider trail using quadratic curve
+            const perpAngle = angle + Math.PI/2;
+            const width = p.size * 0.8;
+            
+            ctx.lineTo(
+              p.x - Math.cos(angle) * trailLength + Math.cos(perpAngle) * width,
+              p.y - Math.sin(angle) * trailLength + Math.sin(perpAngle) * width
+            );
+            
+            ctx.lineTo(
+              p.x - Math.cos(angle) * trailLength - Math.cos(perpAngle) * width,
+              p.y - Math.sin(angle) * trailLength - Math.sin(perpAngle) * width
+            );
+            
+            ctx.closePath();
+            ctx.fillStyle = trailGradient;
+            ctx.fill();
+            
+            // Draw the particle itself with glow
+            ctx.globalAlpha = p.opacity || 1.0;
+            ctx.shadowBlur = p.size * 3;
+            ctx.shadowColor = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            
+            ctx.restore();
+          }
+        }
+        
+        // Last pass: Draw normal particles and other black hole particles
+        for (let p of smallExplosionParticles) {
+          if (p.type === "normal" || p.type === "blackhole-particle") {
+            ctx.save();
+            
+            if (p.type === "blackhole-particle") {
+              ctx.globalAlpha = p.opacity || 1.0;
+              ctx.shadowBlur = p.size * 2;
+              ctx.shadowColor = p.color;
+            }
+            
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            
+            ctx.restore();
+          }
         }
       }
 
