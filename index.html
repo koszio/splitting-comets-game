@@ -3281,8 +3281,7 @@
             vy: Math.sin(angle) * speed,
             lifetime: randomRange(0.3, 0.7),
             size: randomRange(2, 4),
-            color: "orange",
-            type: "normal"
+            color: "orange"
           });
         }
       }
@@ -3304,8 +3303,7 @@
             vy: Math.sin(angle) * speed,
             lifetime: randomRange(0.8, 1.5),
             size: randomRange(5, 10),
-            color: "orange",
-            type: "normal"
+            color: "orange"
           });
         }
       }
@@ -3430,8 +3428,8 @@
           }
           
           // Handle different particle types
-          if (p.type === "normal") {
-            // Normal explosion particles
+          if (!p.type || p.type === undefined) {
+            // Regular explosion particles (from bullets, etc.)
             p.x += p.vx * dt;
             p.y += p.vy * dt;
             p.size *= 0.98;
@@ -8733,130 +8731,140 @@
         drawBigComets(ctx);
 
         // Explosion Particles & Black Hole Effects
-        // First pass: Draw black hole cores
-        for (let p of smallExplosionParticles) {
-          if (p.type === "blackhole-core") {
-            // Create a radial gradient for black hole core
-            const gradient = ctx.createRadialGradient(
-              p.x, p.y, 0,
-              p.x, p.y, p.size
-            );
-            
-            gradient.addColorStop(0, "rgba(0, 0, 0, 1.0)");
-            gradient.addColorStop(0.4, "rgba(20, 20, 50, 0.8)");
-            gradient.addColorStop(0.8, "rgba(50, 100, 200, 0.4)");
-            gradient.addColorStop(1, "rgba(100, 200, 255, 0)");
-            
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            
-            // Add distortion effect around black hole
-            ctx.save();
-            ctx.globalCompositeOperation = "lighten";
-            const innerGlow = ctx.createRadialGradient(
-              p.x, p.y, 0,
-              p.x, p.y, p.size * 0.6
-            );
-            innerGlow.addColorStop(0, "rgba(0, 80, 150, 0.3)");
-            innerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
-            
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2);
-            ctx.fillStyle = innerGlow;
-            ctx.fill();
-            ctx.restore();
+        // Special rendering for black hole particles
+        if (smallExplosionParticles.some(p => p.type === "blackhole-core" || p.type === "blackhole-ring" || p.type === "blackhole-disk" || p.type === "blackhole-particle")) {
+          // First pass: Draw black hole cores
+          for (let p of smallExplosionParticles) {
+            if (p.type === "blackhole-core") {
+              // Create a radial gradient for black hole core
+              const gradient = ctx.createRadialGradient(
+                p.x, p.y, 0,
+                p.x, p.y, p.size
+              );
+              
+              gradient.addColorStop(0, "rgba(0, 0, 0, 1.0)");
+              gradient.addColorStop(0.4, "rgba(20, 20, 50, 0.8)");
+              gradient.addColorStop(0.8, "rgba(50, 100, 200, 0.4)");
+              gradient.addColorStop(1, "rgba(100, 200, 255, 0)");
+              
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+              ctx.fillStyle = gradient;
+              ctx.fill();
+              
+              // Add distortion effect around black hole
+              ctx.save();
+              ctx.globalCompositeOperation = "lighten";
+              const innerGlow = ctx.createRadialGradient(
+                p.x, p.y, 0,
+                p.x, p.y, p.size * 0.6
+              );
+              innerGlow.addColorStop(0, "rgba(0, 80, 150, 0.3)");
+              innerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+              
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2);
+              ctx.fillStyle = innerGlow;
+              ctx.fill();
+              ctx.restore();
+            }
           }
-        }
-        
-        // Second pass: Draw ring particles
-        for (let p of smallExplosionParticles) {
-          if (p.type === "blackhole-ring") {
-            ctx.save();
-            ctx.globalAlpha = p.opacity || 1.0;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = p.color;
-            
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.fill();
-            ctx.restore();
+          
+          // Second pass: Draw ring particles
+          for (let p of smallExplosionParticles) {
+            if (p.type === "blackhole-ring") {
+              ctx.save();
+              ctx.globalAlpha = p.opacity || 1.0;
+              ctx.shadowBlur = 8;
+              ctx.shadowColor = p.color;
+              
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+              ctx.fillStyle = p.color;
+              ctx.fill();
+              ctx.restore();
+            }
           }
-        }
-        
-        // Third pass: Draw accretion disk particles with trails
-        for (let p of smallExplosionParticles) {
-          if (p.type === "blackhole-disk") {
-            ctx.save();
-            
-            // Calculate trail direction (opposite to velocity)
-            const angle = Math.atan2(p.vy, p.vx);
-            const trailLength = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * 0.2;
-            
-            // Create trail gradient
-            const trailGradient = ctx.createLinearGradient(
-              p.x, p.y,
-              p.x - Math.cos(angle) * trailLength,
-              p.y - Math.sin(angle) * trailLength
-            );
-            
-            trailGradient.addColorStop(0, p.color);
-            trailGradient.addColorStop(1, "rgba(0, 0, 20, 0)");
-            
-            // Draw particle trail
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
-            
-            // Create a wider trail using quadratic curve
-            const perpAngle = angle + Math.PI/2;
-            const width = p.size * 0.8;
-            
-            ctx.lineTo(
-              p.x - Math.cos(angle) * trailLength + Math.cos(perpAngle) * width,
-              p.y - Math.sin(angle) * trailLength + Math.sin(perpAngle) * width
-            );
-            
-            ctx.lineTo(
-              p.x - Math.cos(angle) * trailLength - Math.cos(perpAngle) * width,
-              p.y - Math.sin(angle) * trailLength - Math.sin(perpAngle) * width
-            );
-            
-            ctx.closePath();
-            ctx.fillStyle = trailGradient;
-            ctx.fill();
-            
-            // Draw the particle itself with glow
-            ctx.globalAlpha = p.opacity || 1.0;
-            ctx.shadowBlur = p.size * 3;
-            ctx.shadowColor = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.fill();
-            
-            ctx.restore();
+          
+          // Third pass: Draw accretion disk particles with trails
+          for (let p of smallExplosionParticles) {
+            if (p.type === "blackhole-disk") {
+              ctx.save();
+              
+              // Calculate trail direction (opposite to velocity)
+              const angle = Math.atan2(p.vy, p.vx);
+              const trailLength = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * 0.2;
+              
+              // Create trail gradient
+              const trailGradient = ctx.createLinearGradient(
+                p.x, p.y,
+                p.x - Math.cos(angle) * trailLength,
+                p.y - Math.sin(angle) * trailLength
+              );
+              
+              trailGradient.addColorStop(0, p.color);
+              trailGradient.addColorStop(1, "rgba(0, 0, 20, 0)");
+              
+              // Draw particle trail
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              
+              // Create a wider trail using quadratic curve
+              const perpAngle = angle + Math.PI/2;
+              const width = p.size * 0.8;
+              
+              ctx.lineTo(
+                p.x - Math.cos(angle) * trailLength + Math.cos(perpAngle) * width,
+                p.y - Math.sin(angle) * trailLength + Math.sin(perpAngle) * width
+              );
+              
+              ctx.lineTo(
+                p.x - Math.cos(angle) * trailLength - Math.cos(perpAngle) * width,
+                p.y - Math.sin(angle) * trailLength - Math.sin(perpAngle) * width
+              );
+              
+              ctx.closePath();
+              ctx.fillStyle = trailGradient;
+              ctx.fill();
+              
+              // Draw the particle itself with glow
+              ctx.globalAlpha = p.opacity || 1.0;
+              ctx.shadowBlur = p.size * 3;
+              ctx.shadowColor = p.color;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+              ctx.fillStyle = p.color;
+              ctx.fill();
+              
+              ctx.restore();
+            }
           }
-        }
-        
-        // Last pass: Draw normal particles and other black hole particles
-        for (let p of smallExplosionParticles) {
-          if (p.type === "normal" || p.type === "blackhole-particle") {
-            ctx.save();
-            
+          
+          // Fourth pass: Draw black hole particles
+          for (let p of smallExplosionParticles) {
             if (p.type === "blackhole-particle") {
+              ctx.save();
               ctx.globalAlpha = p.opacity || 1.0;
               ctx.shadowBlur = p.size * 2;
               ctx.shadowColor = p.color;
+              
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+              ctx.fillStyle = p.color;
+              ctx.fill();
+              
+              ctx.restore();
             }
-            
+          }
+        }
+        
+        // Draw regular explosion particles
+        for (let p of smallExplosionParticles) {
+          if (!p.type || p.type === undefined) {
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
             ctx.fillStyle = p.color;
             ctx.fill();
-            
-            ctx.restore();
           }
         }
       }
