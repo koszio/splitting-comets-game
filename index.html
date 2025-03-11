@@ -2562,18 +2562,26 @@
                     }
                   });
                 
-                  // Create a main black hole at the ship's position
-                  createBlackHoleEffect(spaceship.x, spaceship.y);
+                  // Get 80% of the comets to spawn black holes on (instead of all)
+                  const blackHoleTargets = [...cometsToRemove];
+                  // Shuffle array to randomize which comets get black holes
+                  for (let i = blackHoleTargets.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [blackHoleTargets[i], blackHoleTargets[j]] = [blackHoleTargets[j], blackHoleTargets[i]];
+                  }
+                  // Take only 80% of the comets for black hole creation
+                  const blackHoleCount = Math.ceil(blackHoleTargets.length * 0.8);
+                  const blackHoleComets = blackHoleTargets.slice(0, blackHoleCount);
                   
-                  // Start black hole effects on each comet and spread them out
+                  // Start black hole effects on the selected comets and spread them out
                   // This creates a dramatic black hole swallowing effect during slow motion
-                  cometsToRemove.forEach((comet, i) => {
+                  blackHoleComets.forEach((comet, i) => {
                     // Stagger the black hole effects for a more dramatic effect
                     const delay = i * 150; // 150ms between each comet being affected
                     
                     setTimeout(() => {
-                      // Create black hole effects at comet locations
-                      createBlackHoleEffect(comet.x, comet.y);
+                      // Create black hole effects at comet locations with 30% smaller size
+                      createBlackHoleEffect(comet.x, comet.y, 0.7); // 0.7 = 70% of original size
                       
                       // Remove comet after a delay to let black hole effect be visible
                       setTimeout(() => {
@@ -2583,6 +2591,18 @@
                         }
                       }, 2000); // Keep comet visible for 2 seconds as black hole consumes it
                     }, delay); // Staggered start times
+                  });
+                  
+                  // For comets that don't get black holes, remove them after a delay
+                  const nonBlackHoleComets = cometsToRemove.filter(comet => !blackHoleComets.includes(comet));
+                  nonBlackHoleComets.forEach((comet, i) => {
+                    const delay = i * 100 + 500; // Staggered removal, starting a bit later
+                    setTimeout(() => {
+                      const index = comets.indexOf(comet);
+                      if (index > -1) {
+                        comets.splice(index, 1);
+                      }
+                    }, delay);
                   });
                 } else {
                   // Ability is on cooldown - provide feedback
@@ -3309,12 +3329,15 @@
       }
       
       // Special black hole effect for the Star Striker's warp weapon
-      function createBlackHoleEffect(x, y) {
+      function createBlackHoleEffect(x, y, sizeScale = 1.0) {
         if (soundEnabled) {
           let exp = new Audio(explosionSoundURL);
           exp.volume = 0.6;
           exp.play().catch(err => console.error("Black hole creation error:", err));
         }
+        
+        // Base size adjusted by scale parameter
+        const baseSize = 30 * sizeScale;
         
         // Create the central black core
         smallExplosionParticles.push({
@@ -3324,17 +3347,18 @@
           targetY: y,
           vx: 0,
           vy: 0,
-          lifetime: 3.0, // 3 seconds duration
-          size: 30,
+          lifetime: 3.5, // 3.5 seconds duration for longer effect
+          size: baseSize,
           opacity: 1.0,
-          color: "black",
+          color: "#000000", // Pure black
           type: "blackhole-core"
         });
         
-        // Create spiraling particles that get sucked into the black hole
-        for (let i = 0; i < 80; i++) {
+        // Create spiraling particles that get sucked into the black hole - darker colors
+        const particleCount = Math.floor(80 * sizeScale); // Scale particle count with size
+        for (let i = 0; i < particleCount; i++) {
           const angle = Math.random() * Math.PI * 2;
-          const distance = 50 + Math.random() * 150;
+          const distance = (50 + Math.random() * 150) * sizeScale;
           const startX = x + Math.cos(angle) * distance;
           const startY = y + Math.sin(angle) * distance;
           
@@ -3344,40 +3368,44 @@
             y: startY,
             targetX: x,
             targetY: y,
-            vx: Math.cos(angle) * -20,
-            vy: Math.sin(angle) * -20,
+            vx: Math.cos(angle) * -20 * sizeScale,
+            vy: Math.sin(angle) * -20 * sizeScale,
             lifetime: 1.5 + Math.random() * 1.5,
-            size: 2 + Math.random() * 4,
-            color: `hsl(${200 + Math.random() * 60}, 100%, 50%)`,
+            size: (2 + Math.random() * 4) * sizeScale,
+            // Darker blue-purple colors
+            color: `hsl(${240 + Math.random() * 30}, 70%, ${10 + Math.random() * 15}%)`,
             opacity: 0.7 + Math.random() * 0.3,
             rotationSpeed: (Math.random() - 0.5) * 0.1,
             type: "blackhole-particle"
           });
         }
         
-        // Create event horizon ring effect
-        for (let i = 0; i < 36; i++) {
-          const angle = i * (Math.PI * 2 / 36);
+        // Create event horizon ring effect - much darker
+        const ringCount = Math.floor(36 * sizeScale); // Scale ring particle count
+        for (let i = 0; i < ringCount; i++) {
+          const angle = i * (Math.PI * 2 / ringCount);
           smallExplosionParticles.push({
-            x: x + Math.cos(angle) * 40,
-            y: y + Math.sin(angle) * 40,
+            x: x + Math.cos(angle) * (40 * sizeScale),
+            y: y + Math.sin(angle) * (40 * sizeScale),
             targetX: x,
             targetY: y,
             angle: angle,
             vx: 0,
             vy: 0,
             lifetime: 3.0,
-            size: 3,
-            color: "rgba(0, 200, 255, 0.8)",
-            opacity: 0.8,
+            size: 3 * sizeScale,
+            // Very dark blue with minimal opacity
+            color: "rgba(0, 10, 30, 0.9)",
+            opacity: 0.9,
             type: "blackhole-ring"
           });
         }
         
-        // Create outer accretion disk particles (bright, fast-moving)
-        for (let i = 0; i < 20; i++) {
+        // Create outer accretion disk particles (darker with occasional bright ones)
+        const diskCount = Math.floor(20 * sizeScale); // Scale disk particle count
+        for (let i = 0; i < diskCount; i++) {
           const angle = Math.random() * Math.PI * 2;
-          const distance = 60 + Math.random() * 40;
+          const distance = (60 + Math.random() * 40) * sizeScale;
           const startX = x + Math.cos(angle) * distance;
           const startY = y + Math.sin(angle) * distance;
           
@@ -3388,14 +3416,78 @@
             y: startY,
             targetX: x,
             targetY: y,
-            vx: Math.cos(perpAngle) * 100,
-            vy: Math.sin(perpAngle) * 100,
+            vx: Math.cos(perpAngle) * 100 * sizeScale,
+            vy: Math.sin(perpAngle) * 100 * sizeScale,
             lifetime: 1.0 + Math.random() * 1.0,
-            size: 2 + Math.random() * 3,
-            color: "rgba(150, 220, 255, 0.9)",
+            size: (2 + Math.random() * 3) * sizeScale,
+            // Dark purple blue
+            color: "rgba(20, 30, 80, 0.9)",
             opacity: 0.9,
             type: "blackhole-disk"
           });
+        }
+        
+        // Create horizontal lightning effect
+        const lightningCount = Math.max(2, Math.floor((3 + Math.floor(Math.random() * 3)) * sizeScale)); // 2-5 lightning bolts, scaled
+        for (let i = 0; i < lightningCount; i++) {
+          // Delay creation of each lightning bolt
+          setTimeout(() => {
+            createLightningEffect(x, y, (120 + Math.random() * 50) * sizeScale);
+          }, i * 200); // Stagger by 200ms
+        }
+      }
+      
+      // Create horizontal lightning effect for black holes
+      function createLightningEffect(x, y, radius) {
+        // Calculate size scale based on radius
+        const sizeScale = radius / 120; // 120 was the original base radius
+        
+        // Base horizontal line
+        const segments = 8 + Math.floor(Math.random() * 5); // 8-12 segments
+        const segmentLength = (radius * 2) / segments;
+        const startX = x - radius;
+        
+        // Create the lightning segments with random vertical offsets
+        let currentX = startX;
+        let prevX = startX;
+        let prevY = y;
+        
+        for (let i = 0; i < segments; i++) {
+          currentX += segmentLength;
+          // Random vertical offset for jagged effect (scaled by size)
+          const offsetY = (Math.random() - 0.5) * 15 * sizeScale;
+          const currentY = y + offsetY;
+          
+          // Create a lightning segment
+          smallExplosionParticles.push({
+            x1: prevX,
+            y1: prevY,
+            x2: currentX,
+            y2: currentY,
+            thickness: (2 + Math.random() * 2) * sizeScale,
+            lifetime: 0.2 + Math.random() * 0.3, // Short lifetime
+            opacity: 0.9,
+            color: "white", // Bright white lightning
+            type: "blackhole-lightning"
+          });
+          
+          // Add small glow particles at segment joints
+          smallExplosionParticles.push({
+            x: currentX,
+            y: currentY,
+            targetX: x,
+            targetY: y,
+            vx: 0,
+            vy: 0,
+            lifetime: 0.2 + Math.random() * 0.3,
+            size: (3 + Math.random() * 4) * sizeScale,
+            color: "rgba(255, 255, 255, 0.9)",
+            opacity: 0.9,
+            type: "blackhole-lightning-glow"
+          });
+          
+          prevX = currentX;
+          prevY = currentY;
         }
       }
 
@@ -3518,10 +3610,33 @@
           }
         }
         
+        // Handle lightning effect updates
+        for (let i = smallExplosionParticles.length - 1; i >= 0; i--) {
+          const p = smallExplosionParticles[i];
+          
+          if (p.type === "blackhole-lightning" || p.type === "blackhole-lightning-glow") {
+            // Flicker effect
+            if (Math.random() < 0.3) {
+              p.opacity = Math.random() * 0.5 + 0.5; // Random opacity between 0.5-1.0
+            }
+          }
+        }
+        
         // Apply gravitational pull from black holes to comets
         if (blackHoleCenters.length > 0 && comets) {
           for (let i = 0; i < comets.length; i++) {
             const comet = comets[i];
+            
+            // Add hollowing property if it doesn't exist
+            if (comet.blackHoleEffect === undefined) {
+              comet.blackHoleEffect = {
+                isAffected: false,
+                hollowness: 0,
+                dissipation: 0,
+                stretchFactor: 1,
+                stretchAngle: 0
+              };
+            }
             
             // Check each black hole's influence
             for (let j = 0; j < blackHoleCenters.length; j++) {
@@ -3539,21 +3654,49 @@
                 const ny = dy / dist;
                 const force = center.strength * (1.0 - dist/MAX_EFFECT_DIST) * 500 * dt;
                 
-                // Apply pull force toward black hole center
-                comet.vx += nx * force;
-                comet.vy += ny * force;
+                // Mark comet as affected by a black hole
+                comet.blackHoleEffect.isAffected = true;
+                comet.blackHoleEffect.stretchAngle = Math.atan2(dy, dx);
+                
+                // Apply stronger pull force toward black hole center
+                comet.vx += nx * force * 1.5;
+                comet.vy += ny * force * 1.5;
                 
                 // Also apply some orbital velocity for more interesting effect
                 const tangentialFactor = 0.3;
                 comet.vx += ny * force * tangentialFactor;
                 comet.vy -= nx * force * tangentialFactor;
                 
-                // If comet gets too close to black hole center, destroy it
-                if (dist < comet.radius * 0.8) {
-                  comet.markedForRemoval = true;
+                // Increase hollowness based on proximity to black hole
+                const hollowEffect = (1.0 - dist/(MAX_EFFECT_DIST * 0.8)) * dt * 2.0;
+                if (hollowEffect > 0) {
+                  comet.blackHoleEffect.hollowness = Math.min(1.0, comet.blackHoleEffect.hollowness + hollowEffect);
+                  // Apply stretch effect as it gets closer to the black hole
+                  const proximityFactor = 1.0 - Math.min(1.0, dist/(MAX_EFFECT_DIST * 0.3));
+                  comet.blackHoleEffect.stretchFactor = 1.0 + proximityFactor * 3.0;
+                }
+                
+                // If comet gets very close to black hole center, start dissipation
+                if (dist < comet.radius * 1.2) {
+                  comet.blackHoleEffect.dissipation = Math.min(1.0, comet.blackHoleEffect.dissipation + dt * 1.5);
+                  
+                  // When fully dissipated, mark for removal
+                  if (comet.blackHoleEffect.dissipation >= 0.9) {
+                    comet.markedForRemoval = true;
+                  }
                 }
               }
             }
+            
+            // If comet is no longer affected by any black hole, gradually reduce effects
+            if (!comet.blackHoleEffect.isAffected && 
+                (comet.blackHoleEffect.hollowness > 0 || comet.blackHoleEffect.stretchFactor > 1)) {
+              comet.blackHoleEffect.hollowness = Math.max(0, comet.blackHoleEffect.hollowness - dt * 0.5);
+              comet.blackHoleEffect.stretchFactor = Math.max(1, comet.blackHoleEffect.stretchFactor - dt * 1.5);
+            }
+            
+            // Reset for next update cycle
+            comet.blackHoleEffect.isAffected = false;
           }
           
           // Remove comets that were marked for removal by black holes
@@ -5623,17 +5766,45 @@
 
           // Draw comet body
           ctx.save();
-          ctx.globalAlpha = 0.8;
+          
+          // Check if comet is affected by black hole
+          if (c.blackHoleEffect && 
+              (c.blackHoleEffect.hollowness > 0 || 
+               c.blackHoleEffect.dissipation > 0 || 
+               c.blackHoleEffect.stretchFactor > 1)) {
+              
+            // Apply stretch transformation if affected by black hole
+            if (c.blackHoleEffect.stretchFactor > 1) {
+              ctx.translate(c.x, c.y);
+              ctx.rotate(c.blackHoleEffect.stretchAngle);
+              ctx.scale(c.blackHoleEffect.stretchFactor, 1 / Math.sqrt(c.blackHoleEffect.stretchFactor));
+              ctx.translate(-c.x, -c.y);
+            }
+            
+            // Apply dissipation effect (fading)
+            ctx.globalAlpha = 0.8 * (1 - c.blackHoleEffect.dissipation);
+          } else {
+            ctx.globalAlpha = 0.8;
+          }
+          
           ctx.beginPath();
+          
           if (c.shape && c.shape.length > 0) {
             // First vertex
             let v0 = c.shape[0];
             let factor0 = v0.factor;
+            
             if (c.morph) {
               // Apply rotation speed if available (for new comets)
               const rotSpeed = c.rotationSpeed || 1;
               factor0 += 0.1 * Math.sin(gameTime * v0.frequency * rotSpeed + v0.phase);
             }
+            
+            // Apply hollow effect from black hole if present
+            if (c.blackHoleEffect && c.blackHoleEffect.hollowness > 0) {
+              factor0 = factor0 * (1 - c.blackHoleEffect.hollowness * 0.8);
+            }
+            
             ctx.moveTo(
               c.x + c.radius * factor0 * Math.cos(v0.angle),
               c.y + c.radius * factor0 * Math.sin(v0.angle)
@@ -5643,11 +5814,18 @@
             for (let i = 1; i < c.shape.length; i++) {
               let v = c.shape[i];
               let f = v.factor;
+              
               if (c.morph) {
                 // Apply rotation speed if available (for new comets)
                 const rotSpeed = c.rotationSpeed || 1;
                 f += 0.1 * Math.sin(gameTime * v.frequency * rotSpeed + v.phase);
               }
+              
+              // Apply hollow effect from black hole if present
+              if (c.blackHoleEffect && c.blackHoleEffect.hollowness > 0) {
+                f = f * (1 - c.blackHoleEffect.hollowness * 0.8);
+              }
+              
               ctx.lineTo(
                 c.x + c.radius * f * Math.cos(v.angle),
                 c.y + c.radius * f * Math.sin(v.angle)
@@ -5655,14 +5833,48 @@
             }
             ctx.closePath();
           } else {
-            ctx.arc(c.x, c.y, c.radius, 0, 2 * Math.PI);
+            // If no shape, use circle with hollowing effect
+            if (c.blackHoleEffect && c.blackHoleEffect.hollowness > 0) {
+              const hollowRadius = c.radius * (1 - c.blackHoleEffect.hollowness * 0.8);
+              ctx.arc(c.x, c.y, hollowRadius, 0, 2 * Math.PI);
+            } else {
+              ctx.arc(c.x, c.y, c.radius, 0, 2 * Math.PI);
+            }
           }
+          
+          // Fill with pattern or color
           ctx.fillStyle = c.pattern;
           ctx.fill();
+          
           // Use the comet's color for its outline, with some opacity
           ctx.strokeStyle = c.color;
           ctx.lineWidth = 2;
           ctx.stroke();
+          
+          // Add distortion/disintegration effect if comet is heavily affected by black hole
+          if (c.blackHoleEffect && c.blackHoleEffect.hollowness > 0.5) {
+            // Add particle disintegration effect
+            const particleCount = Math.floor(10 * c.blackHoleEffect.hollowness);
+            
+            // Draw particles breaking off from comet
+            for (let i = 0; i < particleCount; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const distance = c.radius * (0.7 + c.blackHoleEffect.hollowness * 0.5);
+              const particleSize = 1 + Math.random() * 2 * c.blackHoleEffect.hollowness;
+              
+              ctx.globalAlpha = 0.7 * c.blackHoleEffect.hollowness;
+              ctx.beginPath();
+              ctx.arc(
+                c.x + Math.cos(angle) * distance,
+                c.y + Math.sin(angle) * distance,
+                particleSize,
+                0, 2 * Math.PI
+              );
+              ctx.fillStyle = c.pattern || "#777";
+              ctx.fill();
+            }
+          }
+          
           ctx.restore();
         }
       }
@@ -8733,38 +8945,107 @@
         // Explosion Particles & Black Hole Effects
         // Special rendering for black hole particles
         if (smallExplosionParticles.some(p => p.type === "blackhole-core" || p.type === "blackhole-ring" || p.type === "blackhole-disk" || p.type === "blackhole-particle")) {
-          // First pass: Draw black hole cores
+          // First pass: Draw lightning effects behind everything
           for (let p of smallExplosionParticles) {
-            if (p.type === "blackhole-core") {
-              // Create a radial gradient for black hole core
-              const gradient = ctx.createRadialGradient(
-                p.x, p.y, 0,
-                p.x, p.y, p.size
-              );
+            if (p.type === "blackhole-lightning") {
+              ctx.save();
+              ctx.globalAlpha = p.opacity || 0.9;
               
-              gradient.addColorStop(0, "rgba(0, 0, 0, 1.0)");
-              gradient.addColorStop(0.4, "rgba(20, 20, 50, 0.8)");
-              gradient.addColorStop(0.8, "rgba(50, 100, 200, 0.4)");
-              gradient.addColorStop(1, "rgba(100, 200, 255, 0)");
+              // Draw lightning beam with glow
+              ctx.shadowBlur = 10;
+              ctx.shadowColor = "white";
+              ctx.strokeStyle = "white";
+              ctx.lineWidth = p.thickness || 2;
+              
+              ctx.beginPath();
+              ctx.moveTo(p.x1, p.y1);
+              ctx.lineTo(p.x2, p.y2);
+              ctx.stroke();
+              
+              ctx.restore();
+            }
+            
+            if (p.type === "blackhole-lightning-glow") {
+              ctx.save();
+              ctx.globalAlpha = p.opacity || 0.9;
+              
+              // Draw glow points at lightning joints
+              ctx.shadowBlur = 15;
+              ctx.shadowColor = "white";
+              ctx.fillStyle = "white";
               
               ctx.beginPath();
               ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-              ctx.fillStyle = gradient;
               ctx.fill();
               
-              // Add distortion effect around black hole
-              ctx.save();
-              ctx.globalCompositeOperation = "lighten";
-              const innerGlow = ctx.createRadialGradient(
-                p.x, p.y, 0,
-                p.x, p.y, p.size * 0.6
+              ctx.restore();
+            }
+          }
+          
+          // Second pass: Draw black hole cores (much darker)
+          for (let p of smallExplosionParticles) {
+            if (p.type === "blackhole-core") {
+              // Draw deep background first for event horizon
+              const outerSize = p.size * 1.8;
+              const outerGradient = ctx.createRadialGradient(
+                p.x, p.y, p.size * 0.5,
+                p.x, p.y, outerSize
               );
-              innerGlow.addColorStop(0, "rgba(0, 80, 150, 0.3)");
-              innerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+              
+              // Deep black outer gradient for event horizon
+              outerGradient.addColorStop(0, "rgba(0, 0, 10, 1.0)");
+              outerGradient.addColorStop(0.6, "rgba(0, 0, 5, 0.7)");
+              outerGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
               
               ctx.beginPath();
-              ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2);
-              ctx.fillStyle = innerGlow;
+              ctx.arc(p.x, p.y, outerSize, 0, Math.PI * 2);
+              ctx.fillStyle = outerGradient;
+              ctx.fill();
+              
+              // Create the central black hole - absolute darkness
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size * 0.9, 0, Math.PI * 2);
+              
+              // Purest black fill
+              ctx.fillStyle = "#000000";
+              ctx.globalCompositeOperation = "source-over";
+              ctx.fill();
+              
+              // Add a thin accretion disk edge glow (extremely subtle)
+              ctx.save();
+              ctx.globalCompositeOperation = "lighten";
+              const edgeGlow = ctx.createRadialGradient(
+                p.x, p.y, p.size * 0.88,
+                p.x, p.y, p.size * 1.05
+              );
+              
+              // Very subtle dark blue glow at the edge
+              edgeGlow.addColorStop(0, "rgba(0, 0, 0, 0)");
+              edgeGlow.addColorStop(0.5, "rgba(0, 5, 20, 0.1)");
+              edgeGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+              
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size * 1.05, 0, Math.PI * 2);
+              ctx.fillStyle = edgeGlow;
+              ctx.fill();
+              ctx.restore();
+              
+              // Create dark void distortion effect
+              ctx.save();
+              // Light bending effect
+              const voidGradient = ctx.createRadialGradient(
+                p.x, p.y, 0,
+                p.x, p.y, p.size * 1.5
+              );
+              voidGradient.addColorStop(0, "rgba(0, 0, 0, 0.95)");
+              voidGradient.addColorStop(0.7, "rgba(0, 0, 0, 0.7)");
+              voidGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+              
+              // Draw void atmosphere
+              ctx.globalCompositeOperation = "multiply";
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+              ctx.fillStyle = voidGradient;
               ctx.fill();
               ctx.restore();
             }
