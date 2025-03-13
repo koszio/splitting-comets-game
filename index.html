@@ -175,7 +175,10 @@
               gameState === GAME_STATE.HIGH_SCORES) {
             startMenuMusic();
           } else if (gameState === GAME_STATE.PLAYING) {
-            startGameplayMusic();
+            // Simply resume the music when in gameplay instead of restarting the entire game
+            if (bgMusic.paused) {
+              bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
+            }
           }
         } else {
           // Pause music
@@ -2475,7 +2478,10 @@
                 gameState === GAME_STATE.HIGH_SCORES) {
               startMenuMusic();
             } else if (gameState === GAME_STATE.PLAYING) {
-              startGameplayMusic();
+              // Simply resume the gameplay music without restarting the game
+              if (bgMusic.paused) {
+                bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
+              }
             }
             
             // Unmute all sound effects
