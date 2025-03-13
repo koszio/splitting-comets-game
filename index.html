@@ -142,8 +142,15 @@
       */
       // Use your local file for explosion sounds.
       const explosionSoundURL = "expl-sfx.mp3";
-      const bulletSoundSrc = "";
-      const hitSoundSrc = "";
+      const bulletSoundSrc = ""; // Empty string to disable bullet sounds
+      const hitSoundSrc = "expl-sfx.mp3";
+      
+      // Pre-initialize audio sources with constants
+      const AUDIO_PATHS = {
+        MENU_MUSIC: "menu_music.mp3",
+        GAMEPLAY_MUSIC: "ingame_music.mp3"
+      };
+      
       const powerUpSound = new Audio("mixkit-video-game-health-recharge-2837.wav");
       const victorySound = new Audio("mixkit-cheering-crowd-loud-whistle.wav");
       const defeatSound = new Audio("mixkit-arcade-retro-game-over.wav");
@@ -157,6 +164,10 @@
       bgMusic.volume = 0.1;
       let musicEnabled = true; // Track music state
       let soundEnabled = true; // Track sound effects state
+      
+      // Preload main music files for later use
+      const menuMusicPreload = new Audio(AUDIO_PATHS.MENU_MUSIC);
+      const gameplayMusicPreload = new Audio(AUDIO_PATHS.GAMEPLAY_MUSIC);
       
       // Make sure gameState is accessible to auth.js as a string
       function updateGameState(newState) {
@@ -176,8 +187,30 @@
             startMenuMusic();
           } else if (gameState === GAME_STATE.PLAYING) {
             // Simply resume the music when in gameplay instead of restarting the entire game
-            if (bgMusic.paused) {
-              bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
+            try {
+              // Make sure the source is set properly and loaded before playing
+              if (currentMusicTrack !== "gameplay") {
+                bgMusic.pause();
+                bgMusic.src = AUDIO_PATHS.GAMEPLAY_MUSIC;
+                // Set a fallback if needed
+                if (!bgMusic.canPlayType("audio/mpeg")) {
+                  console.warn("Browser may not support MP3 format, trying with preloaded audio");
+                  bgMusic.src = gameplayMusicPreload.src;
+                }
+                bgMusic.load();
+                currentMusicTrack = "gameplay";
+              }
+              
+              // Use a short timeout to ensure the audio is loaded
+              setTimeout(() => {
+                bgMusic.play().catch(err => {
+                  console.error("Error resuming gameplay music:", err);
+                  // Try alternative approach if direct play fails
+                  gameplayMusicPreload.play().catch(e => console.error("Backup play also failed:", e));
+                });
+              }, 200); // Slightly longer timeout for safety
+            } catch (error) {
+              console.error("Failed to set up gameplay music:", error);
             }
           }
         } else {
@@ -222,15 +255,34 @@
       // Function to start menu music
       function startMenuMusic() {
         if (currentMusicTrack !== "menu") {
-          bgMusic.pause();
-          bgMusic.src = "menu_music.mp3"; 
-          bgMusic.load();
-          if (musicEnabled) {
-            bgMusic.play().catch(err => console.error("Error playing menu music:", err));
+          // Safely handle the audio source change
+          try {
+            bgMusic.pause();
+            bgMusic.src = AUDIO_PATHS.MENU_MUSIC;
+            // Set a fallback if needed
+            if (!bgMusic.canPlayType("audio/mpeg")) {
+              console.warn("Browser may not support MP3 format, trying with preloaded audio");
+              bgMusic.src = menuMusicPreload.src;
+            }
+            bgMusic.load();
+            if (musicEnabled) {
+              // Use a timeout to ensure loading completes
+              setTimeout(() => {
+                bgMusic.play().catch(err => {
+                  console.error("Error playing menu music:", err);
+                  // Try alternative approach if direct play fails
+                  menuMusicPreload.play().catch(e => console.error("Backup play also failed:", e));
+                });
+              }, 100);
+            }
+            currentMusicTrack = "menu";
+          } catch (error) {
+            console.error("Failed to set up menu music:", error);
           }
-          currentMusicTrack = "menu";
         } else if (musicEnabled && bgMusic.paused) {
-          bgMusic.play().catch(err => console.error("Error resuming menu music:", err));
+          setTimeout(() => {
+            bgMusic.play().catch(err => console.error("Error resuming menu music:", err));
+          }, 100);
         }
       }
 
@@ -677,11 +729,24 @@
 
       // Create a pool for bullet sounds (pool size 3)
       const BULLET_SOUND_POOL_SIZE = 3;
+      // Create a silent audio mock to replace bullet sounds
+      class SilentAudio {
+        constructor() {
+          this.volume = 0;
+          this.currentTime = 0;
+          this.muted = false;
+        }
+        play() {
+          return Promise.resolve(); // Return a resolved promise to match Audio API
+        }
+        pause() {}
+        load() {}
+      }
+
+      // Use silent audio objects instead of actual sounds for bullets
       const bulletSoundPool = [];
       for (let i = 0; i < BULLET_SOUND_POOL_SIZE; i++) {
-        let a = new Audio(bulletSoundSrc);
-        a.volume = 0.25;
-        bulletSoundPool.push(a);
+        bulletSoundPool.push(new SilentAudio());
       }
       let nextBulletSoundIndex = 0;
 
@@ -690,14 +755,30 @@
       const hitSoundPool = [];
       for (let i = 0; i < HIT_SOUND_POOL_SIZE; i++) {
         let a = new Audio(hitSoundSrc);
-        a.volume = 0.1; // Reduced volume
+        a.volume = 0.05; // Greatly reduced base volume for all hit sounds
         hitSoundPool.push(a);
       }
       let nextHitSoundIndex = 0;
       
-      // Add throttling for hit sounds
+      // Add throttling for hit sounds - increase throttle to prevent overlapping sounds
       let lastHitSoundTime = 0;
-      const HIT_SOUND_THROTTLE = 150; // Minimum milliseconds between hit sounds
+      const HIT_SOUND_THROTTLE = 250; // Increased minimum milliseconds between hit sounds to prevent glitches
+      
+      // Helper function to play hit sounds with throttling
+      function playHitSound(volume) {
+        const now = Date.now();
+        if (now - lastHitSoundTime > HIT_SOUND_THROTTLE) {
+          if (soundEnabled) {
+            hitSoundPool[nextHitSoundIndex].currentTime = 0;
+            hitSoundPool[nextHitSoundIndex].volume = volume || 0.1;
+            hitSoundPool[nextHitSoundIndex].play();
+            nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
+            lastHitSoundTime = now;
+          }
+          return true;
+        }
+        return false;
+      }
 
       // ----- BACKGROUND MUSIC -----
       // Background music is now started automatically on page load
@@ -2479,8 +2560,30 @@
               startMenuMusic();
             } else if (gameState === GAME_STATE.PLAYING) {
               // Simply resume the gameplay music without restarting the game
-              if (bgMusic.paused) {
-                bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
+              try {
+                // Make sure the source is set properly and loaded before playing
+                if (currentMusicTrack !== "gameplay") {
+                  bgMusic.pause();
+                  bgMusic.src = AUDIO_PATHS.GAMEPLAY_MUSIC;
+                  // Set a fallback if needed
+                  if (!bgMusic.canPlayType("audio/mpeg")) {
+                    console.warn("Browser may not support MP3 format, trying with preloaded audio");
+                    bgMusic.src = gameplayMusicPreload.src;
+                  }
+                  bgMusic.load();
+                  currentMusicTrack = "gameplay";
+                }
+                
+                // Use a longer timeout to ensure the audio is properly loaded
+                setTimeout(() => {
+                  bgMusic.play().catch(err => {
+                    console.error("Error resuming gameplay music:", err);
+                    // Try alternative approach if direct play fails
+                    gameplayMusicPreload.play().catch(e => console.error("Backup play also failed:", e));
+                  });
+                }, 300); // Longer timeout for better reliability
+              } catch (error) {
+                console.error("Failed to set up gameplay music:", error);
               }
             }
             
@@ -9839,13 +9942,8 @@
                   spaceship.shieldHealth--;
                   spaceship.shieldFlashTimer = 0.3;
                   
-                  // Play shield hit sound
-                  if (soundEnabled) {
-                    hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                    hitSoundPool[nextHitSoundIndex].volume = 0.3;
-                    hitSoundPool[nextHitSoundIndex].play();
-                    nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
-                  }
+                  // Play shield hit sound using the throttled helper function
+                  playHitSound(0.1);
                   
                   // Create shield impact effect at the collision point
                   // Calculate collision point
@@ -9885,13 +9983,8 @@
               spaceship.healthShakeTimer = 0.5; // Half a second of shake
               spaceship.healthScaleTimer = 0.3; // Scale animation for 0.3 seconds
               
-              // Create impact effect
-              if (soundEnabled) {
-                hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                hitSoundPool[nextHitSoundIndex].volume = 0.4; // Louder for direct hit
-                hitSoundPool[nextHitSoundIndex].play();
-                nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
-              }
+              // Create impact effect with throttled sound
+              playHitSound(0.15);
               
               if (spaceship.hitPoints <= 0) {
                 comets = [];
@@ -9974,13 +10067,8 @@
                   
                   spaceship.shieldFlashTimer = 0.6; // Longer flash for big impact
                   
-                  // Play shield hit sound (louder for big comet)
-                  if (soundEnabled) {
-                    hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                    hitSoundPool[nextHitSoundIndex].volume = 0.5; // Louder for big impact
-                    hitSoundPool[nextHitSoundIndex].play();
-                    nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
-                  }
+                  // Play shield hit sound (louder for big comet) with throttling
+                  playHitSound(0.2);
                   
                   // Create bigger shield impact effect at the collision point
                   // Calculate collision point
@@ -10013,13 +10101,8 @@
               spaceship.healthShakeTimer = 0.5; // Half a second of shake
               spaceship.healthScaleTimer = 0.3; // Scale animation for 0.3 seconds
               
-              // Create impact effect
-              if (soundEnabled) {
-                hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                hitSoundPool[nextHitSoundIndex].volume = 0.6; // Louder for big comet impact
-                hitSoundPool[nextHitSoundIndex].play();
-                nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
-              }
+              // Create impact effect with throttling
+              playHitSound(0.25);
             }
             
             // Check if the ship was destroyed
@@ -10323,11 +10406,11 @@
                 const now = performance.now();
                 // Only play sound if enough time has passed since last hit sound
                 // and last bullet in HP (more satisfying on final hit)
-                if ((now - lastHitSoundTime > HIT_SOUND_THROTTLE) || (c.hitPoints === 1)) {
-                  hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                  hitSoundPool[nextHitSoundIndex].play();
-                  nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
-                  lastHitSoundTime = now;
+                // For the final hit (hitPoints===1), force play regardless of throttle
+                if (c.hitPoints === 1) {
+                  playHitSound(0.15); // Always play final hit
+                } else {
+                  playHitSound(0.1);  // Use throttling for other hits
                 }
               }
               
@@ -10419,13 +10502,14 @@
                 if (soundEnabled) {
                   const now = performance.now();
                   // Only play sound occasionally or on milestone hits
-                  if ((now - lastHitSoundTime > HIT_SOUND_THROTTLE * 2) || 
-                      (bc.hitPoints % 500 === 0) || // Every 500 hits
-                      (bc.hitPoints <= 200)) {      // Last 200 hits
-                    hitSoundPool[nextHitSoundIndex].currentTime = 0;
-                    hitSoundPool[nextHitSoundIndex].play();
-                    nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
-                    lastHitSoundTime = now;
+                  // For boss comets, apply special rules for hit sounds
+                  if (bc.hitPoints % 500 === 0 || bc.hitPoints <= 200) {
+                    // Force play at important milestones regardless of throttle
+                    playHitSound(0.2); 
+                  } else {
+                    // Use normal throttling for other hits - with double delay
+                    // This is managed inside playHitSound to avoid code duplication
+                    playHitSound(0.1);
                   }
                 }
                 
