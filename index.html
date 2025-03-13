@@ -2638,9 +2638,9 @@
             }
           }
           
-          // Show feedback
+          // Show feedback in console instead
           const statusText = musicEnabled ? "ON" : "OFF";
-          addTemporaryMessage(`Sound: ${statusText}`, 1000);
+          console.log(`Sound: ${statusText}`);
           e.preventDefault();
           return;
         }
