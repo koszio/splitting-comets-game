@@ -464,7 +464,8 @@
         DEFAULT: "default",
         LASER: "laser",
         MISSILE: "missile",
-        XWING: "xwing"  // Renamed from ANIME to XWING
+        XWING: "xwing",  // Renamed from ANIME to XWING
+        ODYSSEUS: "odysseus" // New Odysseus ship inspired by Greek mythology
       };
       
       // Selected ship type (default to first ship)
@@ -472,6 +473,40 @@
       
       // Ship selection menu
       let selectedShipMenuItem = 0;
+      
+      // Ships and their descriptions - moved to global scope for wider accessibility
+      const ships = [
+        {
+          type: SHIP_TYPE.DEFAULT,
+          name: "Nova Striker",
+          desc: "Balanced ship with EMP weapon",
+          features: ["EMP blast (F key)", "Slows all nearby comets", "Balanced maneuverability", "Twin blasters"]
+        },
+        {
+          type: SHIP_TYPE.LASER,
+          name: "Heavy Cruiser",
+          desc: "Slow but powerful laser cannon",
+          features: ["Powerful laser beam (F key)", "3-second beam duration", "10-second cooldown"]
+        },
+        {
+          type: SHIP_TYPE.MISSILE,
+          name: "Stealth Interceptor",
+          desc: "Fast with 7-missile spread",
+          features: ["Faster movement", "7-missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
+        },
+        {
+          type: SHIP_TYPE.XWING,
+          name: "Star Striker",
+          desc: "X-Wing fighter with time manipulation",
+          features: ["Time warp (F key)", "Slows down time", "Medium speed", "Classic X-Wing design"]
+        },
+        {
+          type: SHIP_TYPE.ODYSSEUS,
+          name: "Odysseus",
+          desc: "Strategic fighter with time dilation",
+          features: ["Oracular Vision (F key)", "Slows time while you maintain normal speed", "Piercing energy beams", "Medium-high durability"]
+        }
+      ];
       
       // Load high scores from Firebase when the game starts
       function loadHighScores() {
@@ -2384,6 +2419,7 @@
             vy: Math.sin(angle) * MISSILE_SPEED * distanceMultiplier,
             radius: 5, // Slightly larger than normal bullets
             isMissile: true,
+            fromPlayer: true, // Mark as player bullet for time dilation immunity
             creation: gameTime // Track when the missile was created
           });
         }
@@ -2448,9 +2484,10 @@
           // The more hits, the slower it moves
           const speedFactor = Math.max(0.2, 1 - (bc.hitCount / BIG_COMET_HEALTH) * 0.8);
           
-          // Always apply normal movement - no special time warp effects
-          bc.x += bc.vx * dt * speedFactor;
-          bc.y += bc.vy * dt * speedFactor;
+          // Apply time dilation - use window.currentGameTimeFactor instead of local variable
+          const timeFactor = window.currentGameTimeFactor || 1.0;
+          bc.x += bc.vx * dt * speedFactor * timeFactor;
+          bc.y += bc.vy * dt * speedFactor * timeFactor;
           
           // Remove if out of bounds
           if (bc.x < -bc.radius || bc.x > canvas.width + bc.radius ||
@@ -2753,6 +2790,37 @@
                 e.preventDefault();
                 return;
               }
+              
+              // Odysseus Oracular Vision ability - SIMPLIFIED
+              if (spaceship.type === SHIP_TYPE.ODYSSEUS && spaceship.oracleState === "ready") {
+                console.log("Odysseus Oracular Vision activated");
+                
+                // Just set the state, everything else is handled in update
+                spaceship.oracleState = "active";
+                spaceship.oracleTimer = 0;
+                
+                // Just show a console message for now
+                console.log("ORACULAR VISION ACTIVATED");
+                
+                // Play activation sound
+                if (soundEnabled) {
+                  bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+                  bulletSoundPool[nextBulletSoundIndex].volume = 0.5;
+                  bulletSoundPool[nextBulletSoundIndex].play();
+                  nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+                }
+                
+                // Dampen music during ability
+                if (musicEnabled && !bgMusic.paused) {
+                  // Save current volume
+                  spaceship.originalMusicVolume = bgMusic.volume;
+                  // Lower volume dramatically
+                  bgMusic.volume = bgMusic.volume * 0.2;
+                }
+                
+                e.preventDefault();
+                return;
+              }
             }
             
             // ESC key toggles pause
@@ -2981,26 +3049,23 @@
             // Handle ship selection navigation
             if (key === "arrowleft" || code === "ArrowLeft") {
               // Navigate left in ship selection
-              selectedShipMenuItem = (selectedShipMenuItem - 1 + 4) % 4;
+              selectedShipMenuItem = (selectedShipMenuItem - 1 + 5) % 5; // Updated for 5 ships including Odysseus
               e.preventDefault();
               return;
             }
             
             if (key === "arrowright" || code === "ArrowRight") {
               // Navigate right in ship selection
-              selectedShipMenuItem = (selectedShipMenuItem + 1) % 4;
+              selectedShipMenuItem = (selectedShipMenuItem + 1) % 5; // Updated for 5 ships including Odysseus
               e.preventDefault();
               return;
             }
             
             if (key === "enter" || code === "Enter") {
               // Set the selected ship type
-              switch(selectedShipMenuItem) {
-                case 0: selectedShipType = SHIP_TYPE.DEFAULT; break;
-                case 1: selectedShipType = SHIP_TYPE.LASER; break;
-                case 2: selectedShipType = SHIP_TYPE.MISSILE; break;
-                case 3: selectedShipType = SHIP_TYPE.XWING; break;
-              }
+              // Get the ship based on the currently selected menu item
+              const selectedShip = ships[selectedShipMenuItem];
+              selectedShipType = selectedShip.type;
               
               // Start the game
               updateGameState(GAME_STATE.PLAYING);
@@ -4024,6 +4089,24 @@
             spaceship.animeSlowMotionActive = false;
             spaceship.animeSlowMotionTimer = 0;
             break;
+            
+          case SHIP_TYPE.ODYSSEUS:
+            // Odysseus ship - Greek mythology inspired strategic fighter
+            spaceship.size = SHIP_SIZE * 0.95;
+            spaceship.speedModifier = 0.95; // Slightly slower than default
+            spaceship.hitPoints = 7; // High durability
+            
+            // Odysseus specific properties
+            console.log("Setting Odysseus specific properties");
+            // SIMPLIFIED - Just set the basic state variables
+            spaceship.oracleState = "ready"; // State can be: "ready", "active", or "cooldown"
+            spaceship.oracleTimer = 0; // Timer used for both active duration and cooldown
+            spaceship.oracleDuration = 4; // 4 seconds of slow time
+            spaceship.oracleCooldownDuration = 10; // 10 seconds cooldown
+            
+            // Initialize piercing shot properties
+            spaceship.piercingShots = true; // Bullets can pierce through targets
+            break;
         }
       }
       
@@ -4229,6 +4312,126 @@
         ctx.restore();
       }
       
+      // Draw Oracle Vision cooldown/ready bar for Odysseus ship - updated for state system
+      function drawOracleBar() {
+        // Only show for Odysseus ship
+        if (spaceship.type !== SHIP_TYPE.ODYSSEUS) {
+          return;
+        }
+        
+        // Match health bar dimensions
+        const barWidth = 150;
+        const barHeight = 20;
+        
+        // Calculate the time left for the bar fill
+        let timeLeft = 0;
+        let fillColor = "0, 0, 0";
+        let fillAlpha = 0.7;
+        
+        // Handle different states with the new state machine
+        switch (spaceship.oracleState) {
+          case "active":
+            // Oracle Vision is active - show time remaining
+            timeLeft = 1 - (spaceship.oracleTimer / spaceship.oracleDuration);
+            fillColor = "0, 220, 220"; // Teal for active Oracle Vision
+            // Add pulsing effect during active state
+            fillAlpha = 0.7 + Math.sin(gameTime * 20) * 0.3;
+            break;
+            
+          case "cooldown":
+            // Oracle Vision is cooling down
+            timeLeft = spaceship.oracleTimer / spaceship.oracleCooldownDuration;
+            
+            // Color based on charge progress
+            if (timeLeft < 0.3) {
+              fillColor = "220, 185, 80"; // Gold for low charge
+            } else if (timeLeft < 0.7) {
+              fillColor = "100, 200, 200"; // Light teal for medium charge
+            } else {
+              fillColor = "0, 200, 200"; // Teal for almost charged
+            }
+            break;
+            
+          case "ready":
+            // Oracle Vision is ready to use
+            timeLeft = 1.0; // Full bar
+            fillColor = "0, 220, 220"; // Teal for ready
+            // Add subtle pulse when ready
+            fillAlpha = 0.7 + Math.sin(gameTime * 5) * 0.2;
+            break;
+            
+          default:
+            // Failsafe - should never happen
+            timeLeft = 1.0;
+            fillColor = "255, 0, 0"; // Red for error
+        }
+        
+        // Position the bar under the health bar, centered like the health bar
+        const healthBarX = canvas.width / 2 - barWidth / 2; // Same x-position as health bar
+        const healthBarY = 60; // Position of health bar
+        const x = healthBarX; // Same x-position as health bar
+        const y = healthBarY + 30; // Position below the health bar with some spacing
+        
+        // Draw the outline with tech style
+        ctx.strokeStyle = "rgba(0, 150, 150, 0.5)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Draw background with slight transparency
+        ctx.fillStyle = "rgba(0, 50, 50, 0.3)";
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // Clamp the fill amount between 0 and 1
+        timeLeft = Math.max(0, Math.min(1, timeLeft));
+        
+        // Draw the fill
+        ctx.fillStyle = `rgba(${fillColor}, ${fillAlpha})`;
+        ctx.fillRect(x, y, barWidth * timeLeft, barHeight);
+        
+        // Add label
+        ctx.fillStyle = "white";
+        ctx.font = "12px monospace";
+        ctx.textAlign = "center";
+        
+        let barLabel = spaceship.oracleState === "active" ? "ORACULAR VISION" : 
+                       (spaceship.oracleState === "cooldown" ? "VISION CHARGING" : "VISION READY");
+        
+        ctx.fillText(barLabel, x + barWidth / 2, y + barHeight / 2 + 4);
+        
+        // Add tech style details
+        const cornerSize = 5;
+        ctx.strokeStyle = "rgba(0, 200, 200, 0.6)";
+        ctx.lineWidth = 1;
+        
+        // Top left corner
+        ctx.beginPath();
+        ctx.moveTo(x, y + cornerSize);
+        ctx.lineTo(x, y);
+        ctx.lineTo(x + cornerSize, y);
+        ctx.stroke();
+        
+        // Top right corner
+        ctx.beginPath();
+        ctx.moveTo(x + barWidth - cornerSize, y);
+        ctx.lineTo(x + barWidth, y);
+        ctx.lineTo(x + barWidth, y + cornerSize);
+        ctx.stroke();
+        
+        // Bottom left corner
+        ctx.beginPath();
+        ctx.moveTo(x, y + barHeight - cornerSize);
+        ctx.lineTo(x, y + barHeight);
+        ctx.lineTo(x + cornerSize, y + barHeight);
+        ctx.stroke();
+        
+        // Bottom right corner
+        ctx.beginPath();
+        ctx.moveTo(x + barWidth - cornerSize, y + barHeight);
+        ctx.lineTo(x + barWidth, y + barHeight);
+        ctx.lineTo(x + barWidth, y + barHeight - cornerSize);
+        ctx.stroke();
+      }
+      
       // Draw EMP cooldown/recharge bar
       function drawEMPBar() {
         // Only show for DEFAULT ship type (always show it regardless of EMP status)
@@ -4349,6 +4552,9 @@
             break;
           case SHIP_TYPE.XWING:
             drawXWingShip(shipGrad);
+            break;
+          case SHIP_TYPE.ODYSSEUS:
+            drawOdysseusShip(shipGrad);
             break;
           default:
             drawDefaultShip(shipGrad);
@@ -5331,6 +5537,193 @@
         // Reset global alpha
         ctx.globalAlpha = 1;
         ctx.restore();
+      }
+      
+      // Odysseus ship - inspired by Greek mythology
+      function drawOdysseusShip(shipGrad) {
+        // Draw engine flames first if thrusting
+        if (spaceship.thrusting) {
+          drawOdysseusFlames();
+        }
+        
+        // Main ship body - inspired by Greek triremes with modern elements
+        ctx.beginPath();
+        // Pointed bow
+        ctx.moveTo(spaceship.size * 1.1, 0);
+        // Sides with subtle curve like a boat hull
+        ctx.quadraticCurveTo(spaceship.size * 0.8, spaceship.size * 0.4, -spaceship.size * 0.5, spaceship.size * 0.4);
+        // Rear
+        ctx.lineTo(-spaceship.size * 0.7, 0);
+        // Other side with mirrored curve
+        ctx.lineTo(-spaceship.size * 0.5, -spaceship.size * 0.4);
+        ctx.quadraticCurveTo(spaceship.size * 0.8, -spaceship.size * 0.4, spaceship.size * 1.1, 0);
+        ctx.closePath();
+        
+        // Create a custom gradient with gold/bronze accents
+        const customGrad = ctx.createLinearGradient(spaceship.size, 0, -spaceship.size, 0);
+        customGrad.addColorStop(0, "rgba(255, 255, 255, 0.9)"); // White front
+        customGrad.addColorStop(0.3, "rgba(230, 230, 230, 0.8)"); // Light gray middle
+        customGrad.addColorStop(0.7, "rgba(200, 200, 200, 0.8)"); // Darker middle
+        customGrad.addColorStop(1, "rgba(220, 185, 120, 0.9)"); // Bronze/gold accent at back
+        
+        ctx.fillStyle = customGrad;
+        ctx.fill();
+        
+        // Outline
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Add Greek-inspired decorative elements
+        
+        // 1. Laurel wreath element on the front
+        const wreathSize = spaceship.size * 0.15;
+        ctx.beginPath();
+        ctx.arc(spaceship.size * 0.7, 0, wreathSize, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(220, 185, 80, 0.8)"; // Gold color
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // 2. Greek key pattern along sides
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(220, 185, 80, 0.6)"; // Gold color for pattern
+        ctx.lineWidth = 1;
+        
+        // Top pattern
+        let patternX = spaceship.size * 0.5;
+        const patternHeight = spaceship.size * 0.1;
+        const patternStep = spaceship.size * 0.15;
+        
+        while (patternX > -spaceship.size * 0.4) {
+          ctx.moveTo(patternX, patternHeight);
+          ctx.lineTo(patternX, patternHeight * 2);
+          ctx.lineTo(patternX - patternStep * 0.5, patternHeight * 2);
+          ctx.lineTo(patternX - patternStep * 0.5, patternHeight);
+          patternX -= patternStep;
+        }
+        
+        // Bottom pattern - mirrored
+        patternX = spaceship.size * 0.5;
+        while (patternX > -spaceship.size * 0.4) {
+          ctx.moveTo(patternX, -patternHeight);
+          ctx.lineTo(patternX, -patternHeight * 2);
+          ctx.lineTo(patternX - patternStep * 0.5, -patternHeight * 2);
+          ctx.lineTo(patternX - patternStep * 0.5, -patternHeight);
+          patternX -= patternStep;
+        }
+        
+        ctx.stroke();
+        
+        // 3. Cockpit with teal energy signature
+        ctx.beginPath();
+        ctx.ellipse(spaceship.size * 0.3, 0, spaceship.size * 0.25, spaceship.size * 0.15, 0, 0, Math.PI * 2);
+        
+        // Create a radial gradient for the cockpit
+        const cockpitGrad = ctx.createRadialGradient(
+          spaceship.size * 0.3, 0, 0,
+          spaceship.size * 0.3, 0, spaceship.size * 0.2
+        );
+        cockpitGrad.addColorStop(0, "rgba(60, 220, 220, 0.9)"); // Bright teal center
+        cockpitGrad.addColorStop(0.7, "rgba(30, 160, 160, 0.6)"); // Darker teal
+        cockpitGrad.addColorStop(1, "rgba(20, 120, 120, 0.3)"); // Faded edge
+        
+        ctx.fillStyle = cockpitGrad;
+        ctx.fill();
+        
+        // Cockpit outline
+        ctx.strokeStyle = "rgba(200, 255, 255, 0.8)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // 4. "Oracle's wisps" - ethereal particle effects when special is ready
+        if (spaceship.oracleReady) {
+          const time = gameTime * 3;
+          const wispCount = 5;
+          
+          for (let i = 0; i < wispCount; i++) {
+            const angle = (i / wispCount) * Math.PI * 2 + time;
+            const radius = spaceship.size * (0.6 + Math.sin(time + i) * 0.1);
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            
+            // Draw wisp
+            ctx.beginPath();
+            const glowSize = spaceship.size * (0.1 + Math.sin(time * 2 + i) * 0.05);
+            const glow = ctx.createRadialGradient(x, y, 0, x, y, glowSize);
+            glow.addColorStop(0, "rgba(100, 220, 220, 0.8)");
+            glow.addColorStop(1, "rgba(100, 220, 220, 0)");
+            
+            ctx.fillStyle = glow;
+            ctx.arc(x, y, glowSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+      
+      // Helper function for drawing Odysseus engine flames
+      function drawOdysseusFlames() {
+        // Triple engine configuration
+        const enginePositions = [
+          { x: -spaceship.size * 0.65, y: 0, scale: 1.0 },  // Center engine
+          { x: -spaceship.size * 0.6, y: spaceship.size * 0.25, scale: 0.7 },  // Right engine
+          { x: -spaceship.size * 0.6, y: -spaceship.size * 0.25, scale: 0.7 }  // Left engine
+        ];
+        
+        enginePositions.forEach(engine => {
+          // Random flicker effect
+          const flicker = 0.8 + Math.random() * 0.4;
+          
+          // Outer glow
+          const outerGlow = ctx.createRadialGradient(
+            engine.x, engine.y, 0,
+            engine.x - spaceship.size * 0.3, engine.y, spaceship.size * 0.6
+          );
+          
+          // Unique teal-gold flames for Odysseus
+          outerGlow.addColorStop(0, `rgba(60, 200, 220, ${0.8 * flicker})`);
+          outerGlow.addColorStop(0.5, `rgba(220, 180, 50, ${0.4 * flicker})`);
+          outerGlow.addColorStop(1, "rgba(0, 100, 120, 0)");
+          
+          ctx.beginPath();
+          ctx.ellipse(
+            engine.x - spaceship.size * 0.3, 
+            engine.y, 
+            spaceship.size * 0.6 * engine.scale * flicker, 
+            spaceship.size * 0.2 * engine.scale, 
+            0, 0, Math.PI * 2
+          );
+          ctx.fillStyle = outerGlow;
+          ctx.fill();
+          
+          // Inner bright core
+          const innerGlow = ctx.createRadialGradient(
+            engine.x, engine.y, 0,
+            engine.x - spaceship.size * 0.15, engine.y, spaceship.size * 0.3
+          );
+          innerGlow.addColorStop(0, "rgba(255, 255, 255, 1)");
+          innerGlow.addColorStop(0.5, "rgba(100, 220, 230, 0.8)");
+          innerGlow.addColorStop(1, "rgba(0, 150, 180, 0)");
+          
+          ctx.beginPath();
+          ctx.ellipse(
+            engine.x - spaceship.size * 0.1, 
+            engine.y, 
+            spaceship.size * 0.3 * engine.scale * flicker, 
+            spaceship.size * 0.1 * engine.scale, 
+            0, 0, Math.PI * 2
+          );
+          ctx.fillStyle = innerGlow;
+          ctx.fill();
+          
+          // Engine port
+          ctx.beginPath();
+          ctx.arc(engine.x, engine.y, spaceship.size * 0.05 * engine.scale, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(30, 30, 30, 0.9)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(180, 180, 180, 0.8)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        });
       }
       
       function drawLaserShipShield() {
@@ -7329,36 +7722,16 @@
             power: 8,     // Good firepower
             defense: 6,   // Above average defense
             special: 10   // Maximum special ability
+          },
+          [SHIP_TYPE.ODYSSEUS]: {
+            speed: 5,     // Slightly below average speed
+            power: 8,     // Good firepower (piercing shots)
+            defense: 7,   // Above average defense
+            special: 10   // Maximum special ability (time dilation)
           }
         };
         
-        // Ships and their descriptions
-        const ships = [
-          {
-            type: SHIP_TYPE.DEFAULT,
-            name: "Nova Striker",
-            desc: "Balanced ship with EMP weapon",
-            features: ["EMP blast (F key)", "Slows all nearby comets", "Balanced maneuverability", "Twin blasters"]
-          },
-          {
-            type: SHIP_TYPE.LASER,
-            name: "Heavy Cruiser",
-            desc: "Slow but powerful laser cannon",
-            features: ["Powerful laser beam (F key)", "3-second beam duration", "10-second cooldown"]
-          },
-          {
-            type: SHIP_TYPE.MISSILE,
-            name: "Stealth Interceptor",
-            desc: "Fast with 7-missile spread",
-            features: ["Faster movement", "7-missile volley (F key)", "Spread pattern missiles", "20x damage per missile", "1-second cooldown"]
-          },
-          {
-            type: SHIP_TYPE.XWING,
-            name: "Star Striker",
-            desc: "X-Wing fighter with time manipulation",
-            features: ["Time warp (F key)", "Slows down time", "Medium speed", "Classic X-Wing design"]
-          }
-        ];
+        // Ships and their descriptions - using the global ships array
         
         // We'll only show the currently selected ship
         const currentShip = ships[selectedShipMenuItem];
@@ -7374,10 +7747,16 @@
           vy: 0,
           thrusting: false,
           type: currentShip.type,
+          // X-Wing specific properties
           animeCooldown: true,
           animeChargeLevel: 50, // Half charged for display
           animeCooldownTimer: 0,
-          animeMaxCooldown: 20
+          animeMaxCooldown: 20,
+          // Odysseus specific properties
+          oracleReady: true,
+          oracleActive: false,
+          oracleCooldown: false,
+          piercingShots: true
         };
         
         // Layout for a single card
@@ -7546,6 +7925,9 @@
             break;
           case SHIP_TYPE.XWING:
             drawXWingShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
+            break;
+          case SHIP_TYPE.ODYSSEUS:
+            drawOdysseusShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
             break;
         }
         
@@ -8584,6 +8966,32 @@
         if (spaceship.type === SHIP_TYPE.DEFAULT) {
           drawEMPBar();
         }
+        
+        // Draw Oracle Vision bar for Odysseus ship
+        if (spaceship.type === SHIP_TYPE.ODYSSEUS) {
+          drawOracleBar();
+          
+          // Add visual effect when Oracle Vision is active
+          if (spaceship.oracleState === "active") {
+            // Create a full-screen teal tint effect
+            ctx.save();
+            ctx.fillStyle = "rgba(0, 180, 200, 0.15)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw a pulsing border around the screen
+            const pulseIntensity = 0.3 + Math.sin(gameTime * 5) * 0.2;
+            ctx.strokeStyle = `rgba(0, 220, 240, ${pulseIntensity})`;
+            ctx.lineWidth = 10 + Math.sin(gameTime * 3) * 5;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw time-slow indicator in the center of the screen
+            ctx.fillStyle = `rgba(255, 255, 255, ${pulseIntensity * 0.7})`;
+            ctx.font = "bold 18px monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("TIME DILATION ACTIVE", canvas.width / 2, canvas.height - 50);
+            ctx.restore();
+          }
+        }
 
         // Power-ups
         for (let pu of powerUps) {
@@ -9037,11 +9445,62 @@
             
             ctx.restore();
           } else {
-            // Normal bullet
-            ctx.fillStyle = "white";
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-            ctx.fill();
+            // Check if this is an Odysseus piercing shot
+            if (spaceship.type === SHIP_TYPE.ODYSSEUS && spaceship.piercingShots) {
+              // Piercing shots have a unique visual style
+              ctx.save();
+              
+              // Glowing teal effect for Odysseus bullets
+              ctx.shadowBlur = 10;
+              ctx.shadowColor = "rgba(0, 200, 220, 0.8)";
+              
+              // Core of the bullet
+              ctx.fillStyle = "rgba(220, 240, 255, 0.9)";
+              ctx.beginPath();
+              ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+              ctx.fill();
+              
+              // Add a trail effect for the piercing shots
+              const angle = Math.atan2(b.vy, b.vx);
+              const trailLength = b.radius * 3;
+              
+              // Create trail gradient
+              const trailGradient = ctx.createLinearGradient(
+                b.x, b.y,
+                b.x - Math.cos(angle) * trailLength, 
+                b.y - Math.sin(angle) * trailLength
+              );
+              
+              trailGradient.addColorStop(0, "rgba(100, 220, 255, 0.8)");
+              trailGradient.addColorStop(0.5, "rgba(0, 180, 200, 0.4)");
+              trailGradient.addColorStop(1, "rgba(0, 150, 180, 0)");
+              
+              ctx.strokeStyle = trailGradient;
+              ctx.lineWidth = b.radius * 1.2;
+              ctx.beginPath();
+              ctx.moveTo(b.x, b.y);
+              ctx.lineTo(
+                b.x - Math.cos(angle) * trailLength,
+                b.y - Math.sin(angle) * trailLength
+              );
+              ctx.stroke();
+              
+              // Add a hit count indicator if the bullet has hit something
+              if (b.hitCount) {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              
+              ctx.restore();
+            } else {
+              // Normal bullet
+              ctx.fillStyle = "white";
+              ctx.beginPath();
+              ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
         }
 
@@ -9267,6 +9726,9 @@
       // Game speed is always 1.0 - time warp disabled
       let gameSpeed = 1.0;
       
+      // Global game speed for consistent updates across functions
+      window.currentGameSpeed = 1.0;
+      
       function gameLoop(now) {
         try {
           // Calculate time since last loop (capped at 100ms to prevent spiral of death)
@@ -9280,7 +9742,14 @@
           // if frame rate drops, or zero if frame rate is very high
           while (accumulator >= FIXED_TIMESTEP) {
             // Convert ms to seconds for game logic
-            const dt = FIXED_TIMESTEP / 1000;
+            // Apply gameSpeed for time dilation effects
+            let dt = FIXED_TIMESTEP / 1000;
+            
+            // If we're in gameplay, apply the game speed to everything except ship controls
+            if (gameState === GAME_STATE.PLAYING) {
+              // We'll apply game speed selectively in the update function
+              // This allows the player to move at normal speed while everything else slows down
+            }
             
             // Update menu background if in menu screens
             const isMenuScreen = 
@@ -9317,6 +9786,23 @@
 
       // The main update function
       function update(dt) {
+        // CRITICAL: Set the global time factor at the start of each update
+        // This is needed before any physics calculations
+        let timeFactor = 1.0; // Default to normal speed
+        if (spaceship && spaceship.type === SHIP_TYPE.ODYSSEUS && spaceship.oracleState === "active") {
+          timeFactor = 0.3; // Slow motion for oracle vision
+        }
+        
+        // Set all global speed variables to ensure consistency
+        window.gameSpeed = timeFactor;
+        window.currentGameSpeed = timeFactor;
+        window.currentGameTimeFactor = timeFactor;
+        
+        // Debug logging to track the state
+        if (spaceship && spaceship.type === SHIP_TYPE.ODYSSEUS) {
+          console.log("Oracle state:", spaceship.oracleState, "Game factor:", timeFactor);
+        }
+        
         // always update starfield
         updateStarfield(dt);
         
@@ -9412,6 +9898,68 @@
           if (spaceship.shieldFlashTimer > 0) {
             spaceship.shieldFlashTimer -= dt;
             if (spaceship.shieldFlashTimer < 0) spaceship.shieldFlashTimer = 0;
+          }
+          
+          // Update Odysseus ship mechanics - simplified state machine
+          if (spaceship.type === SHIP_TYPE.ODYSSEUS) {
+            // Increment the timer regardless of state
+            spaceship.oracleTimer += dt;
+            
+            // Use a state machine approach with minimal shared state
+            switch (spaceship.oracleState) {
+              case "active":
+                // Only manage the timer in this state, everything else is calculated
+                // in the gameTimeFactor calculation before physics updates
+                
+                // Check if ability duration is over
+                if (spaceship.oracleTimer >= spaceship.oracleDuration) {
+                  // Transition to cooldown state
+                  spaceship.oracleState = "cooldown";
+                  spaceship.oracleTimer = 0; // Reset timer for cooldown
+                  
+                  // CRITICAL: Force reset game speed to normal
+                  window.gameSpeed = 1.0;
+                  window.currentGameSpeed = 1.0;
+                  window.oracleVisionActive = false;
+                  window.currentGameTimeFactor = 1.0;
+                  
+                  // Restore music volume
+                  if (musicEnabled && !bgMusic.paused && spaceship.originalMusicVolume) {
+                    bgMusic.volume = spaceship.originalMusicVolume;
+                  }
+                  
+                  console.log("Oracular Vision ended, forcing speed reset, starting cooldown");
+                }
+                break;
+                
+              case "cooldown":
+                // Check if cooldown is complete
+                if (spaceship.oracleTimer >= spaceship.oracleCooldownDuration) {
+                  // Transition to ready state
+                  spaceship.oracleState = "ready";
+                  spaceship.oracleTimer = 0;
+                  
+                  // Force reset all the game physics to normal state
+                  // This is the critical fix
+                  window.gameSpeed = 1.0;
+                  window.currentGameSpeed = 1.0;
+                  window.oracleVisionActive = false;
+                  window.currentGameTimeFactor = 1.0;
+                  
+                  console.log("Oracular Vision ready - forcing game speed reset");
+                }
+                break;
+                
+              case "ready":
+                // Nothing to do in ready state
+                break;
+                
+              default:
+                // Failsafe - if state is invalid, reset to ready
+                console.error("Invalid Oracle Vision state detected, resetting to ready");
+                spaceship.oracleState = "ready";
+                spaceship.oracleTimer = 0;
+            }
           }
           
           // Update laser ship mechanics
@@ -10307,7 +10855,8 @@
                 vx: Math.cos(angle) * BULLET_SPEED + spaceship.vx,
                 vy: Math.sin(angle) * BULLET_SPEED + spaceship.vy,
                 radius: BULLET_RADIUS,
-                isMissile: false
+                isMissile: false,
+                fromPlayer: true // Mark as player bullet for time dilation immunity
               };
               bullets.push(bullet);
             }
@@ -10337,11 +10886,16 @@
           }
         }
 
+        // Time factor is now set at the start of the update function
+        
         // Update bullets
         for (let i = bullets.length - 1; i >= 0; i--) {
           let b = bullets[i];
-          b.x += b.vx * dt;
-          b.y += b.vy * dt;
+          // Player bullets always move at normal speed, other bullets follow time dilation
+          // Use the global time factor variable to prevent errors
+          const timeFactor = window.currentGameTimeFactor || 1.0;
+          b.x += b.vx * dt * (b.fromPlayer ? 1.0 : timeFactor);
+          b.y += b.vy * dt * (b.fromPlayer ? 1.0 : timeFactor);
           // off screen => remove
           if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
             bullets.splice(i, 1);
@@ -10362,9 +10916,10 @@
             c.hitEffectTimer -= dt;
             if (c.hitEffectTimer < 0) c.hitEffectTimer = 0;
           }
-          // Always apply normal movement - no special time warp effects
-          c.x += c.vx * dt;
-          c.y += c.vy * dt;
+          // Apply time dilation using global variable
+          const timeFactor = window.currentGameTimeFactor || 1.0;
+          c.x += c.vx * dt * timeFactor;
+          c.y += c.vy * dt * timeFactor;
           c.vx *= COMET_FRICTION;
           c.vy *= COMET_FRICTION;
           // never drop below COMET_MIN_SPEED
@@ -10517,8 +11072,22 @@
               }
             }
           }
+          // For Odysseus ship, piercing shots can hit multiple targets
           if (bulletHit) {
-            bullets.splice(i, 1);
+            if (spaceship.type === SHIP_TYPE.ODYSSEUS && spaceship.piercingShots) {
+              // Only remove bullets that have hit 2 targets or more
+              if (!b.hitCount) {
+                b.hitCount = 1;
+              } else {
+                b.hitCount++;
+                if (b.hitCount >= 2) {
+                  bullets.splice(i, 1);
+                }
+              }
+            } else {
+              // Normal behavior for other ships - bullets are removed on first hit
+              bullets.splice(i, 1);
+            }
           }
         }
 
