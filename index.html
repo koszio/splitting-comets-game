@@ -9553,9 +9553,9 @@
           const timeLeft = spaceship.tripleShotTimer / TRIPLE_SHOT_DURATION;
           
           ctx.save();
-          // Position below health bar
+          // Position below health bar and moved lower to avoid overlap with login info
           const x = canvas.width - 120;
-          const y = 45;
+          const y = 75; // Moved from 45 to 75 to avoid overlap with login text
           
           // Timer background
           ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
@@ -9585,7 +9585,7 @@
           ctx.save();
           // Position below triple shot timer (if showing)
           const x = canvas.width - 120;
-          const y = spaceship.tripleShot ? 65 : 45;
+          const y = spaceship.tripleShot ? 95 : 75; // Adjusted to match new triple shot timer position
           
           // Timer background
           ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
@@ -9626,7 +9626,7 @@
           ctx.save();
           // Position below other timers if needed
           const x = canvas.width - 120;
-          let y = 45;
+          let y = 75; // Base position updated to match other indicators
           if (spaceship.tripleShot) y += 20;
           if (spaceship.missileBarrageActive) y += 20;
           
