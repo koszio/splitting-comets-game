@@ -4079,6 +4079,8 @@
             spaceship.currentSpeedModifier = spaceship.speedModifier; // Current effective speed
             spaceship.thrustBoostTimer = 0; // Timer for temporary speed boosts
             spaceship.thrustBoostFactor = 1.0; // Current boost multiplier
+            spaceship.dashRecoveryTimer = 0; // Brief recovery time between dashes
+            spaceship.dashing = false; // For the dash feature
             
             // Heavy cruiser has frontal shield
             spaceship.hasShield = true;
@@ -5132,7 +5134,8 @@
         
         // Physics-based dynamic engine flames for Heavy Cruiser
         ctx.save();
-        ctx.globalAlpha = 0.8; // More visible
+        // Enhance visibility when dashing
+        ctx.globalAlpha = spaceship.dashing ? 1.0 : 0.8; // More visible during dash
         
         // Get the current time for subtle animation effects
         const flameTime = performance.now() / 100;
@@ -5149,9 +5152,13 @@
         // Use Math.abs to ensure we get flame when moving in any direction
         const thrustFactor = 0.5 + Math.min(1.0, Math.abs(forwardVelocity) / 250);
         
-        // Set flame dimensions based on thrust
-        let flameLength = spaceship.size * thrustFactor;
-        let flameWidth = spaceship.size * (0.4 + thrustFactor * 0.2);
+        // Set flame dimensions based on thrust and dashing state
+        let flameLength = spaceship.dashing ? 
+                        spaceship.size * (thrustFactor + 0.5) : // Longer flame when dashing
+                        spaceship.size * thrustFactor;
+        let flameWidth = spaceship.dashing ? 
+                       spaceship.size * (0.5 + thrustFactor * 0.3) : // Wider flame when dashing
+                       spaceship.size * (0.4 + thrustFactor * 0.2);
         
         // Add only a very subtle flicker effect (10% variation max)
         const flameFlicker = 0.95 + Math.sin(flameTime) * 0.05;
@@ -5162,10 +5169,20 @@
         
         // More vibrant flame gradient with transparency
         let flameGrad = ctx.createLinearGradient(engineX, 0, engineX - flameLength, 0);
-        flameGrad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
-        flameGrad.addColorStop(0.4, "rgba(255, 120, 30, 0.8)");
-        flameGrad.addColorStop(0.8, "rgba(220, 50, 10, 0.6)");
-        flameGrad.addColorStop(1, "rgba(180, 20, 0, 0)");
+        
+        if (spaceship.dashing) {
+          // Bluish flame during dash for visual distinction
+          flameGrad.addColorStop(0, "rgba(220, 240, 255, 0.95)");
+          flameGrad.addColorStop(0.3, "rgba(100, 180, 255, 0.9)");
+          flameGrad.addColorStop(0.7, "rgba(50, 120, 255, 0.7)");
+          flameGrad.addColorStop(1, "rgba(20, 80, 220, 0)");
+        } else {
+          // Normal orange-red flame when not dashing
+          flameGrad.addColorStop(0, "rgba(255, 200, 50, 0.9)");
+          flameGrad.addColorStop(0.4, "rgba(255, 120, 30, 0.8)");
+          flameGrad.addColorStop(0.8, "rgba(220, 50, 10, 0.6)");
+          flameGrad.addColorStop(1, "rgba(180, 20, 0, 0)");
+        }
         
         ctx.fillStyle = flameGrad;
         ctx.beginPath();
@@ -5192,9 +5209,18 @@
         // Inner flame length also depends on thrust
         const innerFlameLength = flameLength * 0.7; // Larger inner core for Heavy Cruiser
         const innerFlameGrad = ctx.createLinearGradient(engineX, 0, engineX - innerFlameLength, 0);
-        innerFlameGrad.addColorStop(0, "rgba(255, 255, 200, 0.9)");
-        innerFlameGrad.addColorStop(0.5, "rgba(255, 200, 50, 0.7)");
-        innerFlameGrad.addColorStop(1, "rgba(255, 120, 30, 0)");
+        
+        if (spaceship.dashing) {
+          // Bright blue-white inner core during dash
+          innerFlameGrad.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+          innerFlameGrad.addColorStop(0.5, "rgba(180, 220, 255, 0.8)");
+          innerFlameGrad.addColorStop(1, "rgba(100, 180, 255, 0)");
+        } else {
+          // Normal yellow-orange inner core
+          innerFlameGrad.addColorStop(0, "rgba(255, 255, 200, 0.9)");
+          innerFlameGrad.addColorStop(0.5, "rgba(255, 200, 50, 0.7)");
+          innerFlameGrad.addColorStop(1, "rgba(255, 120, 30, 0)");
+        }
         
         ctx.fillStyle = innerFlameGrad;
         ctx.beginPath();
@@ -5210,11 +5236,15 @@
         ctx.closePath();
         ctx.fill();
         
-        // Add sparks only when thrust is high enough
-        if (thrustFactor > 0.7) { // Higher threshold for Heavy Cruiser
-          // Spark count depends on thrust - more particles for Heavy Cruiser
-          const sparkCount = Math.floor(3 + thrustFactor * 6);
-          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+        // Add sparks only when thrust is high enough or when dashing
+        if (thrustFactor > 0.7 || spaceship.dashing) { // Show sparks when dashing regardless of thrust
+          // Spark count depends on thrust - more particles for Heavy Cruiser and even more when dashing
+          const sparkCount = spaceship.dashing ? 
+                           Math.floor(8 + thrustFactor * 8) : // More particles during dash
+                           Math.floor(3 + thrustFactor * 6);
+          ctx.fillStyle = spaceship.dashing ? 
+                        "rgba(180, 220, 255, 0.9)" : // Blueish white sparks during dash
+                        "rgba(255, 255, 255, 0.8)";
           
           for (let i = 0; i < sparkCount; i++) {
             // Use sine and cosine of time with different frequencies for varied animation
@@ -5225,11 +5255,37 @@
             const sparkX = engineX - flameLength * (0.3 + 0.6 * (i / sparkCount));
             const sparkY = offsetY;
             
-            // Draw spark with size related to thrust
-            const sparkSize = spaceship.size * (0.03 + 0.02 * thrustFactor);
+            // Draw spark with size related to thrust - larger during dash
+            const sparkSize = spaceship.dashing ?
+                            spaceship.size * (0.05 + 0.03 * thrustFactor) : // Larger sparks when dashing
+                            spaceship.size * (0.03 + 0.02 * thrustFactor);
             ctx.beginPath();
             ctx.arc(sparkX + offsetX, sparkY, sparkSize, 0, Math.PI * 2);
             ctx.fill();
+          }
+          
+          // Add additional trail particles during dash
+          if (spaceship.dashing) {
+            // Add a trail of particles behind the ship
+            const trailParticleCount = 6;
+            const trailColor = "rgba(100, 180, 255, 0.7)";
+            
+            for (let i = 0; i < trailParticleCount; i++) {
+              // Calculate random positions behind the ship
+              const trailDistance = spaceship.size * (0.5 + 1.5 * Math.random());
+              const spreadFactor = spaceship.size * 0.4 * Math.random();
+              const trailX = -spaceship.size * 0.5 - trailDistance;
+              const trailY = (Math.random() - 0.5) * spreadFactor;
+              
+              // Randomize particle size
+              const particleSize = spaceship.size * (0.05 + 0.07 * Math.random());
+              
+              // Draw dash trail particle
+              ctx.fillStyle = trailColor;
+              ctx.beginPath();
+              ctx.arc(trailX, trailY, particleSize, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
         }
         
@@ -10368,8 +10424,16 @@
             }
           }
           
-          // Update laser ship mechanics with heat system and thrust management
+          // Update laser ship mechanics with heat system, thrust management, and dash
           if (spaceship.type === SHIP_TYPE.LASER) {
+            // Update dash recovery timer
+            if (spaceship.dashRecoveryTimer > 0) {
+              spaceship.dashRecoveryTimer -= dt;
+              if (spaceship.dashRecoveryTimer < 0) {
+                spaceship.dashRecoveryTimer = 0;
+              }
+            }
+            
             // --- HEAT MANAGEMENT ---
             if (spaceship.laserOverheated) {
               // Handle overheated state - cool down gradually
@@ -11203,15 +11267,47 @@
             spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * dt * speedMod;
           }
           
-          // Quick brake with Space key
+          // Dash with Space key for Heavy Cruiser, brake for others
           if (keys[" "]) {
-            let speed = Math.sqrt(spaceship.vx ** 2 + spaceship.vy ** 2);
-            if (speed > 0) {
-              let deceleration = SHIP_REVERSE * dt;
-              let newSpeed = Math.max(0, speed - deceleration);
-              spaceship.vx = (spaceship.vx / speed) * newSpeed;
-              spaceship.vy = (spaceship.vy / speed) * newSpeed;
+            if (spaceship.type === SHIP_TYPE.LASER) {
+              // Only allow dash if recovery timer is zero
+              if (spaceship.dashRecoveryTimer <= 0) {
+                // Heavy Cruiser dash
+                // Apply a strong impulse in the direction the ship is facing
+                const dashPower = 300; // Strong immediate boost
+                
+                // Add velocity in the direction the ship is facing
+                spaceship.vx += Math.cos(spaceship.angle) * dashPower * dt;
+                spaceship.vy += Math.sin(spaceship.angle) * dashPower * dt;
+                
+                // Set dashing state for visual effects
+                spaceship.dashing = true;
+                
+                // Start recovery timer (150ms)
+                spaceship.dashRecoveryTimer = 0.15;
+                
+                // Play dash sound
+                if (soundEnabled) {
+                  // Use existing sound for simplicity
+                  bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
+                  bulletSoundPool[nextBulletSoundIndex].volume = 0.3;
+                  bulletSoundPool[nextBulletSoundIndex].play();
+                  nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
+                }
+              }
+            } else {
+              // Other ships use brake functionality
+              let speed = Math.sqrt(spaceship.vx ** 2 + spaceship.vy ** 2);
+              if (speed > 0) {
+                let deceleration = SHIP_REVERSE * dt;
+                let newSpeed = Math.max(0, speed - deceleration);
+                spaceship.vx = (spaceship.vx / speed) * newSpeed;
+                spaceship.vy = (spaceship.vy / speed) * newSpeed;
+              }
             }
+          } else if (spaceship.type === SHIP_TYPE.LASER) {
+            // Reset dashing state when space key is released
+            spaceship.dashing = false;
           }
           
           // Special abilities
