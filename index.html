@@ -10550,7 +10550,7 @@
             // Apply damage to the closest comet only
             if (isNormalComet) {
               // It's a normal comet
-              closestComet.hitPoints -= 30.0 * dt; // Increased laser damage (from 24.0 to 30.0 per second)
+              closestComet.hitPoints -= 50.0 * dt; // Dramatically increased laser damage (from 30.0 to 50.0 per second)
               closestComet.hitEffectTimer = 10;
               
               // Create hit effect
@@ -10593,7 +10593,7 @@
               }
             } else {
               // It's a big comet
-              closestComet.hitPoints -= 30 * dt; // Increased laser damage (from 24 to 30 per second)
+              closestComet.hitPoints -= 50 * dt; // Dramatically increased laser damage (from 30 to 50 per second)
               closestComet.hitCount++; // Increment hit counter
               closestComet.hitFlashTimer = 0.1;
               
