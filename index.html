@@ -8495,18 +8495,25 @@
         ctx.font = "italic 16px sans-serif";
         ctx.fillText(currentShip.desc, centerX, descBoxY + 18);
         
-        // Special weapon section - only for Heavy Cruiser for now
-        if (currentShip.type === SHIP_TYPE.LASER) {
+        // Special weapon section for ship types - use explicit conditionals for clarity
+        if (currentShip.type === SHIP_TYPE.LASER || 
+            currentShip.type === SHIP_TYPE.MISSILE || 
+            currentShip.type === SHIP_TYPE.DEFAULT) {
+          
+          // Save the canvas state at the beginning of weapon drawing
+          ctx.save();
           // Create a special weapon box - position it to the right of the ship and shield
           const weaponBoxY = cardY + 80; // Higher position above the specifications
           const weaponBoxHeight = 180; // Even taller for more space
           const weaponBoxWidth = cardWidth * 0.35; // Wider
           const weaponBoxX = centerX + cardWidth * 0.08; // Adjusted position with moved ship
           
-          // Background panel for special weapon
+          // Background panel for special weapon - explicitly set all styles to ensure consistency
+          ctx.globalAlpha = 1.0;
           ctx.fillStyle = "rgba(10, 20, 40, 0.75)";
           ctx.strokeStyle = "rgba(0, 180, 255, 0.7)";
           ctx.lineWidth = 1.5;
+          ctx.globalCompositeOperation = "source-over";
           
           // Create weapon box with rounded corners
           ctx.beginPath();
@@ -8544,122 +8551,386 @@
           ctx.lineTo(weaponBoxX + weaponBoxWidth - 15, weaponBoxY + 18);
           ctx.stroke();
           
-          // Draw the particle beam weapon graphic
+          // Position for weapon graphic
           const weaponX = weaponBoxX + weaponBoxWidth/2;
           const weaponY = weaponBoxY + 70; // Moved down for more space
           
-          // Draw particle beam emitter
-          ctx.save();
+          // Use a clean state for weapon graphics
           ctx.translate(weaponX, weaponY);
           // Scale up the weapon graphic
           ctx.scale(1.5, 1.5);
           
-          // Base cylindrical emitter
-          const gradient = ctx.createLinearGradient(-10, 0, 10, 0);
-          gradient.addColorStop(0, "rgb(30, 60, 80)");
-          gradient.addColorStop(0.5, "rgb(50, 120, 150)");
-          gradient.addColorStop(1, "rgb(30, 60, 80)");
+          // Reset all styling to avoid carry-over between ship types
+          ctx.fillStyle = "rgba(0, 0, 0, 0)";
+          ctx.strokeStyle = "rgba(0, 0, 0, 0)";
+          ctx.lineWidth = 1;
           
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.ellipse(0, -20, 10, 5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.rect(-10, -20, 20, 20);
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          
-          // Energy coils
+          // Common animation time variable
           const time = performance.now() / 1000;
-          const coilGlow = 0.6 + Math.sin(time * 3) * 0.4;
           
-          ctx.strokeStyle = `rgba(0, 200, 255, ${coilGlow})`;
-          ctx.lineWidth = 2;
-          
-          // Draw three coils around cylinder
-          for (let i = 0; i < 3; i++) {
-            const coilY = -15 + i * 10;
-            const coilPhase = i * Math.PI / 3 + time * 2;
+          if (currentShip.type === SHIP_TYPE.LASER) {
+            // --- PARTICLE BEAM WEAPON for Heavy Cruiser (LASER) ---
+            
+            // Base cylindrical emitter
+            const laserGradient = ctx.createLinearGradient(-10, 0, 10, 0);
+            laserGradient.addColorStop(0, "rgb(30, 60, 80)");
+            laserGradient.addColorStop(0.5, "rgb(50, 120, 150)");
+            laserGradient.addColorStop(1, "rgb(30, 60, 80)");
+            
+            ctx.fillStyle = laserGradient;
+            ctx.beginPath();
+            ctx.ellipse(0, -20, 10, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
             
             ctx.beginPath();
-            for (let j = 0; j < 10; j++) {
-              const angle = (j / 10) * Math.PI * 2 + coilPhase;
-              const x = Math.cos(angle) * 12;
-              const y = coilY + Math.sin(angle) * 2;
+            ctx.rect(-10, -20, 20, 20);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Energy coils
+            const coilGlow = 0.6 + Math.sin(time * 3) * 0.4;
+            
+            ctx.strokeStyle = `rgba(0, 200, 255, ${coilGlow})`;
+            ctx.lineWidth = 2;
+            
+            // Draw three coils around cylinder
+            for (let i = 0; i < 3; i++) {
+              const coilY = -15 + i * 10;
+              const coilPhase = i * Math.PI / 3 + time * 2;
               
-              if (j === 0) {
+              ctx.beginPath();
+              for (let j = 0; j < 10; j++) {
+                const angle = (j / 10) * Math.PI * 2 + coilPhase;
+                const x = Math.cos(angle) * 12;
+                const y = coilY + Math.sin(angle) * 2;
+                
+                if (j === 0) {
+                  ctx.moveTo(x, y);
+                } else {
+                  ctx.lineTo(x, y);
+                }
+              }
+              ctx.stroke();
+            }
+            
+            // Beam aperture at front
+            ctx.fillStyle = `rgba(50, 200, 255, ${coilGlow})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Electric arcs
+            ctx.strokeStyle = `rgba(160, 230, 255, ${coilGlow})`;
+            ctx.lineWidth = 1;
+            
+            for (let i = 0; i < 3; i++) {
+              const arcPhase = i * Math.PI / 3 + time * 5;
+              ctx.beginPath();
+              ctx.moveTo(Math.cos(arcPhase) * 4, Math.sin(arcPhase) * 4);
+              
+              // Create lightning-like path
+              let x = Math.cos(arcPhase) * 4;
+              let y = Math.sin(arcPhase) * 4;
+              
+              for (let j = 0; j < 3; j++) {
+                const newX = Math.cos(arcPhase + j * 0.2) * (8 + j * 2);
+                const newY = Math.sin(arcPhase + j * 0.2) * (8 + j * 2);
+                
+                ctx.lineTo(newX, newY);
+                x = newX;
+                y = newY;
+              }
+              
+              ctx.stroke();
+            }
+            
+          } else if (currentShip.type === SHIP_TYPE.DEFAULT) {
+            // --- EMP PULSE WEAPON for Nova Striker (DEFAULT) ---
+            
+            // Animation timing
+            const pulseRate = 0.6 + Math.sin(time * 1.5) * 0.4;
+            const distortionRate = 0.7 + Math.sin(time * 2.5) * 0.3;
+            
+            // Draw hexagonal propulsion matrix - ensure positive size
+            const hexSize = Math.abs(25);
+            
+            // Draw faint blue distortion field that surrounds the assembly
+            const warpDistortionGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, hexSize * 1.5);
+            warpDistortionGradient.addColorStop(0, `rgba(50, 100, 180, 0)`);
+            warpDistortionGradient.addColorStop(0.5, `rgba(50, 100, 180, ${0.1 * distortionRate})`);
+            warpDistortionGradient.addColorStop(0.8, `rgba(100, 150, 255, ${0.2 * distortionRate})`);
+            warpDistortionGradient.addColorStop(1, `rgba(50, 100, 180, 0)`);
+            
+            ctx.fillStyle = warpDistortionGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(hexSize * 1.5), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw main hexagonal frame
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const angle = (i / 6) * Math.PI * 2;
+              const x = Math.cos(angle) * hexSize;
+              const y = Math.sin(angle) * hexSize;
+              
+              if (i === 0) {
                 ctx.moveTo(x, y);
               } else {
                 ctx.lineTo(x, y);
               }
             }
-            ctx.stroke();
-          }
-          
-          // Beam aperture at front
-          ctx.fillStyle = `rgba(50, 200, 255, ${coilGlow})`;
-          ctx.beginPath();
-          ctx.arc(0, 0, 6, 0, Math.PI * 2);
-          ctx.fill();
-          
-          // Electric arcs
-          ctx.strokeStyle = `rgba(160, 230, 255, ${coilGlow})`;
-          ctx.lineWidth = 1;
-          
-          for (let i = 0; i < 3; i++) {
-            const arcPhase = i * Math.PI / 3 + time * 5;
-            ctx.beginPath();
-            ctx.moveTo(Math.cos(arcPhase) * 4, Math.sin(arcPhase) * 4);
+            ctx.closePath();
             
-            // Create lightning-like path
-            let x = Math.cos(arcPhase) * 4;
-            let y = Math.sin(arcPhase) * 4;
+            // Create gradient for hexagon frame
+            const warpHexGradient = ctx.createLinearGradient(-hexSize, -hexSize, hexSize, hexSize);
+            warpHexGradient.addColorStop(0, "rgb(20, 40, 80)");
+            warpHexGradient.addColorStop(0.5, "rgb(40, 80, 120)");
+            warpHexGradient.addColorStop(1, "rgb(20, 40, 80)");
             
-            for (let j = 0; j < 3; j++) {
-              const newX = Math.cos(arcPhase + j * 0.2) * (8 + j * 2);
-              const newY = Math.sin(arcPhase + j * 0.2) * (8 + j * 2);
+            ctx.fillStyle = warpHexGradient;
+            ctx.fill();
+            
+            // Draw inner connection lines to center
+            ctx.strokeStyle = `rgba(80, 150, 220, ${0.5 * pulseRate})`;
+            ctx.lineWidth = 1.5;
+            
+            for (let i = 0; i < 6; i++) {
+              const angle = (i / 6) * Math.PI * 2;
+              const x = Math.cos(angle) * hexSize;
+              const y = Math.sin(angle) * hexSize;
               
-              ctx.lineTo(newX, newY);
-              x = newX;
-              y = newY;
+              ctx.beginPath();
+              ctx.moveTo(x, y);
+              ctx.lineTo(0, 0);
+              ctx.stroke();
             }
             
+            // Dark center that appears to bend light
+            const centerSize = Math.max(0.1, hexSize * 0.5);
+            const warpCenterGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.abs(centerSize));
+            warpCenterGradient.addColorStop(0, "rgb(5, 10, 30)");
+            warpCenterGradient.addColorStop(0.7, "rgb(10, 20, 40)");
+            warpCenterGradient.addColorStop(1, "rgb(20, 40, 70)");
+            
+            ctx.fillStyle = warpCenterGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(centerSize), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Light bending effect around center
+            const warpBendingGradient = ctx.createRadialGradient(0, 0, Math.abs(centerSize * 0.2), 0, 0, Math.abs(centerSize));
+            warpBendingGradient.addColorStop(0, `rgba(0, 0, 0, 0)`);
+            warpBendingGradient.addColorStop(0.7, `rgba(0, 100, 200, ${0.1 * pulseRate})`);
+            warpBendingGradient.addColorStop(0.9, `rgba(100, 150, 255, ${0.3 * pulseRate})`);
+            warpBendingGradient.addColorStop(1, `rgba(150, 200, 255, 0)`);
+            
+            ctx.fillStyle = warpBendingGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(centerSize), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw small particles spiraling into the center
+            const particleCount = 25;
+            
+            for (let i = 0; i < particleCount; i++) {
+              // Calculate spiral path
+              const spiralPhase = (i / particleCount) + (time * 0.2) % 1;
+              const spiralRadius = Math.max(0.1, centerSize * 1.8 * (1 - spiralPhase));
+              const spiralAngle = spiralPhase * Math.PI * 10;
+              
+              const x = Math.cos(spiralAngle) * spiralRadius;
+              const y = Math.sin(spiralAngle) * spiralRadius;
+              
+              // Particle size decreases as it approaches center
+              const particleSize = Math.max(0.1, 1 + (1 - spiralPhase) * 1.5);
+              
+              // Particle brightness increases as it approaches center
+              const particleOpacity = 0.3 + spiralPhase * 0.7;
+              
+              ctx.fillStyle = `rgba(150, 220, 255, ${particleOpacity * pulseRate})`;
+              ctx.beginPath();
+              ctx.arc(x, y, Math.abs(particleSize), 0, Math.PI * 2);
+              ctx.fill();
+            }
+            
+            // Add subtle glow effect around the outer edges of the hexagon
+            ctx.strokeStyle = `rgba(100, 180, 255, ${0.2 * pulseRate})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const angle = (i / 6) * Math.PI * 2;
+              const x = Math.cos(angle) * (hexSize + 2);
+              const y = Math.sin(angle) * (hexSize + 2);
+              
+              if (i === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+            }
+            ctx.closePath();
             ctx.stroke();
+            
+            // Add power level indicators on vertices
+            for (let i = 0; i < 6; i++) {
+              const angle = (i / 6) * Math.PI * 2;
+              const x = Math.cos(angle) * hexSize;
+              const y = Math.sin(angle) * hexSize;
+              
+              // Oscillating indicator light
+              const indicatorPulse = 0.5 + Math.sin(time * 3 + i) * 0.5;
+              
+              ctx.fillStyle = `rgba(50, 150, 255, ${indicatorPulse * pulseRate})`;
+              ctx.beginPath();
+              ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            
+          } else if (currentShip.type === SHIP_TYPE.MISSILE) {
+            // --- MISSILE VOLLEY WEAPON for Stealth Interceptor (MISSILE) --- with simplified approach
+            
+            // Draw metallic base plate with simple color
+            ctx.fillStyle = "rgb(40, 50, 70)";
+            ctx.beginPath();
+            ctx.arc(0, 0, 25, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw the capacitor array - outer circle
+            const capacitorCount = 8;
+            for (let i = 0; i < capacitorCount; i++) {
+              const angle = (i / capacitorCount) * Math.PI * 2;
+              const capX = Math.cos(angle) * 18;
+              const capY = Math.sin(angle) * 18;
+              
+              // Capacitor housing
+              ctx.fillStyle = "rgb(30, 40, 60)";
+              ctx.beginPath();
+              ctx.arc(capX, capY, 4, 0, Math.PI * 2);
+              ctx.fill();
+              
+              // Capacitor glow with fixed opacity
+              ctx.fillStyle = "rgba(80, 180, 255, 0.7)";
+              ctx.beginPath();
+              ctx.arc(capX, capY, 2.5, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            
+            // Draw energy core with simple color
+            ctx.fillStyle = "rgba(100, 180, 255, 0.8)";
+            ctx.beginPath();
+            ctx.arc(0, 0, 10, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw three simple static rings
+            for (let i = 0; i < 3; i++) {
+              const ringRadius = 12 + i * 6;
+              
+              ctx.strokeStyle = "rgba(160, 220, 255, 0.5)";
+              ctx.lineWidth = 1.5;
+              
+              ctx.beginPath();
+              ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            
+            // Draw a few static lightning bolts
+            for (let i = 0; i < 4; i++) {
+              const angle = (i / 4) * Math.PI * 2;
+              
+              const startX = Math.cos(angle) * 15;
+              const startY = Math.sin(angle) * 15;
+              const endX = Math.cos(angle) * 25;
+              const endY = Math.sin(angle) * 25;
+              
+              ctx.beginPath();
+              ctx.moveTo(startX, startY);
+              ctx.lineTo(endX, endY);
+              
+              ctx.strokeStyle = "rgba(180, 230, 255, 0.6)";
+              ctx.lineWidth = 1;
+              ctx.stroke();
+            }
           }
           
-          ctx.restore();
+          // Reset transforms after drawing the weapon graphic
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
           
-          // Typewriter effect for weapon description
-          const weaponDesc = "PARTICLE BEAM: Unleashes devastating energy that pierces through multiple targets. High damage but causes weapon overheating.";
+          // Different weapon descriptions based on ship type
+          let weaponDesc, typewriterProgress, lastTypewriterUpdate;
           
-          // Create animation timer if it doesn't exist
-          if (typeof window.laserTypewriterProgress === 'undefined') {
-            window.laserTypewriterProgress = 0;
-            window.laserLastTypewriterUpdate = performance.now();
+          if (currentShip.type === SHIP_TYPE.LASER) {
+            weaponDesc = "PARTICLE BEAM: Unleashes devastating energy that pierces through multiple targets. High damage but causes weapon overheating.";
+            
+            // Create animation timer if it doesn't exist
+            if (typeof window.laserTypewriterProgress === 'undefined') {
+              window.laserTypewriterProgress = 0;
+              window.laserLastTypewriterUpdate = performance.now();
+            }
+            
+            typewriterProgress = window.laserTypewriterProgress;
+            lastTypewriterUpdate = window.laserLastTypewriterUpdate;
+          } else if (currentShip.type === SHIP_TYPE.MISSILE) {
+            weaponDesc = "MISSILE VOLLEY: Fires a spread of 7 high-power missiles. Each missile deals 20x damage. Fast cooldown of 1 second.";
+            
+            // Create animation timer if it doesn't exist
+            if (typeof window.missileTypewriterProgress === 'undefined') {
+              window.missileTypewriterProgress = 0;
+              window.missileLastTypewriterUpdate = performance.now();
+            }
+            
+            typewriterProgress = window.missileTypewriterProgress;
+            lastTypewriterUpdate = window.missileLastTypewriterUpdate;
+          } else if (currentShip.type === SHIP_TYPE.DEFAULT) {
+            weaponDesc = "EMP BLAST: Disables nearby enemy projectiles and temporarily stuns comets. Limited range but rapid recharge.";
+            
+            // Create animation timer if it doesn't exist
+            if (typeof window.defaultTypewriterProgress === 'undefined') {
+              window.defaultTypewriterProgress = 0;
+              window.defaultLastTypewriterUpdate = performance.now();
+            }
+            
+            typewriterProgress = window.defaultTypewriterProgress;
+            lastTypewriterUpdate = window.defaultLastTypewriterUpdate;
           }
           
           // Update typewriter progress
           const now = performance.now();
-          const timeDiff = now - window.laserLastTypewriterUpdate;
+          const timeDiff = now - lastTypewriterUpdate;
           const charsPerSecond = 30; // Speed of typing
           
-          window.laserTypewriterProgress += (timeDiff / 1000) * charsPerSecond;
-          if (window.laserTypewriterProgress > weaponDesc.length) {
-            window.laserTypewriterProgress = weaponDesc.length;
+          if (currentShip.type === SHIP_TYPE.LASER) {
+            window.laserTypewriterProgress += (timeDiff / 1000) * charsPerSecond;
+            if (window.laserTypewriterProgress > weaponDesc.length) {
+              window.laserTypewriterProgress = weaponDesc.length;
+            }
+            window.laserLastTypewriterUpdate = now;
+            typewriterProgress = window.laserTypewriterProgress;
+          } else if (currentShip.type === SHIP_TYPE.MISSILE) {
+            window.missileTypewriterProgress += (timeDiff / 1000) * charsPerSecond;
+            if (window.missileTypewriterProgress > weaponDesc.length) {
+              window.missileTypewriterProgress = weaponDesc.length;
+            }
+            window.missileLastTypewriterUpdate = now;
+            typewriterProgress = window.missileTypewriterProgress;
+          } else if (currentShip.type === SHIP_TYPE.DEFAULT) {
+            window.defaultTypewriterProgress += (timeDiff / 1000) * charsPerSecond;
+            if (window.defaultTypewriterProgress > weaponDesc.length) {
+              window.defaultTypewriterProgress = weaponDesc.length;
+            }
+            window.defaultLastTypewriterUpdate = now;
+            typewriterProgress = window.defaultTypewriterProgress;
           }
-          window.laserLastTypewriterUpdate = now;
           
-          // Draw text with typewriter effect
+          // Draw text with typewriter effect - consistent for all ships
           ctx.textAlign = "left";
           ctx.font = "12px monospace"; // Slightly larger font
-          ctx.fillStyle = "rgba(160, 255, 230, 0.9)";
+          ctx.fillStyle = "rgba(160, 255, 230, 0.9)"; // Consistent text color for all ships
           
           // Split text to fit the box
-          let visibleText = weaponDesc.substring(0, Math.floor(window.laserTypewriterProgress));
+          let visibleText = weaponDesc.substring(0, Math.floor(typewriterProgress));
           
           const maxLineWidth = weaponBoxWidth - 10;
           const words = visibleText.split(' ');
@@ -8688,7 +8959,7 @@
           }
           
           // Blinking cursor
-          if (window.laserTypewriterProgress < weaponDesc.length) {
+          if (typewriterProgress < weaponDesc.length) {
             const lastLine = lines[lines.length - 1];
             const cursorX = weaponBoxX + 8 + ctx.measureText(lastLine).width + 1;
             const cursorY = weaponBoxY + 125 + (lines.length - 1) * 14; // Adjusted for new line spacing
@@ -8697,12 +8968,18 @@
               ctx.fillText('_', cursorX, cursorY);
             }
           }
+          
+          // Make sure all context state is fully reset by restoring saved state
+          ctx.restore();
         }
         
         // Draw 80s anime-style stat bars with high-tech look
-        // Reset shadow for stats
+        // Make sure we're using clean default styles
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 1;
         
         const statsStartY = cardY + cardHeight * 0.63;
         const statsWidth = cardWidth * 0.7;
@@ -8719,6 +8996,11 @@
         ];
         
         // Draw "SPECS" header
+        // Complete reset before drawing specifications to isolate from any previous drawing
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = "source-over";
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
         ctx.fillStyle = "rgb(255, 220, 50)";  // Bright yellow/gold title
         ctx.font = "bold 16px monospace";
         ctx.textAlign = "left";
