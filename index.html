@@ -8498,7 +8498,9 @@
         // Special weapon section for ship types - use explicit conditionals for clarity
         if (currentShip.type === SHIP_TYPE.LASER || 
             currentShip.type === SHIP_TYPE.MISSILE || 
-            currentShip.type === SHIP_TYPE.DEFAULT) {
+            currentShip.type === SHIP_TYPE.DEFAULT ||
+            currentShip.type === SHIP_TYPE.XWING ||
+            currentShip.type === SHIP_TYPE.ODYSSEUS) {
           
           // Save the canvas state at the beginning of weapon drawing
           ctx.save();
@@ -8853,6 +8855,291 @@
               ctx.lineWidth = 1;
               ctx.stroke();
             }
+          } else if (currentShip.type === SHIP_TYPE.XWING) {
+            // --- TIME WARP WEAPON for Star Striker (XWING) ---
+            
+            // Animation timing variables
+            const time = performance.now() / 1000;
+            const pulseRate = 0.6 + Math.sin(time * 1.5) * 0.4;
+            
+            // Draw a clock-like device with time distortion effects
+            const clockRadius = 20;
+            
+            // Outer ring with glowing effect
+            const outerGlowGradient = ctx.createRadialGradient(0, 0, Math.abs(clockRadius * 0.8), 0, 0, Math.abs(clockRadius * 1.5));
+            outerGlowGradient.addColorStop(0, `rgba(150, 100, 255, ${0.3 * pulseRate})`);
+            outerGlowGradient.addColorStop(0.7, `rgba(100, 50, 200, ${0.2 * pulseRate})`);
+            outerGlowGradient.addColorStop(1, "rgba(50, 0, 150, 0)");
+            
+            ctx.fillStyle = outerGlowGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(clockRadius * 1.5), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Clock face background
+            const clockFaceGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.abs(clockRadius));
+            clockFaceGradient.addColorStop(0, "rgb(20, 10, 40)");
+            clockFaceGradient.addColorStop(0.7, "rgb(40, 20, 80)");
+            clockFaceGradient.addColorStop(1, "rgb(30, 15, 60)");
+            
+            ctx.fillStyle = clockFaceGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(clockRadius), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Clock rim
+            ctx.strokeStyle = `rgba(180, 130, 255, ${0.7 * pulseRate})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(clockRadius), 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Hour marks
+            for (let i = 0; i < 12; i++) {
+              const angle = (i / 12) * Math.PI * 2;
+              const innerRadius = clockRadius * 0.8;
+              const outerRadius = clockRadius * 0.95;
+              
+              const x1 = Math.cos(angle) * innerRadius;
+              const y1 = Math.sin(angle) * innerRadius;
+              const x2 = Math.cos(angle) * outerRadius;
+              const y2 = Math.sin(angle) * outerRadius;
+              
+              ctx.strokeStyle = "rgba(200, 180, 255, 0.8)";
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.stroke();
+            }
+            
+            // Clock hands with time distortion effect
+            // Hour hand (moving slowly)
+            const hourAngle = (time * 0.1) % (Math.PI * 2); // Full rotation every 60 seconds
+            const hourHandLength = clockRadius * 0.5;
+            
+            ctx.strokeStyle = "rgba(180, 120, 255, 0.9)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(
+              Math.cos(hourAngle) * hourHandLength,
+              Math.sin(hourAngle) * hourHandLength
+            );
+            ctx.stroke();
+            
+            // Minute hand (moving faster)
+            const minuteAngle = (time * 0.5) % (Math.PI * 2); // Full rotation every 12 seconds
+            const minuteHandLength = clockRadius * 0.7;
+            
+            ctx.strokeStyle = "rgba(220, 180, 255, 0.9)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(
+              Math.cos(minuteAngle) * minuteHandLength,
+              Math.sin(minuteAngle) * minuteHandLength
+            );
+            ctx.stroke();
+            
+            // Second hand with glowing effect (moving very fast)
+            const secondAngle = (time * 3) % (Math.PI * 2); // Full rotation every 2 seconds
+            const secondHandLength = clockRadius * 0.9;
+            
+            // Glowing trail for second hand
+            const trailGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.abs(secondHandLength));
+            trailGradient.addColorStop(0, `rgba(255, 200, 255, ${0.1 * pulseRate})`);
+            trailGradient.addColorStop(0.7, `rgba(200, 100, 255, ${0.05 * pulseRate})`);
+            trailGradient.addColorStop(1, "rgba(150, 50, 200, 0)");
+            
+            // Draw trail as a section
+            const trailAngle = Math.PI / 2; // 90 degree trail
+            ctx.fillStyle = trailGradient;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, Math.abs(secondHandLength), secondAngle - trailAngle, secondAngle, false);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Second hand
+            ctx.strokeStyle = "rgba(255, 220, 255, 0.9)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(
+              Math.cos(secondAngle) * secondHandLength,
+              Math.sin(secondAngle) * secondHandLength
+            );
+            ctx.stroke();
+            
+            // Center dot
+            ctx.fillStyle = "rgba(220, 180, 255, 0.9)";
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(3), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Time distortion particles
+            const particleCount = 15;
+            
+            for (let i = 0; i < particleCount; i++) {
+              // Calculate spiral path from outer to inner
+              const particlePhase = (i / particleCount) + (time * 0.1) % 1;
+              const particleDistance = clockRadius * 1.8 * (1 - particlePhase);
+              const particleAngle = particlePhase * Math.PI * 8;
+              
+              const x = Math.cos(particleAngle) * particleDistance;
+              const y = Math.sin(particleAngle) * particleDistance;
+              
+              // Particle fades as it approaches center
+              const particleOpacity = 0.2 + (1 - particlePhase) * 0.6;
+              
+              // Particle size
+              const particleSize = Math.max(0.1, 1 + (1 - particlePhase) * 2);
+              
+              ctx.fillStyle = `rgba(200, 150, 255, ${particleOpacity * pulseRate})`;
+              ctx.beginPath();
+              ctx.arc(x, y, Math.abs(particleSize), 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else if (currentShip.type === SHIP_TYPE.ODYSSEUS) {
+            // --- TIME DILATION WEAPON for Odysseus ---
+            
+            // Animation timing variables
+            const time = performance.now() / 1000;
+            const pulseRate = 0.5 + Math.sin(time * 1.2) * 0.5;
+            
+            // Draw a crystalline device with temporal core
+            const crystalSize = 25;
+            
+            // Background temporal field
+            const fieldGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.abs(crystalSize * 1.8));
+            fieldGradient.addColorStop(0, `rgba(20, 120, 120, 0)`);
+            fieldGradient.addColorStop(0.5, `rgba(30, 150, 150, ${0.1 * pulseRate})`);
+            fieldGradient.addColorStop(0.8, `rgba(50, 200, 200, ${0.15 * pulseRate})`);
+            fieldGradient.addColorStop(1, "rgba(30, 150, 150, 0)");
+            
+            ctx.fillStyle = fieldGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(crystalSize * 1.8), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw crystalline structure (octagon)
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+              const angle = (i / 8) * Math.PI * 2;
+              const x = Math.cos(angle) * crystalSize;
+              const y = Math.sin(angle) * crystalSize;
+              
+              if (i === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+            }
+            ctx.closePath();
+            
+            // Crystal gradient
+            const crystalGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.abs(crystalSize));
+            crystalGradient.addColorStop(0, "rgba(30, 100, 100, 0.7)");
+            crystalGradient.addColorStop(0.5, "rgba(40, 150, 150, 0.6)");
+            crystalGradient.addColorStop(0.9, "rgba(30, 130, 130, 0.7)");
+            crystalGradient.addColorStop(1, "rgba(20, 100, 100, 0.8)");
+            
+            ctx.fillStyle = crystalGradient;
+            ctx.fill();
+            
+            // Crystal outline
+            ctx.strokeStyle = `rgba(100, 220, 220, ${0.6 * pulseRate})`;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Inner lines for crystal structure
+            for (let i = 0; i < 4; i++) {
+              const angle1 = (i / 4) * Math.PI;
+              const angle2 = angle1 + Math.PI;
+              
+              const x1 = Math.cos(angle1) * crystalSize;
+              const y1 = Math.sin(angle1) * crystalSize;
+              const x2 = Math.cos(angle2) * crystalSize;
+              const y2 = Math.sin(angle2) * crystalSize;
+              
+              ctx.strokeStyle = `rgba(100, 200, 200, ${0.4 * pulseRate})`;
+              ctx.lineWidth = 0.5;
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.stroke();
+            }
+            
+            // Temporal core in the center
+            const coreSize = crystalSize * 0.4;
+            const coreGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.abs(coreSize));
+            coreGradient.addColorStop(0, `rgba(200, 255, 255, ${0.9 * pulseRate})`);
+            coreGradient.addColorStop(0.5, `rgba(100, 220, 220, ${0.7 * pulseRate})`);
+            coreGradient.addColorStop(1, `rgba(50, 180, 180, ${0.5 * pulseRate})`);
+            
+            ctx.fillStyle = coreGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, Math.abs(coreSize), 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Clock symbols frozen at different positions
+            const symbolCount = 8;
+            const symbolRadius = crystalSize * 1.3;
+            
+            for (let i = 0; i < symbolCount; i++) {
+              const symbolAngle = (i / symbolCount) * Math.PI * 2;
+              const x = Math.cos(symbolAngle) * symbolRadius;
+              const y = Math.sin(symbolAngle) * symbolRadius;
+              
+              // Different symbol types
+              const symbolType = i % 4;
+              ctx.fillStyle = `rgba(150, 230, 230, ${0.6 * pulseRate})`;
+              ctx.strokeStyle = `rgba(100, 200, 200, ${0.7 * pulseRate})`;
+              ctx.lineWidth = 1;
+              
+              if (symbolType === 0) {
+                // Circle symbol
+                ctx.beginPath();
+                ctx.arc(x, y, Math.abs(3), 0, Math.PI * 2);
+                ctx.fill();
+              } else if (symbolType === 1) {
+                // Square symbol
+                ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
+              } else if (symbolType === 2) {
+                // Plus symbol
+                ctx.beginPath();
+                ctx.moveTo(x - 3, y);
+                ctx.lineTo(x + 3, y);
+                ctx.moveTo(x, y - 3);
+                ctx.lineTo(x, y + 3);
+                ctx.stroke();
+              } else {
+                // Triangle symbol
+                ctx.beginPath();
+                ctx.moveTo(x, y - 3);
+                ctx.lineTo(x + 3, y + 2);
+                ctx.lineTo(x - 3, y + 2);
+                ctx.closePath();
+                ctx.fill();
+              }
+            }
+            
+            // Energy waves rippling outward in slow motion
+            for (let i = 0; i < 3; i++) {
+              const wavePhase = (time * 0.2 + i * 0.3) % 1; // Different timing per wave
+              const waveRadius = coreSize + wavePhase * (crystalSize - coreSize);
+              
+              // Wave becomes more transparent as it expands
+              const waveOpacity = (1 - wavePhase) * 0.3 * pulseRate;
+              
+              ctx.strokeStyle = `rgba(150, 230, 230, ${waveOpacity})`;
+              ctx.lineWidth = 1.5 * (1 - wavePhase);
+              
+              ctx.beginPath();
+              ctx.arc(0, 0, Math.abs(waveRadius), 0, Math.PI * 2);
+              ctx.stroke();
+            }
           }
           
           // Reset transforms after drawing the weapon graphic
@@ -8894,6 +9181,28 @@
             
             typewriterProgress = window.defaultTypewriterProgress;
             lastTypewriterUpdate = window.defaultLastTypewriterUpdate;
+          } else if (currentShip.type === SHIP_TYPE.XWING) {
+            weaponDesc = "TIME WARP: Slows down time for precise maneuvering and strategic positioning. Gives you the tactical edge.";
+            
+            // Create animation timer if it doesn't exist
+            if (typeof window.xwingTypewriterProgress === 'undefined') {
+              window.xwingTypewriterProgress = 0;
+              window.xwingLastTypewriterUpdate = performance.now();
+            }
+            
+            typewriterProgress = window.xwingTypewriterProgress;
+            lastTypewriterUpdate = window.xwingLastTypewriterUpdate;
+          } else if (currentShip.type === SHIP_TYPE.ODYSSEUS) {
+            weaponDesc = "ORACULAR VISION: Slows time while maintaining normal speed. Perfect for navigating complex comet patterns.";
+            
+            // Create animation timer if it doesn't exist
+            if (typeof window.odysseusTypewriterProgress === 'undefined') {
+              window.odysseusTypewriterProgress = 0;
+              window.odysseusLastTypewriterUpdate = performance.now();
+            }
+            
+            typewriterProgress = window.odysseusTypewriterProgress;
+            lastTypewriterUpdate = window.odysseusLastTypewriterUpdate;
           }
           
           // Update typewriter progress
@@ -8922,6 +9231,20 @@
             }
             window.defaultLastTypewriterUpdate = now;
             typewriterProgress = window.defaultTypewriterProgress;
+          } else if (currentShip.type === SHIP_TYPE.XWING) {
+            window.xwingTypewriterProgress += (timeDiff / 1000) * charsPerSecond;
+            if (window.xwingTypewriterProgress > weaponDesc.length) {
+              window.xwingTypewriterProgress = weaponDesc.length;
+            }
+            window.xwingLastTypewriterUpdate = now;
+            typewriterProgress = window.xwingTypewriterProgress;
+          } else if (currentShip.type === SHIP_TYPE.ODYSSEUS) {
+            window.odysseusTypewriterProgress += (timeDiff / 1000) * charsPerSecond;
+            if (window.odysseusTypewriterProgress > weaponDesc.length) {
+              window.odysseusTypewriterProgress = weaponDesc.length;
+            }
+            window.odysseusLastTypewriterUpdate = now;
+            typewriterProgress = window.odysseusTypewriterProgress;
           }
           
           // Draw text with typewriter effect - consistent for all ships
