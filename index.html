@@ -4073,6 +4073,12 @@
             spaceship.laserActive = false;
             spaceship.laserOverheated = false;
             spaceship.laserTimer = 0; // For animation and sound effects
+            spaceship.rotationModifier = 1.0; // Full rotation control by default
+            
+            // Initialize thrust management
+            spaceship.currentSpeedModifier = spaceship.speedModifier; // Current effective speed
+            spaceship.thrustBoostTimer = 0; // Timer for temporary speed boosts
+            spaceship.thrustBoostFactor = 1.0; // Current boost multiplier
             
             // Heavy cruiser has frontal shield
             spaceship.hasShield = true;
@@ -4481,7 +4487,10 @@
         const barWidth = 150;
         const barHeight = 20;
         const x = canvas.width / 2 - barWidth / 2;
-        const y = 85; // Position below health bar
+        
+        // For Heavy Cruiser with shield, place the heat bar below the shield bar
+        // Health bar is at y=60, shield bar would be at y=85, so place heat bar at y=110
+        const y = 110; // Position below shield bar
         
         // Draw bar outline
         ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
@@ -4498,9 +4507,11 @@
         
         // Dynamic color based on heat level
         let fillColor;
+        const time = performance.now() / 1000;
+        
         if (spaceship.laserOverheated) {
           // Overheated - red pulsing
-          const pulseRate = 0.7 + 0.3 * Math.sin(performance.now() / 150);
+          const pulseRate = 0.7 + 0.3 * Math.sin(time * 6);
           fillColor = `rgba(255, 50, 20, ${pulseRate})`;
         } else if (heatLevel > 80) {
           // Critical - red
@@ -4511,22 +4522,50 @@
         } else if (heatLevel > 40) {
           // Medium - yellow
           fillColor = "rgba(255, 220, 50, 0.8)";
+        } else if (heatLevel > 0) {
+          // Low - cyan
+          fillColor = "rgba(20, 200, 255, 0.8)";
         } else {
-          // Low - green
-          fillColor = "rgba(100, 255, 100, 0.8)";
+          // Ready (0 heat) - pulsing bright cyan (matches the laser beam color)
+          const pulseRate = 0.7 + 0.3 * Math.sin(time * 2);
+          fillColor = `rgba(0, 220, 255, ${pulseRate})`;
         }
         
         // Draw fill
         ctx.fillStyle = fillColor;
-        ctx.fillRect(x, y, fillWidth, barHeight);
+        
+        // When heat is 0, still show a small indicator (1-2 pixels) to indicate readiness
+        if (heatLevel === 0) {
+          // Draw a small amount to show the color
+          ctx.fillRect(x, y, 2, barHeight);
+        } else {
+          ctx.fillRect(x, y, fillWidth, barHeight);
+        }
         
         // Add heat meter label
-        ctx.fillStyle = "white";
-        ctx.font = "12px monospace";
         ctx.textAlign = "center";
         
         const labelText = spaceship.laserOverheated ? "OVERHEATED" : (spaceship.laserActive ? "HEAT LEVEL" : "READY");
+        
+        // Enhanced styling for the "READY" text when heat is 0
+        if (!spaceship.laserOverheated && !spaceship.laserActive && heatLevel === 0) {
+          // Subtle glow effect for "READY"
+          ctx.font = "bold 12px monospace";
+          const pulseRate = 0.7 + 0.3 * Math.sin(time * 2);
+          
+          // Add text glow
+          ctx.shadowColor = "rgba(0, 220, 255, 0.8)";
+          ctx.shadowBlur = 6;
+          ctx.fillStyle = `rgba(200, 255, 255, ${pulseRate})`;
+        } else {
+          // Normal text for other states
+          ctx.font = "12px monospace";
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "white";
+        }
+        
         ctx.fillText(labelText, x + barWidth / 2, y + barHeight / 2 + 4);
+        ctx.shadowBlur = 0; // Reset shadow blur
       }
       
       function drawEMPBar() {
@@ -10329,8 +10368,9 @@
             }
           }
           
-          // Update laser ship mechanics with heat system
+          // Update laser ship mechanics with heat system and thrust management
           if (spaceship.type === SHIP_TYPE.LASER) {
+            // --- HEAT MANAGEMENT ---
             if (spaceship.laserOverheated) {
               // Handle overheated state - cool down gradually
               spaceship.laserHeat -= 25 * dt; // Cool down at 25% per second
@@ -10338,6 +10378,10 @@
               // Once heat drops below 50%, laser is usable again
               if (spaceship.laserHeat <= 50) {
                 spaceship.laserOverheated = false;
+                
+                // Small speed boost when recovering from overheat
+                spaceship.thrustBoostTimer = 0.5; // Half-second boost
+                spaceship.thrustBoostFactor = 1.3; // 30% speed boost
               }
             } else if (spaceship.laserActive) {
               // Laser is active - increase heat
@@ -10370,10 +10414,64 @@
             } else {
               // Laser is off - cool down gradually
               spaceship.laserHeat -= 15 * dt; // Cool down at 15% per second when not in use
+              
+              // If laser was just deactivated, give a brief speed boost
+              if (spaceship.laserTimer > 0) {
+                spaceship.laserTimer -= dt;
+                if (spaceship.laserTimer <= 0) {
+                  // Small thrust boost when deactivating laser
+                  spaceship.thrustBoostTimer = 0.75; // 3/4 second boost
+                  spaceship.thrustBoostFactor = 1.4; // 40% speed boost
+                }
+              }
             }
             
             // Ensure heat stays within 0-100 range
             spaceship.laserHeat = Math.max(0, Math.min(100, spaceship.laserHeat));
+            
+            // --- THRUST MANAGEMENT ---
+            // Keep normal acceleration but affect rotation when laser is active
+            if (spaceship.laserActive) {
+              // Rotation penalty is proportional to heat level - higher heat = harder to turn
+              // Store rotational factor for use in ship controls
+              const heatFactor = spaceship.laserHeat / 100;
+              // At max heat (100), rotation is at 30% normal speed
+              // At min heat (0), rotation is at 60% normal speed  
+              spaceship.rotationModifier = 0.6 - (heatFactor * 0.3);
+              
+              // Forward/backward speed remains unchanged
+              spaceship.currentSpeedModifier = spaceship.speedModifier;
+            } 
+            // Apply speed boost if boost timer is active
+            else if (spaceship.thrustBoostTimer > 0) {
+              spaceship.thrustBoostTimer -= dt;
+              spaceship.currentSpeedModifier = spaceship.speedModifier * spaceship.thrustBoostFactor;
+              // Normal rotation during boost
+              spaceship.rotationModifier = 1.0;
+              
+              // Create visual thrust boost effect if moving
+              if (spaceship.thrusting && spaceship.thrustBoostTimer > 0) {
+                // Create a visual speed trail effect to show boost
+                if (!spaceship.boostTrail) {
+                  spaceship.boostTrail = [];
+                }
+                
+                // Add a new trail point at the ship's position
+                if (performance.now() % 50 < 10) { // Only add points periodically
+                  spaceship.boostTrail.push({
+                    x: spaceship.x - Math.cos(spaceship.angle) * spaceship.size * 0.8,
+                    y: spaceship.y - Math.sin(spaceship.angle) * spaceship.size * 0.8,
+                    life: 0.5, // Half-second trail
+                    angle: spaceship.angle
+                  });
+                }
+              }
+            } 
+            // Otherwise use normal speed and rotation
+            else {
+              spaceship.currentSpeedModifier = spaceship.speedModifier;
+              spaceship.rotationModifier = 1.0; // Normal rotation when laser is off and not boosting
+            }
           }
         }
         
@@ -10452,7 +10550,7 @@
             // Apply damage to the closest comet only
             if (isNormalComet) {
               // It's a normal comet
-              closestComet.hitPoints -= 24.0 * dt; // 20% more damage (from 20.0 to 24.0 per second)
+              closestComet.hitPoints -= 30.0 * dt; // Increased laser damage (from 24.0 to 30.0 per second)
               closestComet.hitEffectTimer = 10;
               
               // Create hit effect
@@ -10495,7 +10593,7 @@
               }
             } else {
               // It's a big comet
-              closestComet.hitPoints -= 24 * dt; // 20% more damage (from 20 to 24 per second)
+              closestComet.hitPoints -= 30 * dt; // Increased laser damage (from 24 to 30 per second)
               closestComet.hitCount++; // Increment hit counter
               closestComet.hitFlashTimer = 0.1;
               
@@ -11065,20 +11163,44 @@
           
           // Handle ship rotation with standard arrow keys
           if (keys["ArrowLeft"]) {
-            spaceship.angle -= SHIP_ROT_SPEED * dt;
+            // Apply rotation modifier for LASER ship when using laser
+            const rotMod = (spaceship.type === SHIP_TYPE.LASER) ? 
+                          (spaceship.rotationModifier || 1.0) : 
+                          1.0;
+            spaceship.angle -= SHIP_ROT_SPEED * dt * rotMod;
           }
           if (keys["ArrowRight"]) {
-            spaceship.angle += SHIP_ROT_SPEED * dt;
+            // Apply rotation modifier for LASER ship when using laser
+            const rotMod = (spaceship.type === SHIP_TYPE.LASER) ? 
+                          (spaceship.rotationModifier || 1.0) : 
+                          1.0;
+            spaceship.angle += SHIP_ROT_SPEED * dt * rotMod;
           }
           
           // Handle ship movement with standard arrow keys
           if (keys["ArrowUp"]) {
-            spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * dt;
-            spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * dt;
+            // Set thrusting flag for flame effects
+            spaceship.thrusting = true;
+            
+            // Apply speed modifier - use currentSpeedModifier for LASER ship
+            const speedMod = spaceship.type === SHIP_TYPE.LASER ? 
+                            spaceship.currentSpeedModifier : 
+                            spaceship.speedModifier;
+            
+            spaceship.vx += Math.cos(spaceship.angle) * SHIP_ACCEL * dt * speedMod;
+            spaceship.vy += Math.sin(spaceship.angle) * SHIP_ACCEL * dt * speedMod;
+          } else {
+            spaceship.thrusting = false;
           }
+          
           if (keys["ArrowDown"]) {
-            spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * dt;
-            spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * dt;
+            // Apply speed modifier for reverse too
+            const speedMod = spaceship.type === SHIP_TYPE.LASER ? 
+                            spaceship.currentSpeedModifier : 
+                            spaceship.speedModifier;
+                            
+            spaceship.vx -= Math.cos(spaceship.angle) * SHIP_REVERSE * dt * speedMod;
+            spaceship.vy -= Math.sin(spaceship.angle) * SHIP_REVERSE * dt * speedMod;
           }
           
           // Quick brake with Space key
@@ -11179,10 +11301,9 @@
           const bottomGunX = spaceship.x + Math.cos(spaceship.angle) * (spaceship.size * 0.8) - perpX * (spaceship.size * 0.4);
           const bottomGunY = spaceship.y + Math.sin(spaceship.angle) * (spaceship.size * 0.8) - perpY * (spaceship.size * 0.4);
 
-          // Bullet spawn positions from each gun
+          // Bullet spawn positions from each gun - reduced to 2 guns (top and bottom)
           const spawnPositions = [
             { x: topGunX, y: topGunY },        // Top gun
-            { x: noseX, y: noseY },            // Center gun 
             { x: bottomGunX, y: bottomGunY }   // Bottom gun
           ];
           
@@ -11201,9 +11322,9 @@
           
           // Fire from each gun position
           for (let gunIndex = 0; gunIndex < spawnPositions.length; gunIndex++) {
-            // For Odysseus ship without triple shot, only fire from center gun (index 1)
-            if (spaceship.type === SHIP_TYPE.ODYSSEUS && !spaceship.tripleShot && gunIndex !== 1) {
-              continue; // Skip top and bottom guns for Odysseus when not having triple shot
+            // For Odysseus ship without triple shot, only fire from the first gun (index 0)
+            if (spaceship.type === SHIP_TYPE.ODYSSEUS && !spaceship.tripleShot && gunIndex !== 0) {
+              continue; // Skip bottom gun for Odysseus when not having triple shot
             }
             
             const pos = spawnPositions[gunIndex];
