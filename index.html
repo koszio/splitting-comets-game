@@ -2758,16 +2758,24 @@
                 e.preventDefault();
                 return;
               }
-              // Laser ship special ability
-              else if (spaceship.type === SHIP_TYPE.LASER && 
-                      !spaceship.laserCooldown && 
-                      !spaceship.laserActive) {
-                // Activate laser beam
-                spaceship.laserActive = true;
-                spaceship.laserTimer = 0;
-                // Reset laser beam endpoint variables
-                spaceship.laserBeamEndX = null;
-                spaceship.laserBeamEndY = null;
+              // Laser ship special ability with heat system
+              else if (spaceship.type === SHIP_TYPE.LASER) {
+                // Toggle laser state
+                if (spaceship.laserActive) {
+                  // Turn off laser if already active
+                  spaceship.laserActive = false;
+                  spaceship.laserTimer = 0;
+                  // Reset laser beam endpoint variables
+                  spaceship.laserBeamEndX = null;
+                  spaceship.laserBeamEndY = null;
+                } else if (!spaceship.laserOverheated) {
+                  // Activate laser beam if not overheated
+                  spaceship.laserActive = true;
+                  spaceship.laserTimer = 0;
+                  // Reset laser beam endpoint variables
+                  spaceship.laserBeamEndX = null;
+                  spaceship.laserBeamEndY = null;
+                }
                 
                 // Play laser activation sound
                 if (soundEnabled) {
@@ -4060,6 +4068,12 @@
             spaceship.speedModifier = 0.7; // Slower but powerful
             spaceship.hitPoints = 7; // Increased health (40% more)
             
+            // Initialize laser heat system
+            spaceship.laserHeat = 0; // Start with no heat
+            spaceship.laserActive = false;
+            spaceship.laserOverheated = false;
+            spaceship.laserTimer = 0; // For animation and sound effects
+            
             // Heavy cruiser has frontal shield
             spaceship.hasShield = true;
             spaceship.shieldHealth = 3; // Shield can absorb 3 full hits
@@ -4458,6 +4472,63 @@
       }
       
       // Draw EMP cooldown/recharge bar
+      // Draw the Laser ship heat bar
+      function drawLaserHeatBar() {
+        // Only show for LASER ship type
+        if (spaceship.type !== SHIP_TYPE.LASER) return;
+        
+        // Use same dimensions as other bars
+        const barWidth = 150;
+        const barHeight = 20;
+        const x = canvas.width / 2 - barWidth / 2;
+        const y = 85; // Position below health bar
+        
+        // Draw bar outline
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Draw background
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // Calculate width based on heat level
+        const heatLevel = spaceship.laserHeat;
+        const fillWidth = (heatLevel / 100) * barWidth;
+        
+        // Dynamic color based on heat level
+        let fillColor;
+        if (spaceship.laserOverheated) {
+          // Overheated - red pulsing
+          const pulseRate = 0.7 + 0.3 * Math.sin(performance.now() / 150);
+          fillColor = `rgba(255, 50, 20, ${pulseRate})`;
+        } else if (heatLevel > 80) {
+          // Critical - red
+          fillColor = "rgba(255, 60, 30, 0.8)";
+        } else if (heatLevel > 60) {
+          // High - orange
+          fillColor = "rgba(255, 150, 30, 0.8)";
+        } else if (heatLevel > 40) {
+          // Medium - yellow
+          fillColor = "rgba(255, 220, 50, 0.8)";
+        } else {
+          // Low - green
+          fillColor = "rgba(100, 255, 100, 0.8)";
+        }
+        
+        // Draw fill
+        ctx.fillStyle = fillColor;
+        ctx.fillRect(x, y, fillWidth, barHeight);
+        
+        // Add heat meter label
+        ctx.fillStyle = "white";
+        ctx.font = "12px monospace";
+        ctx.textAlign = "center";
+        
+        const labelText = spaceship.laserOverheated ? "OVERHEATED" : (spaceship.laserActive ? "HEAT LEVEL" : "READY");
+        ctx.fillText(labelText, x + barWidth / 2, y + barHeight / 2 + 4);
+      }
+      
       function drawEMPBar() {
         // Only show for DEFAULT ship type (always show it regardless of EMP status)
         if (spaceship.type !== SHIP_TYPE.DEFAULT) {
@@ -9258,6 +9329,11 @@
           drawEMPBar();
         }
         
+        // Draw Heat bar for LASER ship
+        if (spaceship.type === SHIP_TYPE.LASER) {
+          drawLaserHeatBar();
+        }
+        
         // Draw Oracle Vision bar for Odysseus ship
         if (spaceship.type === SHIP_TYPE.ODYSSEUS) {
           drawOracleBar();
@@ -10253,18 +10329,19 @@
             }
           }
           
-          // Update laser ship mechanics
+          // Update laser ship mechanics with heat system
           if (spaceship.type === SHIP_TYPE.LASER) {
-            if (spaceship.laserCooldown) {
-              // Handle cooldown
-              spaceship.laserCooldownTimer -= dt;
-              if (spaceship.laserCooldownTimer <= 0) {
-                spaceship.laserCooldown = false;
-                spaceship.laserCooldownTimer = 0;
+            if (spaceship.laserOverheated) {
+              // Handle overheated state - cool down gradually
+              spaceship.laserHeat -= 25 * dt; // Cool down at 25% per second
+              
+              // Once heat drops below 50%, laser is usable again
+              if (spaceship.laserHeat <= 50) {
+                spaceship.laserOverheated = false;
               }
             } else if (spaceship.laserActive) {
-              // Update active laser beam
-              spaceship.laserTimer += dt;
+              // Laser is active - increase heat
+              spaceship.laserHeat += 20 * dt; // Heat up at 20% per second of use
               
               // Periodic sound effects for sustained laser
               if (Math.floor(spaceship.laserTimer * 3) % 1 === 0 && soundEnabled) {
@@ -10274,12 +10351,15 @@
                 nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
               }
               
-              // Laser stays active for 6 seconds then goes on cooldown (increased from 3)
-              if (spaceship.laserTimer >= 6) {
+              // Update timer for animation purposes
+              spaceship.laserTimer += dt;
+              
+              // If heat reaches 100%, overheats and shuts off
+              if (spaceship.laserHeat >= 100) {
                 spaceship.laserActive = false;
                 spaceship.laserTimer = 0;
-                spaceship.laserCooldown = true;
-                spaceship.laserCooldownTimer = 10; // 10 second cooldown
+                spaceship.laserOverheated = true;
+                
                 // Reset laser beam endpoint variables
                 spaceship.laserBeamEndX = null;
                 spaceship.laserBeamEndY = null;
@@ -10287,7 +10367,13 @@
               
               // Process laser beam collisions
               processLaserCollisions();
+            } else {
+              // Laser is off - cool down gradually
+              spaceship.laserHeat -= 15 * dt; // Cool down at 15% per second when not in use
             }
+            
+            // Ensure heat stays within 0-100 range
+            spaceship.laserHeat = Math.max(0, Math.min(100, spaceship.laserHeat));
           }
         }
         
