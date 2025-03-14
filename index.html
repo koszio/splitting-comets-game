@@ -11115,6 +11115,11 @@
           
           // Fire from each gun position
           for (let gunIndex = 0; gunIndex < spawnPositions.length; gunIndex++) {
+            // For Odysseus ship without triple shot, only fire from center gun (index 1)
+            if (spaceship.type === SHIP_TYPE.ODYSSEUS && !spaceship.tripleShot && gunIndex !== 1) {
+              continue; // Skip top and bottom guns for Odysseus when not having triple shot
+            }
+            
             const pos = spawnPositions[gunIndex];
             
             // Fire multiple bullets from each gun if triple shot is active
