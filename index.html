@@ -4106,6 +4106,31 @@
             
             // Initialize piercing shot properties
             spaceship.piercingShots = true; // Bullets can pierce through targets
+            
+            // Initialize orbiting spheres
+            spaceship.orbs = [
+              { 
+                angle: 0, 
+                distance: spaceship.size * 1.2, 
+                size: spaceship.size * 0.18, // Bigger size
+                orbitSpeed: 1.5, // Much faster
+                color: "rgba(60, 220, 220, 0.9)" // All teal
+              },
+              { 
+                angle: Math.PI * 2/3, 
+                distance: spaceship.size * 1.2, 
+                size: spaceship.size * 0.18, // Bigger size
+                orbitSpeed: 1.5, // Much faster
+                color: "rgba(60, 220, 220, 0.9)" // All teal
+              },
+              { 
+                angle: Math.PI * 4/3, 
+                distance: spaceship.size * 1.2, 
+                size: spaceship.size * 0.18, // Bigger size
+                orbitSpeed: 1.5, // Much faster
+                color: "rgba(60, 220, 220, 0.9)" // All teal
+              }
+            ];
             break;
         }
       }
@@ -5541,7 +5566,37 @@
       
       // Odysseus ship - inspired by Greek mythology
       function drawOdysseusShip(shipGrad) {
-        // Draw engine flames first if thrusting
+        // Initialize orb data if not already present
+        if (!spaceship.orbs) {
+          spaceship.orbs = [
+            { 
+              angle: 0, 
+              distance: spaceship.size * 1.2, 
+              size: spaceship.size * 0.12,
+              orbitSpeed: 0.3,
+              color: "rgba(60, 220, 220, 0.9)" // Teal
+            },
+            { 
+              angle: Math.PI * 2/3, 
+              distance: spaceship.size * 1.2, 
+              size: spaceship.size * 0.12,
+              orbitSpeed: 0.32,
+              color: "rgba(220, 220, 60, 0.9)" // Gold
+            },
+            { 
+              angle: Math.PI * 4/3, 
+              distance: spaceship.size * 1.2, 
+              size: spaceship.size * 0.12,
+              orbitSpeed: 0.35,
+              color: "rgba(220, 60, 220, 0.9)" // Purple
+            }
+          ];
+        }
+        
+        // Update and draw orbiting spheres first (behind the ship)
+        drawOdysseusSpheres();
+        
+        // Draw engine flames next if thrusting
         if (spaceship.thrusting) {
           drawOdysseusFlames();
         }
@@ -5658,6 +5713,67 @@
             ctx.fill();
           }
         }
+      }
+      
+      // Helper function to draw the orbiting spheres for Odysseus ship
+      function drawOdysseusSpheres() {
+        if (!spaceship.orbs) return;
+        
+        // Update and draw each orb
+        spaceship.orbs.forEach(orb => {
+          // Update the angle for rotation - much faster now
+          orb.angle += orb.orbitSpeed * 0.04; // Doubled speed multiplier
+          if (orb.angle > Math.PI * 2) orb.angle -= Math.PI * 2;
+          
+          // Calculate position
+          const x = Math.cos(orb.angle) * orb.distance;
+          const y = Math.sin(orb.angle) * orb.distance;
+          
+          // Create a glow effect
+          const glowRadius = orb.size * 1.5;
+          const glow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+          const baseColor = orb.color.substring(0, orb.color.lastIndexOf(','));
+          
+          // No pulsing - constant size
+          glow.addColorStop(0, orb.color);
+          glow.addColorStop(0.5, baseColor + ", 0.5)");
+          glow.addColorStop(1, baseColor + ", 0)");
+          
+          // Draw the outer glow
+          ctx.beginPath();
+          ctx.fillStyle = glow;
+          ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Draw the orb itself
+          ctx.beginPath();
+          ctx.fillStyle = orb.color;
+          ctx.arc(x, y, orb.size, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Add a highlight to make it look more 3D
+          const highlight = ctx.createRadialGradient(
+            x - orb.size * 0.3, y - orb.size * 0.3, 0,
+            x, y, orb.size
+          );
+          highlight.addColorStop(0, "rgba(255, 255, 255, 0.8)");
+          highlight.addColorStop(0.5, "rgba(255, 255, 255, 0)");
+          
+          ctx.beginPath();
+          ctx.fillStyle = highlight;
+          ctx.arc(x, y, orb.size, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Add an energy connection line between orb and ship - brighter
+          ctx.beginPath();
+          ctx.strokeStyle = baseColor + ", 0.6)"; // More visible connections
+          ctx.lineWidth = 3; // Thicker lines
+          ctx.setLineDash([4, 3]); // Shorter dashes for faster appearance
+          ctx.moveTo(x, y);
+          ctx.lineTo(0, 0); // Connection to ship center
+          ctx.stroke();
+          ctx.setLineDash([]); // Reset dash
+        });
       }
       
       // Helper function for drawing Odysseus engine flames
@@ -6543,59 +6659,76 @@
           ctx.save();
           ctx.globalAlpha = 1.0;
           
-          // Create a simple pattern for the comet
+          // Create a clean, minimalist comet texture
           // We'll create it once and cache it with the comet
           if (!bc.simplePattern) {
-            const patternSize = 100;
+            const patternSize = 200; // Sufficient resolution
             const patternCanvas = document.createElement('canvas');
             patternCanvas.width = patternSize;
             patternCanvas.height = patternSize;
             const patternCtx = patternCanvas.getContext('2d');
             
-            // Fill with base color
-            patternCtx.fillStyle = "#704020";
+            // Fill with a solid, clean base color
+            patternCtx.fillStyle = "#7C5B41"; // Rich brown
             patternCtx.fillRect(0, 0, patternSize, patternSize);
             
-            // Create a simple grid pattern
-            patternCtx.strokeStyle = "#603010";
-            patternCtx.lineWidth = 1;
+            // Add a subtle radial gradient for depth
+            const baseGrad = patternCtx.createRadialGradient(
+              patternSize/2, patternSize/2, 0,
+              patternSize/2, patternSize/2, patternSize/2
+            );
+            baseGrad.addColorStop(0, "rgba(140, 100, 60, 0.5)"); // Lighter center
+            baseGrad.addColorStop(0.8, "rgba(90, 55, 35, 0.5)");  // Darker edge
+            baseGrad.addColorStop(1, "rgba(60, 40, 20, 0.5)");    // Darkest rim
             
-            // Draw horizontal lines
-            const lineSpacing = 10;
-            for (let y = 0; y < patternSize; y += lineSpacing) {
-              patternCtx.beginPath();
-              patternCtx.moveTo(0, y);
-              patternCtx.lineTo(patternSize, y);
-              patternCtx.stroke();
-            }
+            patternCtx.fillStyle = baseGrad;
+            patternCtx.fillRect(0, 0, patternSize, patternSize);
             
-            // Draw vertical lines
-            for (let x = 0; x < patternSize; x += lineSpacing) {
-              patternCtx.beginPath();
-              patternCtx.moveTo(x, 0);
-              patternCtx.lineTo(x, patternSize);
-              patternCtx.stroke();
-            }
-            
-            // Add some random darker spots
-            for (let i = 0; i < 30; i++) {
-              const spotX = Math.random() * patternSize;
-              const spotY = Math.random() * patternSize;
-              const spotRadius = 2 + Math.random() * 5;
+            // Add just a few large, subtle dark areas
+            for (let i = 0; i < 5; i++) {
+              const areaX = Math.random() * patternSize;
+              const areaY = Math.random() * patternSize;
+              const areaSize = 40 + Math.random() * 50;
               
-              patternCtx.fillStyle = 'rgba(40, 20, 10, 0.5)';
+              const areaGrad = patternCtx.createRadialGradient(
+                areaX, areaY, 0,
+                areaX, areaY, areaSize
+              );
+              areaGrad.addColorStop(0, "rgba(50, 30, 15, 0.4)");
+              areaGrad.addColorStop(1, "rgba(50, 30, 15, 0)");
+              
+              patternCtx.fillStyle = areaGrad;
               patternCtx.beginPath();
-              patternCtx.arc(spotX, spotY, spotRadius, 0, Math.PI * 2);
+              patternCtx.arc(areaX, areaY, areaSize, 0, Math.PI * 2);
               patternCtx.fill();
             }
             
-            // Add a few lighter spots
-            for (let i = 0; i < 20; i++) {
+            // Add just a few large, subtle light areas
+            for (let i = 0; i < 3; i++) {
+              const areaX = Math.random() * patternSize;
+              const areaY = Math.random() * patternSize;
+              const areaSize = 30 + Math.random() * 45;
+              
+              const areaGrad = patternCtx.createRadialGradient(
+                areaX, areaY, 0,
+                areaX, areaY, areaSize
+              );
+              areaGrad.addColorStop(0, "rgba(160, 130, 100, 0.3)");
+              areaGrad.addColorStop(1, "rgba(160, 130, 100, 0)");
+              
+              patternCtx.fillStyle = areaGrad;
+              patternCtx.beginPath();
+              patternCtx.arc(areaX, areaY, areaSize, 0, Math.PI * 2);
+              patternCtx.fill();
+            }
+            
+            // Add just a few medium sized darker spots - less is more
+            for (let i = 0; i < 12; i++) {
               const spotX = Math.random() * patternSize;
               const spotY = Math.random() * patternSize;
-              const spotRadius = 1 + Math.random() * 3;
+              const spotRadius = 5 + Math.random() * 10;
               
-              patternCtx.fillStyle = 'rgba(150, 100, 50, 0.5)';
+              patternCtx.fillStyle = `rgba(60, 35, 20, ${0.2 + Math.random() * 0.2})`;
               patternCtx.beginPath();
               patternCtx.arc(spotX, spotY, spotRadius, 0, Math.PI * 2);
               patternCtx.fill();
@@ -6653,9 +6786,17 @@
           
           // Create a transform matrix for the pattern
           ctx.translate(drawX, drawY);
-          // Very slow pattern rotation - faster when damaged
-          const rotationSpeed = 0.01 * (1 + (bc.hitCount / BIG_COMET_HEALTH));
-          ctx.rotate(gameTime * rotationSpeed); 
+          
+          // Extremely slow rotation - virtually imperceptible to truly convey massive scale
+          // Full rotation would take about 5-10 minutes (0.0001 radians/frame ≈ 0.006°/frame)
+          const rotationSpeed = 0.0001 * (1 + (bc.hitCount / BIG_COMET_HEALTH) * 0.2);
+          
+          // If the comet doesn't have a rotation offset, give it one (for variety)
+          if (!bc.rotationOffset) {
+            bc.rotationOffset = Math.random() * Math.PI * 2;
+          }
+          
+          ctx.rotate((gameTime * rotationSpeed) + bc.rotationOffset); 
           ctx.translate(-drawX, -drawY);
           
           // Fill with pattern
@@ -6664,8 +6805,24 @@
           
           ctx.restore();
           
-          // Add a subtle 3D effect with gradient overlay
+          // Minimal lighting effect - just enough to give dimension
           ctx.globalCompositeOperation = 'overlay';
+          
+          // Very subtle ambient lighting
+          const ambientGrad = ctx.createRadialGradient(
+            drawX, drawY, 0,
+            drawX, drawY, bc.radius
+          );
+          ambientGrad.addColorStop(0, 'rgba(180, 160, 140, 0.2)');
+          ambientGrad.addColorStop(0.7, 'rgba(130, 110, 90, 0.1)');
+          ambientGrad.addColorStop(1, 'rgba(100, 80, 60, 0)');
+          
+          ctx.fillStyle = ambientGrad;
+          ctx.beginPath();
+          ctx.arc(drawX, drawY, bc.radius, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Main light gradient for damage effects
           const gradient = ctx.createRadialGradient(
             drawX - bc.radius * 0.3, drawY - bc.radius * 0.3, 0,
             drawX, drawY, bc.radius
@@ -7756,7 +7913,31 @@
           oracleReady: true,
           oracleActive: false,
           oracleCooldown: false,
-          piercingShots: true
+          piercingShots: true,
+          // Initialize orbs for selection menu
+          orbs: currentShip.type === SHIP_TYPE.ODYSSEUS ? [
+            { 
+              angle: 0, 
+              distance: SHIP_SIZE * 1.2, 
+              size: SHIP_SIZE * 0.18, // Bigger size
+              orbitSpeed: 1.5, // Much faster
+              color: "rgba(60, 220, 220, 0.9)" // All teal
+            },
+            { 
+              angle: Math.PI * 2/3, 
+              distance: SHIP_SIZE * 1.2, 
+              size: SHIP_SIZE * 0.18, // Bigger size
+              orbitSpeed: 1.5, // Much faster
+              color: "rgba(60, 220, 220, 0.9)" // All teal
+            },
+            { 
+              angle: Math.PI * 4/3, 
+              distance: SHIP_SIZE * 1.2, 
+              size: SHIP_SIZE * 0.18, // Bigger size
+              orbitSpeed: 1.5, // Much faster
+              color: "rgba(60, 220, 220, 0.9)" // All teal
+            }
+          ] : null
         };
         
         // Layout for a single card
