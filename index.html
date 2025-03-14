@@ -4081,6 +4081,7 @@
             spaceship.thrustBoostFactor = 1.0; // Current boost multiplier
             spaceship.dashRecoveryTimer = 0; // Brief recovery time between dashes
             spaceship.dashing = false; // For the dash feature
+            spaceship.dashTrailActive = false; // For creating trail during dash
             
             // Heavy cruiser has frontal shield
             spaceship.hasShield = true;
@@ -8346,7 +8347,7 @@
         
         // Ship visualization
         ctx.save();
-        ctx.translate(centerX, cardY + cardHeight * 0.35);
+        ctx.translate(centerX - 60, cardY + cardHeight * 0.35); // Move ship more to the left
         
         // Make ship hover up and down slightly
         const hoverOffset = Math.sin(performance.now() / 500) * 5;
@@ -8375,6 +8376,76 @@
             drawDefaultShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
             break;
           case SHIP_TYPE.LASER:
+            // Draw the shield first (behind the ship)
+            ctx.save();
+            // Move the shield more to the front (right) so it doesn't overlap the weapon
+            ctx.translate(SHIP_SIZE * 0.7, 0); // Moved a bit more to the right since ship moved left
+            
+            // Define shield arc angle
+            const arcRadius = SHIP_SIZE * 1.2;
+            const arcWidth = SHIP_SIZE * 0.15;
+            
+            // Calculate starting and ending angles for frontal arc shield
+            const arcStart = -Math.PI / 3; // 60 degrees left of center
+            const arcEnd = Math.PI / 3;    // 60 degrees right of center
+            
+            // Create gradient for shield edge
+            const shieldGradient = ctx.createRadialGradient(
+              0, 0, arcRadius - arcWidth,
+              0, 0, arcRadius + arcWidth
+            );
+            
+            // Shield color (blue for selection screen)
+            const shieldColor = "rgba(0, 170, 255, 0.4)";
+            shieldGradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+            shieldGradient.addColorStop(0.5, shieldColor);
+            shieldGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+            
+            // Draw main shield arc
+            ctx.beginPath();
+            ctx.arc(0, 0, arcRadius, arcStart, arcEnd);
+            ctx.lineWidth = arcWidth;
+            ctx.strokeStyle = shieldGradient;
+            ctx.stroke();
+            
+            // Add hexagon pattern to shield
+            const hexSize = arcWidth * 0.4;
+            const hexSpacing = hexSize * 1.8;
+            const hexRows = 2;
+            
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.lineWidth = 1;
+            
+            for (let row = 0; row < hexRows; row++) {
+              const rowRadius = arcRadius - arcWidth/2 + (row * hexSpacing);
+              const arcLength = rowRadius * (arcEnd - arcStart);
+              const hexCount = Math.floor(arcLength / hexSpacing);
+              
+              for (let i = 0; i < hexCount; i++) {
+                const hexAngle = arcStart + ((arcEnd - arcStart) * (i / (hexCount - 1)));
+                const x = Math.cos(hexAngle) * rowRadius;
+                const y = Math.sin(hexAngle) * rowRadius;
+                
+                // Draw hexagon
+                ctx.beginPath();
+                for (let j = 0; j < 6; j++) {
+                  const angle = (j * Math.PI / 3) + performance.now() / 5000;
+                  const hx = x + Math.cos(angle) * hexSize;
+                  const hy = y + Math.sin(angle) * hexSize;
+                  
+                  if (j === 0) {
+                    ctx.moveTo(hx, hy);
+                  } else {
+                    ctx.lineTo(hx, hy);
+                  }
+                }
+                ctx.closePath();
+                ctx.stroke();
+              }
+            }
+            ctx.restore();
+            
+            // Now draw the ship
             drawLaserShip(ctx.createLinearGradient(SHIP_SIZE, 0, -SHIP_SIZE, 0));
             break;
           case SHIP_TYPE.MISSILE:
@@ -8423,6 +8494,210 @@
         ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
         ctx.font = "italic 16px sans-serif";
         ctx.fillText(currentShip.desc, centerX, descBoxY + 18);
+        
+        // Special weapon section - only for Heavy Cruiser for now
+        if (currentShip.type === SHIP_TYPE.LASER) {
+          // Create a special weapon box - position it to the right of the ship and shield
+          const weaponBoxY = cardY + 80; // Higher position above the specifications
+          const weaponBoxHeight = 180; // Even taller for more space
+          const weaponBoxWidth = cardWidth * 0.35; // Wider
+          const weaponBoxX = centerX + cardWidth * 0.08; // Adjusted position with moved ship
+          
+          // Background panel for special weapon
+          ctx.fillStyle = "rgba(10, 20, 40, 0.75)";
+          ctx.strokeStyle = "rgba(0, 180, 255, 0.7)";
+          ctx.lineWidth = 1.5;
+          
+          // Create weapon box with rounded corners
+          ctx.beginPath();
+          roundRect(ctx, weaponBoxX, weaponBoxY, weaponBoxWidth, weaponBoxHeight, 8);
+          
+          // Tech corner accents for weapon box
+          const wCornerSize = 10;
+          
+          // Top-left corner
+          ctx.beginPath();
+          ctx.moveTo(weaponBoxX + 3, weaponBoxY + 3);
+          ctx.lineTo(weaponBoxX + 3, weaponBoxY + 3 + wCornerSize);
+          ctx.moveTo(weaponBoxX + 3, weaponBoxY + 3);
+          ctx.lineTo(weaponBoxX + 3 + wCornerSize, weaponBoxY + 3);
+          ctx.stroke();
+          
+          // Bottom-right corner
+          ctx.beginPath();
+          ctx.moveTo(weaponBoxX + weaponBoxWidth - 3, weaponBoxY + weaponBoxHeight - 3);
+          ctx.lineTo(weaponBoxX + weaponBoxWidth - 3, weaponBoxY + weaponBoxHeight - 3 - wCornerSize);
+          ctx.moveTo(weaponBoxX + weaponBoxWidth - 3, weaponBoxY + weaponBoxHeight - 3);
+          ctx.lineTo(weaponBoxX + weaponBoxWidth - 3 - wCornerSize, weaponBoxY + weaponBoxHeight - 3);
+          ctx.stroke();
+          
+          // Title for special weapon
+          ctx.fillStyle = "rgb(255, 220, 50)"; // Gold color
+          ctx.font = "bold 14px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("SPECIAL WEAPON", weaponBoxX + weaponBoxWidth/2, weaponBoxY + 15);
+          
+          // Draw underline
+          ctx.strokeStyle = "rgb(255, 220, 50)";
+          ctx.beginPath();
+          ctx.moveTo(weaponBoxX + 15, weaponBoxY + 18);
+          ctx.lineTo(weaponBoxX + weaponBoxWidth - 15, weaponBoxY + 18);
+          ctx.stroke();
+          
+          // Draw the particle beam weapon graphic
+          const weaponX = weaponBoxX + weaponBoxWidth/2;
+          const weaponY = weaponBoxY + 70; // Moved down for more space
+          
+          // Draw particle beam emitter
+          ctx.save();
+          ctx.translate(weaponX, weaponY);
+          // Scale up the weapon graphic
+          ctx.scale(1.5, 1.5);
+          
+          // Base cylindrical emitter
+          const gradient = ctx.createLinearGradient(-10, 0, 10, 0);
+          gradient.addColorStop(0, "rgb(30, 60, 80)");
+          gradient.addColorStop(0.5, "rgb(50, 120, 150)");
+          gradient.addColorStop(1, "rgb(30, 60, 80)");
+          
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.ellipse(0, -20, 10, 5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          
+          ctx.beginPath();
+          ctx.rect(-10, -20, 20, 20);
+          ctx.fill();
+          
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Energy coils
+          const time = performance.now() / 1000;
+          const coilGlow = 0.6 + Math.sin(time * 3) * 0.4;
+          
+          ctx.strokeStyle = `rgba(0, 200, 255, ${coilGlow})`;
+          ctx.lineWidth = 2;
+          
+          // Draw three coils around cylinder
+          for (let i = 0; i < 3; i++) {
+            const coilY = -15 + i * 10;
+            const coilPhase = i * Math.PI / 3 + time * 2;
+            
+            ctx.beginPath();
+            for (let j = 0; j < 10; j++) {
+              const angle = (j / 10) * Math.PI * 2 + coilPhase;
+              const x = Math.cos(angle) * 12;
+              const y = coilY + Math.sin(angle) * 2;
+              
+              if (j === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+            }
+            ctx.stroke();
+          }
+          
+          // Beam aperture at front
+          ctx.fillStyle = `rgba(50, 200, 255, ${coilGlow})`;
+          ctx.beginPath();
+          ctx.arc(0, 0, 6, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Electric arcs
+          ctx.strokeStyle = `rgba(160, 230, 255, ${coilGlow})`;
+          ctx.lineWidth = 1;
+          
+          for (let i = 0; i < 3; i++) {
+            const arcPhase = i * Math.PI / 3 + time * 5;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(arcPhase) * 4, Math.sin(arcPhase) * 4);
+            
+            // Create lightning-like path
+            let x = Math.cos(arcPhase) * 4;
+            let y = Math.sin(arcPhase) * 4;
+            
+            for (let j = 0; j < 3; j++) {
+              const newX = Math.cos(arcPhase + j * 0.2) * (8 + j * 2);
+              const newY = Math.sin(arcPhase + j * 0.2) * (8 + j * 2);
+              
+              ctx.lineTo(newX, newY);
+              x = newX;
+              y = newY;
+            }
+            
+            ctx.stroke();
+          }
+          
+          ctx.restore();
+          
+          // Typewriter effect for weapon description
+          const weaponDesc = "PARTICLE BEAM: Unleashes devastating energy that pierces through multiple targets. High damage but causes weapon overheating.";
+          
+          // Create animation timer if it doesn't exist
+          if (typeof window.laserTypewriterProgress === 'undefined') {
+            window.laserTypewriterProgress = 0;
+            window.laserLastTypewriterUpdate = performance.now();
+          }
+          
+          // Update typewriter progress
+          const now = performance.now();
+          const timeDiff = now - window.laserLastTypewriterUpdate;
+          const charsPerSecond = 30; // Speed of typing
+          
+          window.laserTypewriterProgress += (timeDiff / 1000) * charsPerSecond;
+          if (window.laserTypewriterProgress > weaponDesc.length) {
+            window.laserTypewriterProgress = weaponDesc.length;
+          }
+          window.laserLastTypewriterUpdate = now;
+          
+          // Draw text with typewriter effect
+          ctx.textAlign = "left";
+          ctx.font = "12px monospace"; // Slightly larger font
+          ctx.fillStyle = "rgba(160, 255, 230, 0.9)";
+          
+          // Split text to fit the box
+          let visibleText = weaponDesc.substring(0, Math.floor(window.laserTypewriterProgress));
+          
+          const maxLineWidth = weaponBoxWidth - 10;
+          const words = visibleText.split(' ');
+          let lines = [];
+          let currentLine = '';
+          
+          for (const word of words) {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const measure = ctx.measureText(testLine);
+            
+            if (measure.width > maxLineWidth && currentLine !== '') {
+              lines.push(currentLine);
+              currentLine = word;
+            } else {
+              currentLine = testLine;
+            }
+          }
+          
+          if (currentLine) {
+            lines.push(currentLine);
+          }
+          
+          // Draw each line
+          for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], weaponBoxX + 8, weaponBoxY + 125 + i * 14); // Increased line spacing
+          }
+          
+          // Blinking cursor
+          if (window.laserTypewriterProgress < weaponDesc.length) {
+            const lastLine = lines[lines.length - 1];
+            const cursorX = weaponBoxX + 8 + ctx.measureText(lastLine).width + 1;
+            const cursorY = weaponBoxY + 125 + (lines.length - 1) * 14; // Adjusted for new line spacing
+            
+            if (Math.floor(now / 500) % 2 === 0) {
+              ctx.fillText('_', cursorX, cursorY);
+            }
+          }
+        }
         
         // Draw 80s anime-style stat bars with high-tech look
         // Reset shadow for stats
@@ -10434,6 +10709,60 @@
               }
             }
             
+            // Handle ongoing dash movement (Doom Eternal style)
+            if (spaceship.dashing && spaceship.dashTrailActive) {
+              // Calculate how close we are to the target
+              const dx = spaceship.dashTargetX - spaceship.x;
+              const dy = spaceship.dashTargetY - spaceship.y;
+              const distanceToTarget = Math.sqrt(dx*dx + dy*dy);
+              
+              // Create trail particles as we dash
+              if (!smallExplosionParticles) smallExplosionParticles = [];
+              
+              // Add trail particles at the current position
+              const chanceToSpawn = 0.6; // Control particle density
+              if (Math.random() < chanceToSpawn) {
+                // Random offset for wider trail
+                const offsetAngle = spaceship.angle + Math.PI + (Math.random() - 0.5) * 0.5;
+                const offsetDistance = spaceship.size * 0.5 * Math.random();
+                const offsetX = Math.cos(offsetAngle) * offsetDistance;
+                const offsetY = Math.sin(offsetAngle) * offsetDistance;
+                
+                // Calculate particle properties
+                const ratio = 1 - (distanceToTarget / spaceship.dashDistance);
+                const size = spaceship.size * (0.05 + 0.1 * Math.random());
+                
+                // Add the particle
+                smallExplosionParticles.push({
+                  x: spaceship.x + offsetX,
+                  y: spaceship.y + offsetY,
+                  vx: 0,
+                  vy: 0,
+                  size: size,
+                  life: 0.2 + Math.random() * 0.1, // Brief lifetime
+                  color: `rgba(100, 180, 255, ${0.5 + Math.random() * 0.3})`,
+                });
+              }
+              
+              // If we're very close to the target, stop the dash
+              if (distanceToTarget < 10 || distanceToTarget > spaceship.dashDistance * 1.1) {
+                // We've reached the target or overshot, end the dash
+                spaceship.dashTrailActive = false;
+                // Apply a small fraction of the remaining distance
+                if (distanceToTarget < spaceship.dashDistance) {
+                  spaceship.x = spaceship.dashTargetX;
+                  spaceship.y = spaceship.dashTargetY;
+                }
+                // Reset velocity to a more reasonable value
+                const currentSpeed = Math.sqrt(spaceship.vx*spaceship.vx + spaceship.vy*spaceship.vy);
+                if (currentSpeed > 0) {
+                  const normalSpeed = 200; // Normal post-dash speed
+                  spaceship.vx = (spaceship.vx / currentSpeed) * normalSpeed;
+                  spaceship.vy = (spaceship.vy / currentSpeed) * normalSpeed;
+                }
+              }
+            }
+            
             // --- HEAT MANAGEMENT ---
             if (spaceship.laserOverheated) {
               // Handle overheated state - cool down gradually
@@ -10993,6 +11322,19 @@
           const dy = spaceship.y - c.y;
           const dist = Math.hypot(dx, dy);
           if (dist < spaceship.size + c.radius) {
+            // Skip collision if the Heavy Cruiser is dashing
+            if (spaceship.type === SHIP_TYPE.LASER && spaceship.dashing && spaceship.dashTrailActive) {
+              // Create a small impact effect to show passing through
+              const impactX = (spaceship.x * 0.7 + c.x * 0.3); // Closer to ship's position
+              const impactY = (spaceship.y * 0.7 + c.y * 0.3);
+              
+              // Small visual effect only - no physical impact
+              createBulletImpact(impactX, impactY, 0.6, "rgba(100, 180, 255, 0.6)");
+              
+              // Continue without collision handling
+              continue;
+            }
+            
             let nx = dx / dist;
             let ny = dy / dist;
             let overlap = (spaceship.size + c.radius) - dist;
@@ -11272,26 +11614,70 @@
             if (spaceship.type === SHIP_TYPE.LASER) {
               // Only allow dash if recovery timer is zero
               if (spaceship.dashRecoveryTimer <= 0) {
-                // Heavy Cruiser dash
-                // Apply a strong impulse in the direction the ship is facing
-                const dashPower = 300; // Strong immediate boost
+                // Heavy Cruiser dash - instant position change
+                // Calculate the dash distance - shorter, about the length of the ship
+                const dashDistance = spaceship.size * 2; // Just twice the ship's length
                 
-                // Add velocity in the direction the ship is facing
-                spaceship.vx += Math.cos(spaceship.angle) * dashPower * dt;
-                spaceship.vy += Math.sin(spaceship.angle) * dashPower * dt;
+                // Store current position and calculate target position
+                const startX = spaceship.x;
+                const startY = spaceship.y;
+                
+                // Calculate target position
+                const targetX = spaceship.x + Math.cos(spaceship.angle) * dashDistance;
+                const targetY = spaceship.y + Math.sin(spaceship.angle) * dashDistance;
+                
+                // Ensure the target is within bounds
+                const effectiveSize = spaceship.size * 1.2; // Give a bit of margin
+                const boundedTargetX = Math.max(effectiveSize, Math.min(canvas.width - effectiveSize, targetX));
+                const boundedTargetY = Math.max(effectiveSize, Math.min(canvas.height - effectiveSize, targetY));
+                
+                // Instead of instant teleportation, add extreme velocity
+                // This will create a super fast movement that's still visible (Doom Eternal style)
+                const dashSpeed = 3000; // Extremely high speed
+                const dx = boundedTargetX - startX;
+                const dy = boundedTargetY - startY;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                
+                // Set velocity in the direction of the dash
+                // This will make the ship move very fast in that direction
+                if (distance > 0) {
+                  spaceship.vx = (dx / distance) * dashSpeed;
+                  spaceship.vy = (dy / distance) * dashSpeed;
+                }
+                
+                // Store target position for limiting the dash distance
+                spaceship.dashTargetX = boundedTargetX;
+                spaceship.dashTargetY = boundedTargetY;
+                spaceship.dashStartX = startX;
+                spaceship.dashStartY = startY;
+                spaceship.dashDistance = distance;
                 
                 // Set dashing state for visual effects
                 spaceship.dashing = true;
                 
-                // Start recovery timer (150ms)
-                spaceship.dashRecoveryTimer = 0.15;
+                // Instead of creating all trail particles at once,
+                // we'll add a flag to indicate we should create them during movement
+                spaceship.dashTrailActive = true;
                 
-                // Play dash sound
+                // Start recovery timer (0.8 seconds) - balanced cooldown for tactical dashing
+                spaceship.dashRecoveryTimer = 0.8;
+                
+                // Play dash sound - more distinctive for teleport effect
                 if (soundEnabled) {
-                  // Use existing sound for simplicity
+                  // Play two sounds simultaneously for a more distinctive effect
+                  // Sound 1: normal bullet sound (higher pitch)
                   bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-                  bulletSoundPool[nextBulletSoundIndex].volume = 0.3;
+                  bulletSoundPool[nextBulletSoundIndex].volume = 0.4;
+                  bulletSoundPool[nextBulletSoundIndex].playbackRate = 1.5; // Higher pitch for "whoosh" effect
                   bulletSoundPool[nextBulletSoundIndex].play();
+                  
+                  // Sound 2: hit sound (lower, for impact)
+                  const hitSoundIndex = Math.floor(Math.random() * HIT_SOUND_POOL_SIZE);
+                  hitSoundPool[hitSoundIndex].currentTime = 0;
+                  hitSoundPool[hitSoundIndex].volume = 0.2;
+                  hitSoundPool[hitSoundIndex].play();
+                  
+                  // Advance sound index
                   nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
                 }
               }
@@ -11307,7 +11693,10 @@
             }
           } else if (spaceship.type === SHIP_TYPE.LASER) {
             // Reset dashing state when space key is released
-            spaceship.dashing = false;
+            // Only reset if dash trail is not active (to avoid interrupting ongoing dashes)
+            if (!spaceship.dashTrailActive) {
+              spaceship.dashing = false;
+            }
           }
           
           // Special abilities
@@ -11374,8 +11763,13 @@
         
         // Apply different bounce behavior based on ship type
         if (spaceship.type === SHIP_TYPE.LASER) {
-          // Heavy cruiser bounces much less (only 10% of velocity retained on bounce)
-          bounce(spaceship, spaceship.size, 0.1);
+          if (spaceship.dashing && spaceship.dashTrailActive) {
+            // No bounce at all while dashing - ship moves through obstacles
+            bounce(spaceship, spaceship.size, 0.0);
+          } else {
+            // Heavy cruiser bounces much less (only 10% of velocity retained on bounce)
+            bounce(spaceship, spaceship.size, 0.1);
+          }
         } else {
           // Default bounce for other ships (30% of velocity retained)
           bounce(spaceship, spaceship.size, 0.3);
