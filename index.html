@@ -5601,7 +5601,7 @@
           drawOdysseusFlames();
         }
         
-        // Main ship body - inspired by Greek triremes with modern elements
+        // Main ship body - now with wings
         ctx.beginPath();
         // Pointed bow
         ctx.moveTo(spaceship.size * 1.1, 0);
@@ -5624,7 +5624,81 @@
         ctx.fillStyle = customGrad;
         ctx.fill();
         
-        // Outline
+        // Add wing structures on both sides
+        
+        // Right wing (bottom of screen)
+        ctx.beginPath();
+        // Wing root - connects to body at 1/3 from front
+        const wingRootX = spaceship.size * 0.3;
+        const wingRootY = spaceship.size * 0.3;
+        // Wing tip - extends out and slightly back
+        const wingTipX = spaceship.size * 0.1;
+        const wingTipY = spaceship.size * 0.7;
+        // Wing trailing edge - extends back
+        const wingTrailX = -spaceship.size * 0.3;
+        const wingTrailY = spaceship.size * 0.5;
+        
+        // Draw right wing shape
+        ctx.moveTo(wingRootX, wingRootY); // Start at wing root
+        ctx.lineTo(wingTipX, wingTipY); // Out to wing tip
+        ctx.lineTo(wingTrailX, wingTrailY); // Back to trailing edge
+        ctx.lineTo(-spaceship.size * 0.2, spaceship.size * 0.38); // Connect to body
+        ctx.closePath();
+        
+        // Left wing (top of screen) - mirror of right wing
+        ctx.moveTo(wingRootX, -wingRootY);
+        ctx.lineTo(wingTipX, -wingTipY);
+        ctx.lineTo(wingTrailX, -wingTrailY);
+        ctx.lineTo(-spaceship.size * 0.2, -spaceship.size * 0.38);
+        ctx.closePath();
+        
+        // Wing gradient - metallic with teal energy accents
+        const wingGrad = ctx.createLinearGradient(
+          wingRootX, 0,
+          wingTipX, 0
+        );
+        wingGrad.addColorStop(0, "rgba(200, 200, 210, 0.9)"); // Light metallic at root
+        wingGrad.addColorStop(0.4, "rgba(160, 170, 180, 0.8)"); // Medium metallic
+        wingGrad.addColorStop(0.8, "rgba(140, 150, 160, 0.7)"); // Darker at edges
+        wingGrad.addColorStop(1, "rgba(40, 170, 170, 0.6)"); // Teal energy accent at tips
+        
+        ctx.fillStyle = wingGrad;
+        ctx.fill();
+        
+        // Wing edge highlights
+        ctx.strokeStyle = "rgba(180, 220, 255, 0.7)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // Add wing detail lines
+        ctx.beginPath();
+        
+        // Right wing details
+        ctx.moveTo(wingRootX * 0.8, wingRootY * 0.9);
+        ctx.lineTo(wingTipX * 0.9, wingTipY * 0.95);
+        
+        ctx.moveTo(wingRootX * 0.5, wingRootY * 0.95);
+        ctx.lineTo(wingTrailX * 0.8, wingTrailY * 0.9);
+        
+        // Left wing details - mirrored
+        ctx.moveTo(wingRootX * 0.8, -wingRootY * 0.9);
+        ctx.lineTo(wingTipX * 0.9, -wingTipY * 0.95);
+        
+        ctx.moveTo(wingRootX * 0.5, -wingRootY * 0.95);
+        ctx.lineTo(wingTrailX * 0.8, -wingTrailY * 0.9);
+        
+        ctx.strokeStyle = "rgba(60, 200, 200, 0.6)";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        
+        // Main hull outline
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 1.1, 0);
+        ctx.quadraticCurveTo(spaceship.size * 0.8, spaceship.size * 0.4, -spaceship.size * 0.5, spaceship.size * 0.4);
+        ctx.lineTo(-spaceship.size * 0.7, 0);
+        ctx.lineTo(-spaceship.size * 0.5, -spaceship.size * 0.4);
+        ctx.quadraticCurveTo(spaceship.size * 0.8, -spaceship.size * 0.4, spaceship.size * 1.1, 0);
+        
         ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
         ctx.lineWidth = 1.5;
         ctx.stroke();
@@ -5669,26 +5743,62 @@
         
         ctx.stroke();
         
-        // 3. Cockpit with teal energy signature
+        // 3. Redesigned advanced cockpit with sleek canopy
+        // Main cockpit structure - more angular and technological
         ctx.beginPath();
-        ctx.ellipse(spaceship.size * 0.3, 0, spaceship.size * 0.25, spaceship.size * 0.15, 0, 0, Math.PI * 2);
+        // Create an elongated diamond shape for the canopy
+        ctx.moveTo(spaceship.size * 0.45, 0); // Front point
+        ctx.lineTo(spaceship.size * 0.25, spaceship.size * 0.12); // Bottom right
+        ctx.lineTo(spaceship.size * 0.15, 0); // Back point
+        ctx.lineTo(spaceship.size * 0.25, -spaceship.size * 0.12); // Top right
+        ctx.closePath();
         
-        // Create a radial gradient for the cockpit
-        const cockpitGrad = ctx.createRadialGradient(
-          spaceship.size * 0.3, 0, 0,
-          spaceship.size * 0.3, 0, spaceship.size * 0.2
+        // Create a gradient for the cockpit canopy
+        const cockpitGrad = ctx.createLinearGradient(
+          spaceship.size * 0.45, 0, 
+          spaceship.size * 0.15, 0
         );
-        cockpitGrad.addColorStop(0, "rgba(60, 220, 220, 0.9)"); // Bright teal center
-        cockpitGrad.addColorStop(0.7, "rgba(30, 160, 160, 0.6)"); // Darker teal
-        cockpitGrad.addColorStop(1, "rgba(20, 120, 120, 0.3)"); // Faded edge
+        cockpitGrad.addColorStop(0, "rgba(60, 220, 220, 0.9)"); // Bright teal front
+        cockpitGrad.addColorStop(0.4, "rgba(50, 200, 200, 0.8)"); // Mid section
+        cockpitGrad.addColorStop(0.8, "rgba(30, 160, 160, 0.7)"); // Back section
+        cockpitGrad.addColorStop(1, "rgba(20, 120, 120, 0.6)"); // Rear edge
         
         ctx.fillStyle = cockpitGrad;
         ctx.fill();
         
-        // Cockpit outline
-        ctx.strokeStyle = "rgba(200, 255, 255, 0.8)";
+        // Cockpit details - add tech elements
+        
+        // Canopy frame lines
+        ctx.strokeStyle = "rgba(220, 255, 255, 0.9)";
         ctx.lineWidth = 1;
         ctx.stroke();
+        
+        // Add canopy segment lines
+        ctx.beginPath();
+        ctx.moveTo(spaceship.size * 0.38, 0); // First segment
+        ctx.lineTo(spaceship.size * 0.38, spaceship.size * 0.08); 
+        ctx.moveTo(spaceship.size * 0.38, 0);
+        ctx.lineTo(spaceship.size * 0.38, -spaceship.size * 0.08);
+        
+        ctx.moveTo(spaceship.size * 0.30, 0); // Second segment
+        ctx.lineTo(spaceship.size * 0.30, spaceship.size * 0.10);
+        ctx.moveTo(spaceship.size * 0.30, 0);
+        ctx.lineTo(spaceship.size * 0.30, -spaceship.size * 0.10);
+        
+        ctx.moveTo(spaceship.size * 0.22, 0); // Third segment
+        ctx.lineTo(spaceship.size * 0.22, spaceship.size * 0.09);
+        ctx.moveTo(spaceship.size * 0.22, 0);
+        ctx.lineTo(spaceship.size * 0.22, -spaceship.size * 0.09);
+        
+        ctx.strokeStyle = "rgba(200, 255, 255, 0.5)";
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        
+        // Add a glowing sensor/scanner at the front
+        ctx.beginPath();
+        ctx.arc(spaceship.size * 0.44, 0, spaceship.size * 0.02, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(220, 255, 255, 0.9)";
+        ctx.fill();
         
         // 4. "Oracle's wisps" - ethereal particle effects when special is ready
         if (spaceship.oracleReady) {
