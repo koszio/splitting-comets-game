@@ -121,7 +121,15 @@
     <button id="auth-button">Login</button>
   </div>
   
-  <!-- Loading is now handled entirely through the ship initialization animation -->
+  <!-- Loading screen overlay (initially hidden) -->
+  <div id="loading-screen" style="display: none;">
+    <div class="loading-container">
+      <div class="loading-text">Loading...</div>
+      <div class="loading-bar-container">
+        <div id="loading-bar"></div>
+      </div>
+    </div>
+  </div>
   
   <canvas id="gameCanvas" tabindex="1"></canvas>
   <script>
@@ -224,12 +232,6 @@
         context.fillStyle = "black";
         context.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Calculate loading progress for display if resources are loading
-        let loadingPercentage = 0;
-        if (typeof totalResources !== 'undefined' && totalResources > 0) {
-          loadingPercentage = Math.min(100, Math.floor((loadedResources / totalResources) * 100));
-        }
-        
         // Grid effect
         const gridSize = 30;
         const gridAlpha = 0.2 + (Math.sin(performance.now() / 1000 * 3) * 0.05);
@@ -238,33 +240,28 @@
         
         // Draw horizontal grid lines
         for (let y = 0; y < canvas.height; y += gridSize) {
-          context.beginPath();
-          context.moveTo(0, y);
-          context.lineTo(canvas.width, y);
-          context.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
         }
         
         // Draw vertical grid lines
         for (let x = 0; x < canvas.width; x += gridSize) {
-          context.beginPath();
-          context.moveTo(x, 0);
-          context.lineTo(x, canvas.height);
-          context.stroke();
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
         }
         
         // Draw loading text
-        context.font = "24px monospace";
-        context.fillStyle = "rgba(0, 200, 255, 0.9)";
-        context.textAlign = "center";
+        ctx.font = "24px monospace";
+        ctx.fillStyle = "rgba(0, 200, 255, 0.9)";
+        ctx.textAlign = "center";
         
-        // Show percentage for ship initialization
+        // Show percentage
         const percent = Math.floor(progress * 100);
-        context.fillText(`SHIP SYSTEMS: ${percent}% INITIALIZED`, canvas.width / 2, canvas.height / 4);
-        
-        // If resources are being loaded, show resources loading status
-        if (transitionEffects.targetState === GAME_STATE.PLAYING) {
-          context.fillText(`RESOURCES: ${loadingPercentage}% LOADED`, canvas.width / 2, canvas.height / 4 + 30);
-        }
+        ctx.fillText(`SHIP SYSTEMS: ${percent}% INITIALIZED`, canvas.width / 2, canvas.height / 4);
         
         // Loading bar
         const barWidth = 400;
@@ -273,22 +270,22 @@
         const barY = canvas.height / 4 + 40;
         
         // Bar background
-        context.fillStyle = "rgba(0, 50, 100, 0.5)";
-        context.fillRect(barX, barY, barWidth, barHeight);
+        ctx.fillStyle = "rgba(0, 50, 100, 0.5)";
+        ctx.fillRect(barX, barY, barWidth, barHeight);
         
         // Bar progress
-        context.fillStyle = "rgba(0, 200, 255, 0.8)";
-        context.fillRect(barX, barY, barWidth * progress, barHeight);
+        ctx.fillStyle = "rgba(0, 200, 255, 0.8)";
+        ctx.fillRect(barX, barY, barWidth * progress, barHeight);
         
         // Add pulsing edge to progress bar
         const pulseSize = 5 + Math.sin(performance.now() / 100) * 3;
         const pulseX = barX + (barWidth * progress);
         
         if (progress < 0.99) {
-          context.fillStyle = "rgba(100, 200, 255, 0.8)";
-          context.beginPath();
-          context.arc(pulseX, barY + barHeight/2, pulseSize, 0, Math.PI * 2);
-          context.fill();
+          ctx.fillStyle = "rgba(100, 200, 255, 0.8)";
+          ctx.beginPath();
+          ctx.arc(pulseX, barY + barHeight/2, pulseSize, 0, Math.PI * 2);
+          ctx.fill();
         }
         
         // Ship schematic
@@ -297,8 +294,8 @@
         const shipScale = 3.0; // Size of the ship schematic
         
         // Draw the ship outlines
-        context.strokeStyle = "rgba(0, 200, 255, 0.5)";
-        context.lineWidth = 1;
+        ctx.strokeStyle = "rgba(0, 200, 255, 0.5)";
+        ctx.lineWidth = 1;
         
         // Function to draw the player's selected ship schematic
         function drawShipSchematic() {
@@ -317,18 +314,18 @@
           const localProgress = progress; // Use the full progress range (0-1) for a single ship
           
           // Draw ship name and type
-          context.font = "bold 28px monospace";
-          context.fillStyle = "rgba(0, 200, 255, 0.9)";
-          context.fillText(ship.name, centerX, centerY - 100);
+          ctx.font = "bold 28px monospace";
+          ctx.fillStyle = "rgba(0, 200, 255, 0.9)";
+          ctx.fillText(ship.name, centerX, centerY - 100);
           
-          context.font = "18px monospace";
-          context.fillStyle = "rgba(100, 220, 255, 0.8)";
-          context.fillText(ship.desc, centerX, centerY - 70);
+          ctx.font = "18px monospace";
+          ctx.fillStyle = "rgba(100, 220, 255, 0.8)";
+          ctx.fillText(ship.desc, centerX, centerY - 70);
           
           // Draw ship outline based on type
-          context.save();
-          context.translate(centerX, centerY);
-          context.lineWidth = 2;
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.lineWidth = 2;
           
           // Slower progression through the ship animation stages
           // First 40% of progress just for initial outline, then gradual component additions
@@ -353,12 +350,12 @@
               break;
           }
           
-          context.restore();
+          ctx.restore();
           
           // Draw ship features - start later in the animation
           if (localProgress > 0.6) {
-            context.textAlign = "left";
-            context.font = "16px monospace";
+            ctx.textAlign = "left";
+            ctx.font = "16px monospace";
             
             // Animate each feature appearing - with slower typing
             const featCount = ship.features.length;
@@ -375,127 +372,127 @@
                 const visibleChars = Math.floor(charCount * Math.min(1, (featuresProgress - i/featCount) * featCount * 2));
                 const visibleText = feature.substring(0, visibleChars);
                 
-                context.fillStyle = "rgba(0, 255, 200, 0.8)";
-                context.fillText(`> ${visibleText}`, centerX - 150, featY);
+                ctx.fillStyle = "rgba(0, 255, 200, 0.8)";
+                ctx.fillText(`> ${visibleText}`, centerX - 150, featY);
                 
                 // Add blinking cursor at end if still typing
                 if (visibleChars < charCount && Math.sin(performance.now() / 200) > 0) {
-                  const textWidth = context.measureText(`> ${visibleText}`).width;
-                  context.fillStyle = "rgba(200, 255, 255, 0.9)";
-                  context.fillRect(centerX - 150 + textWidth + 2, featY - 12, 8, 2);
+                  const textWidth = ctx.measureText(`> ${visibleText}`).width;
+                  ctx.fillStyle = "rgba(200, 255, 255, 0.9)";
+                  ctx.fillRect(centerX - 150 + textWidth + 2, featY - 12, 8, 2);
                 }
               }
             }
             
-            context.textAlign = "center"; // Reset text alignment
+            ctx.textAlign = "center"; // Reset text alignment
           }
         }
         
         // Draw different ship schematics
         function drawNovaStrikerSchematic(completeness) {
-          context.strokeStyle = "rgba(0, 200, 255, 0.8)";
-          context.fillStyle = "rgba(0, 100, 150, 0.2)";
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
           
           // Draw ship body outline - very early in the animation
           if (completeness > 0.05) {
             // Main body outline only
-            context.beginPath();
-            context.moveTo(0, -30 * shipScale);
-            context.lineTo(20 * shipScale, 20 * shipScale);
-            context.lineTo(-20 * shipScale, 20 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -30 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
             
             // Ship body calculation/measurement lines (appear briefly)
             if (completeness > 0.1 && completeness < 0.3) {
               // Add measurement lines
-              context.setLineDash([2, 2]);
-              context.strokeStyle = "rgba(255, 255, 255, 0.3)";
+              ctx.setLineDash([2, 2]);
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
               
               // Vertical center line
-              context.beginPath();
-              context.moveTo(0, -40 * shipScale);
-              context.lineTo(0, 40 * shipScale);
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(0, -40 * shipScale);
+              ctx.lineTo(0, 40 * shipScale);
+              ctx.stroke();
               
               // Horizontal measurement
-              context.beginPath();
-              context.moveTo(-25 * shipScale, 0);
-              context.lineTo(25 * shipScale, 0);
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-25 * shipScale, 0);
+              ctx.lineTo(25 * shipScale, 0);
+              ctx.stroke();
               
-              context.setLineDash([]);
-              context.strokeStyle = "rgba(0, 200, 255, 0.8)";
+              ctx.setLineDash([]);
+              ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
             }
             
             // Fill main body later in the animation
             if (completeness > 0.35) {
-              context.fillStyle = "rgba(0, 100, 150, 0.2)";
-              context.fill();
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fill();
             }
           }
           
           // Draw left wing - appear after body outline
           if (completeness > 0.25) {
-            context.beginPath();
-            context.moveTo(-15 * shipScale, 0);
-            context.lineTo(-30 * shipScale, 15 * shipScale);
-            context.lineTo(-20 * shipScale, 20 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-15 * shipScale, 0);
+            ctx.lineTo(-30 * shipScale, 15 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
           }
           
           // Draw right wing - appear shortly after left wing
           if (completeness > 0.3) {
-            context.beginPath();
-            context.moveTo(15 * shipScale, 0);
-            context.lineTo(30 * shipScale, 15 * shipScale);
-            context.lineTo(20 * shipScale, 20 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(15 * shipScale, 0);
+            ctx.lineTo(30 * shipScale, 15 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
           }
           
           // Fill wings - after both are drawn
           if (completeness > 0.45) {
-            context.save();
-            context.fillStyle = "rgba(0, 100, 150, 0.2)";
+            ctx.save();
+            ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
             
             // Left wing fill
-            context.beginPath();
-            context.moveTo(-15 * shipScale, 0);
-            context.lineTo(-30 * shipScale, 15 * shipScale);
-            context.lineTo(-20 * shipScale, 20 * shipScale);
-            context.closePath();
-            context.fill();
+            ctx.beginPath();
+            ctx.moveTo(-15 * shipScale, 0);
+            ctx.lineTo(-30 * shipScale, 15 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.fill();
             
             // Right wing fill
-            context.beginPath();
-            context.moveTo(15 * shipScale, 0);
-            context.lineTo(30 * shipScale, 15 * shipScale);
-            context.lineTo(20 * shipScale, 20 * shipScale);
-            context.closePath();
-            context.fill();
+            ctx.beginPath();
+            ctx.moveTo(15 * shipScale, 0);
+            ctx.lineTo(30 * shipScale, 15 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.fill();
             
-            context.restore();
+            ctx.restore();
           }
           
           // Draw engine - middle of animation
           if (completeness > 0.6) {
             // Engine outline
-            context.beginPath();
-            context.moveTo(-15 * shipScale, 20 * shipScale);
-            context.lineTo(15 * shipScale, 20 * shipScale);
-            context.lineTo(10 * shipScale, 30 * shipScale);
-            context.lineTo(-10 * shipScale, 30 * shipScale);
-            context.closePath();
-            context.strokeStyle = "rgba(255, 150, 50, 0.7)";
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-15 * shipScale, 20 * shipScale);
+            ctx.lineTo(15 * shipScale, 20 * shipScale);
+            ctx.lineTo(10 * shipScale, 30 * shipScale);
+            ctx.lineTo(-10 * shipScale, 30 * shipScale);
+            ctx.closePath();
+            ctx.strokeStyle = "rgba(255, 150, 50, 0.7)";
+            ctx.stroke();
             
             // Engine glow effect that pulses
             if (completeness > 0.65) {
               // Engine interior
-              context.fillStyle = "rgba(255, 100, 0, 0.2)";
-              context.fill();
+              ctx.fillStyle = "rgba(255, 100, 0, 0.2)";
+              ctx.fill();
               
               // Engine exhaust animation with forced animation timing
               const animTime = performance.now() / 300;
@@ -503,7 +500,7 @@
               const exhaustLength = 15 * shipScale * pulseAmount;
               
               // Exhaust gradient
-              const exhaustGradient = context.createLinearGradient(
+              const exhaustGradient = ctx.createLinearGradient(
                 0, 30 * shipScale,
                 0, 30 * shipScale + exhaustLength
               );
@@ -511,121 +508,121 @@
               exhaustGradient.addColorStop(0.3, "rgba(255, 160, 0, 0.5)");
               exhaustGradient.addColorStop(1, "rgba(255, 200, 50, 0)");
               
-              context.fillStyle = exhaustGradient;
-              context.beginPath();
-              context.moveTo(-8 * shipScale, 30 * shipScale);
-              context.lineTo(8 * shipScale, 30 * shipScale);
-              context.lineTo(5 * shipScale, 30 * shipScale + exhaustLength);
-              context.lineTo(-5 * shipScale, 30 * shipScale + exhaustLength);
-              context.closePath();
-              context.fill();
+              ctx.fillStyle = exhaustGradient;
+              ctx.beginPath();
+              ctx.moveTo(-8 * shipScale, 30 * shipScale);
+              ctx.lineTo(8 * shipScale, 30 * shipScale);
+              ctx.lineTo(5 * shipScale, 30 * shipScale + exhaustLength);
+              ctx.lineTo(-5 * shipScale, 30 * shipScale + exhaustLength);
+              ctx.closePath();
+              ctx.fill();
             }
           }
           
           // Draw EMP system - near the end of animation
           if (completeness > 0.75) {
             // EMP system diagram
-            context.beginPath();
-            context.arc(0, 0, 20 * shipScale, 0, Math.PI * 2);
-            context.strokeStyle = "rgba(100, 200, 255, 0.3)";
-            context.setLineDash([2, 3]);
-            context.stroke();
+            ctx.beginPath();
+            ctx.arc(0, 0, 20 * shipScale, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.3)";
+            ctx.setLineDash([2, 3]);
+            ctx.stroke();
             
             // Show EMP activation radius
             if (completeness > 0.85) {
               // Pulsing EMP field
               const pulseSize = 1 + Math.sin(performance.now() / 400) * 0.2;
               
-              context.beginPath();
-              context.arc(0, 0, 25 * shipScale * pulseSize, 0, Math.PI * 2);
-              context.strokeStyle = "rgba(50, 150, 255, 0.2)";
-              context.stroke();
+              ctx.beginPath();
+              ctx.arc(0, 0, 25 * shipScale * pulseSize, 0, Math.PI * 2);
+              ctx.strokeStyle = "rgba(50, 150, 255, 0.2)";
+              ctx.stroke();
               
               // EMP energy nodes at key points
               const nodeCount = 6;
-              context.fillStyle = "rgba(100, 200, 255, 0.4)";
+              ctx.fillStyle = "rgba(100, 200, 255, 0.4)";
               
               for (let i = 0; i < nodeCount; i++) {
                 const angle = (i / nodeCount) * Math.PI * 2;
                 const x = Math.cos(angle) * 20 * shipScale;
                 const y = Math.sin(angle) * 20 * shipScale;
                 
-                context.beginPath();
-                context.arc(x, y, 2 * shipScale, 0, Math.PI * 2);
-                context.fill();
+                ctx.beginPath();
+                ctx.arc(x, y, 2 * shipScale, 0, Math.PI * 2);
+                ctx.fill();
               }
             }
             
-            context.setLineDash([]);
+            ctx.setLineDash([]);
           }
           
           // Final details and highlights - only at the very end
           if (completeness > 0.95) {
             // Cockpit detail
-            context.fillStyle = "rgba(200, 230, 255, 0.5)";
-            context.beginPath();
-            context.arc(0, -10 * shipScale, 5 * shipScale, 0, Math.PI * 2);
-            context.fill();
+            ctx.fillStyle = "rgba(200, 230, 255, 0.5)";
+            ctx.beginPath();
+            ctx.arc(0, -10 * shipScale, 5 * shipScale, 0, Math.PI * 2);
+            ctx.fill();
             
             // Ship highlights
-            context.strokeStyle = "rgba(255, 255, 255, 0.6)";
-            context.lineWidth = 1;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+            ctx.lineWidth = 1;
             
             // Highlight along top edge
-            context.beginPath();
-            context.moveTo(-5 * shipScale, -20 * shipScale);
-            context.lineTo(5 * shipScale, -20 * shipScale);
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-5 * shipScale, -20 * shipScale);
+            ctx.lineTo(5 * shipScale, -20 * shipScale);
+            ctx.stroke();
           }
         }
         
         function drawHeavyCruiserSchematic(completeness) {
-          context.strokeStyle = "rgba(0, 200, 255, 0.8)";
-          context.fillStyle = "rgba(0, 100, 150, 0.2)";
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
           
           // Draw main hull - early in animation
           if (completeness > 0.1) {
-            context.beginPath();
-            context.moveTo(0, -25 * shipScale);
-            context.lineTo(25 * shipScale, 10 * shipScale);
-            context.lineTo(15 * shipScale, 30 * shipScale);
-            context.lineTo(-15 * shipScale, 30 * shipScale);
-            context.lineTo(-25 * shipScale, 10 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -25 * shipScale);
+            ctx.lineTo(25 * shipScale, 10 * shipScale);
+            ctx.lineTo(15 * shipScale, 30 * shipScale);
+            ctx.lineTo(-15 * shipScale, 30 * shipScale);
+            ctx.lineTo(-25 * shipScale, 10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
             
             // Measurement lines
             if (completeness > 0.15 && completeness < 0.35) {
-              context.setLineDash([2, 2]);
-              context.strokeStyle = "rgba(255, 255, 255, 0.3)";
+              ctx.setLineDash([2, 2]);
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
               
               // Center line
-              context.beginPath();
-              context.moveTo(0, -35 * shipScale);
-              context.lineTo(0, 35 * shipScale);
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(0, -35 * shipScale);
+              ctx.lineTo(0, 35 * shipScale);
+              ctx.stroke();
               
-              context.setLineDash([]);
-              context.strokeStyle = "rgba(0, 200, 255, 0.8)";
+              ctx.setLineDash([]);
+              ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
             }
             
             // Fill hull later
             if (completeness > 0.4) {
-              context.fillStyle = "rgba(0, 100, 150, 0.2)";
-              context.fill();
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fill();
             }
           }
           
           // Draw laser cannon - middle of animation
           if (completeness > 0.5) {
-            context.beginPath();
-            context.moveTo(0, -25 * shipScale);
-            context.lineTo(0, -40 * shipScale);
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -25 * shipScale);
+            ctx.lineTo(0, -40 * shipScale);
+            ctx.stroke();
             
-            context.beginPath();
-            context.arc(0, -40 * shipScale, 5 * shipScale, 0, Math.PI * 2);
-            context.stroke();
+            ctx.beginPath();
+            ctx.arc(0, -40 * shipScale, 5 * shipScale, 0, Math.PI * 2);
+            ctx.stroke();
             
             // Draw laser beam later
             if (completeness > 0.8) {
@@ -633,106 +630,106 @@
               const beamTime = performance.now() / 500;
               const beamWidth = 3 + Math.sin(beamTime) * 1;
               
-              context.strokeStyle = "rgba(0, 255, 255, 0.5)";
-              context.lineWidth = beamWidth;
-              context.setLineDash([5, 5]);
-              context.beginPath();
-              context.moveTo(0, -45 * shipScale);
-              context.lineTo(0, -100 * shipScale);
-              context.stroke();
+              ctx.strokeStyle = "rgba(0, 255, 255, 0.5)";
+              ctx.lineWidth = beamWidth;
+              ctx.setLineDash([5, 5]);
+              ctx.beginPath();
+              ctx.moveTo(0, -45 * shipScale);
+              ctx.lineTo(0, -100 * shipScale);
+              ctx.stroke();
               
               // Add glow effect
-              context.strokeStyle = "rgba(0, 150, 255, 0.2)";
-              context.lineWidth = beamWidth * 3;
-              context.beginPath();
-              context.moveTo(0, -45 * shipScale);
-              context.lineTo(0, -80 * shipScale);
-              context.stroke();
+              ctx.strokeStyle = "rgba(0, 150, 255, 0.2)";
+              ctx.lineWidth = beamWidth * 3;
+              ctx.beginPath();
+              ctx.moveTo(0, -45 * shipScale);
+              ctx.lineTo(0, -80 * shipScale);
+              ctx.stroke();
               
-              context.setLineDash([]);
-              context.lineWidth = 2;
+              ctx.setLineDash([]);
+              ctx.lineWidth = 2;
             }
           }
           
           // Draw armor plating - later stages
           if (completeness > 0.7) {
-            context.strokeStyle = "rgba(150, 150, 255, 0.5)";
+            ctx.strokeStyle = "rgba(150, 150, 255, 0.5)";
             
             // Draw armor plates sequentially
             const numPlates = 4;
             const platesComplete = Math.min(numPlates, Math.floor((completeness - 0.7) * 10));
             
             for (let i = 0; i < platesComplete; i++) {
-              context.beginPath();
-              context.moveTo(-20 * shipScale + (i * 10 * shipScale), 15 * shipScale);
-              context.lineTo(-15 * shipScale + (i * 10 * shipScale), 25 * shipScale);
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-20 * shipScale + (i * 10 * shipScale), 15 * shipScale);
+              ctx.lineTo(-15 * shipScale + (i * 10 * shipScale), 25 * shipScale);
+              ctx.stroke();
             }
           }
         }
         
         function drawInterceptorSchematic(completeness) {
-          context.strokeStyle = "rgba(0, 200, 255, 0.8)";
-          context.fillStyle = "rgba(0, 100, 150, 0.2)";
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
           
           // Draw sleek body - first
           if (completeness > 0.1) {
-            context.beginPath();
-            context.moveTo(0, -35 * shipScale);
-            context.lineTo(10 * shipScale, -10 * shipScale);
-            context.lineTo(10 * shipScale, 20 * shipScale);
-            context.lineTo(-10 * shipScale, 20 * shipScale);
-            context.lineTo(-10 * shipScale, -10 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -35 * shipScale);
+            ctx.lineTo(10 * shipScale, -10 * shipScale);
+            ctx.lineTo(10 * shipScale, 20 * shipScale);
+            ctx.lineTo(-10 * shipScale, 20 * shipScale);
+            ctx.lineTo(-10 * shipScale, -10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
             
             // Fill later
-            if (completeness > 0.3) context.fill();
+            if (completeness > 0.3) ctx.fill();
           }
           
           // Draw wings - second phase
           if (completeness > 0.4) {
             // Draw right wing
-            context.beginPath();
-            context.moveTo(10 * shipScale, 0);
-            context.lineTo(35 * shipScale, 10 * shipScale);
-            context.lineTo(15 * shipScale, 20 * shipScale);
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(10 * shipScale, 0);
+            ctx.lineTo(35 * shipScale, 10 * shipScale);
+            ctx.lineTo(15 * shipScale, 20 * shipScale);
+            ctx.stroke();
             
             // Draw left wing with delay
             if (completeness > 0.45) {
-              context.beginPath();
-              context.moveTo(-10 * shipScale, 0);
-              context.lineTo(-35 * shipScale, 10 * shipScale);
-              context.lineTo(-15 * shipScale, 20 * shipScale);
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-10 * shipScale, 0);
+              ctx.lineTo(-35 * shipScale, 10 * shipScale);
+              ctx.lineTo(-15 * shipScale, 20 * shipScale);
+              ctx.stroke();
             }
             
             // Fill wings later
             if (completeness > 0.55) {
-              context.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
               
               // Fill right wing
-              context.beginPath();
-              context.moveTo(10 * shipScale, 0);
-              context.lineTo(35 * shipScale, 10 * shipScale);
-              context.lineTo(15 * shipScale, 20 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(10 * shipScale, 0);
+              ctx.lineTo(35 * shipScale, 10 * shipScale);
+              ctx.lineTo(15 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
               
               // Fill left wing
-              context.beginPath();
-              context.moveTo(-10 * shipScale, 0);
-              context.lineTo(-35 * shipScale, 10 * shipScale);
-              context.lineTo(-15 * shipScale, 20 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(-10 * shipScale, 0);
+              ctx.lineTo(-35 * shipScale, 10 * shipScale);
+              ctx.lineTo(-15 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
             }
           }
           
           // Draw missile system - final phase
           if (completeness > 0.7) {
-            context.strokeStyle = "rgba(255, 100, 0, 0.6)";
+            ctx.strokeStyle = "rgba(255, 100, 0, 0.6)";
             
             // Draw missile pods sequentially
             const podCount = 6;
@@ -741,16 +738,16 @@
             for (let i = 0; i < podsComplete; i++) {
               const offset = (i - 3) * 5 * shipScale;
               if (offset !== 0) {
-                context.beginPath();
-                context.moveTo(offset, -10 * shipScale);
-                context.lineTo(offset, -5 * shipScale);
-                context.stroke();
+                ctx.beginPath();
+                ctx.moveTo(offset, -10 * shipScale);
+                ctx.lineTo(offset, -5 * shipScale);
+                ctx.stroke();
               }
             }
             
             // Missile trajectories at very end
             if (completeness > 0.9) {
-              context.setLineDash([2, 4]);
+              ctx.setLineDash([2, 4]);
               
               // Only show half the trajectories at first
               const trajectoryCount = Math.min(6, Math.floor((completeness - 0.9) * 60));
@@ -758,110 +755,110 @@
               for (let i = 0; i < trajectoryCount; i++) {
                 const offset = (i - 3) * 5 * shipScale;
                 if (offset !== 0) {
-                  context.beginPath();
-                  context.moveTo(offset, -5 * shipScale);
-                  context.lineTo(offset * 2, -50 * shipScale);
-                  context.stroke();
+                  ctx.beginPath();
+                  ctx.moveTo(offset, -5 * shipScale);
+                  ctx.lineTo(offset * 2, -50 * shipScale);
+                  ctx.stroke();
                 }
               }
-              context.setLineDash([]);
+              ctx.setLineDash([]);
             }
           }
         }
         
         function drawStarStrikerSchematic(completeness) {
-          context.strokeStyle = "rgba(0, 200, 255, 0.8)";
-          context.fillStyle = "rgba(0, 100, 150, 0.2)";
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
           
           // Draw central body first
           if (completeness > 0.1) {
-            context.beginPath();
-            context.moveTo(0, -30 * shipScale);
-            context.lineTo(5 * shipScale, -10 * shipScale);
-            context.lineTo(5 * shipScale, 30 * shipScale);
-            context.lineTo(-5 * shipScale, 30 * shipScale);
-            context.lineTo(-5 * shipScale, -10 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -30 * shipScale);
+            ctx.lineTo(5 * shipScale, -10 * shipScale);
+            ctx.lineTo(5 * shipScale, 30 * shipScale);
+            ctx.lineTo(-5 * shipScale, 30 * shipScale);
+            ctx.lineTo(-5 * shipScale, -10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
             
             // Fill body later
-            if (completeness > 0.3) context.fill();
+            if (completeness > 0.3) ctx.fill();
           }
           
           // Draw X-wings in sequence
           if (completeness > 0.4) {
             // Top right wing first
             if (completeness > 0.4) {
-              context.beginPath();
-              context.moveTo(5 * shipScale, -5 * shipScale);
-              context.lineTo(30 * shipScale, -25 * shipScale);
-              context.lineTo(25 * shipScale, -10 * shipScale);
-              context.closePath();
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, -5 * shipScale);
+              ctx.lineTo(30 * shipScale, -25 * shipScale);
+              ctx.lineTo(25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
             }
             
             // Top left wing second
             if (completeness > 0.45) {
-              context.beginPath();
-              context.moveTo(-5 * shipScale, -5 * shipScale);
-              context.lineTo(-30 * shipScale, -25 * shipScale);
-              context.lineTo(-25 * shipScale, -10 * shipScale);
-              context.closePath();
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, -5 * shipScale);
+              ctx.lineTo(-30 * shipScale, -25 * shipScale);
+              ctx.lineTo(-25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
             }
             
             // Bottom right wing third
             if (completeness > 0.5) {
-              context.beginPath();
-              context.moveTo(5 * shipScale, 15 * shipScale);
-              context.lineTo(30 * shipScale, 35 * shipScale);
-              context.lineTo(25 * shipScale, 20 * shipScale);
-              context.closePath();
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, 15 * shipScale);
+              ctx.lineTo(30 * shipScale, 35 * shipScale);
+              ctx.lineTo(25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
             }
             
             // Bottom left wing last
             if (completeness > 0.55) {
-              context.beginPath();
-              context.moveTo(-5 * shipScale, 15 * shipScale);
-              context.lineTo(-30 * shipScale, 35 * shipScale);
-              context.lineTo(-25 * shipScale, 20 * shipScale);
-              context.closePath();
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, 15 * shipScale);
+              ctx.lineTo(-30 * shipScale, 35 * shipScale);
+              ctx.lineTo(-25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
             }
             
             // Fill wings
             if (completeness > 0.65) {
-              context.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
               
               // Fill all wings
-              context.beginPath();
-              context.moveTo(5 * shipScale, -5 * shipScale);
-              context.lineTo(30 * shipScale, -25 * shipScale);
-              context.lineTo(25 * shipScale, -10 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, -5 * shipScale);
+              ctx.lineTo(30 * shipScale, -25 * shipScale);
+              ctx.lineTo(25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.fill();
               
-              context.beginPath();
-              context.moveTo(-5 * shipScale, -5 * shipScale);
-              context.lineTo(-30 * shipScale, -25 * shipScale);
-              context.lineTo(-25 * shipScale, -10 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, -5 * shipScale);
+              ctx.lineTo(-30 * shipScale, -25 * shipScale);
+              ctx.lineTo(-25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.fill();
               
-              context.beginPath();
-              context.moveTo(5 * shipScale, 15 * shipScale);
-              context.lineTo(30 * shipScale, 35 * shipScale);
-              context.lineTo(25 * shipScale, 20 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, 15 * shipScale);
+              ctx.lineTo(30 * shipScale, 35 * shipScale);
+              ctx.lineTo(25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
               
-              context.beginPath();
-              context.moveTo(-5 * shipScale, 15 * shipScale);
-              context.lineTo(-30 * shipScale, 35 * shipScale);
-              context.lineTo(-25 * shipScale, 20 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, 15 * shipScale);
+              ctx.lineTo(-30 * shipScale, 35 * shipScale);
+              ctx.lineTo(-25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
             }
           }
           
@@ -870,8 +867,8 @@
             // Animate the time distortion waves
             const warpTime = performance.now() / 600;
             
-            context.setLineDash([3, 3]);
-            context.strokeStyle = "rgba(255, 100, 255, 0.5)";
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = "rgba(255, 100, 255, 0.5)";
             
             // Dynamic waves that pulse outward
             const waveCount = 3;
@@ -879,126 +876,126 @@
               const wavePhase = (i / waveCount + warpTime) % 1;
               const waveSize = 15 * shipScale * (0.5 + wavePhase);
               
-              context.beginPath();
-              context.arc(0, 0, waveSize, 0, Math.PI * 2);
-              context.stroke();
+              ctx.beginPath();
+              ctx.arc(0, 0, waveSize, 0, Math.PI * 2);
+              ctx.stroke();
             }
             
-            context.setLineDash([]);
+            ctx.setLineDash([]);
           }
         }
         
         function drawOdysseusSchematic(completeness) {
-          context.strokeStyle = "rgba(0, 200, 255, 0.8)";
-          context.fillStyle = "rgba(0, 100, 150, 0.2)";
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
           
           // Draw trireme-like hull
           if (completeness > 0.1) {
-            context.beginPath();
-            context.moveTo(0, -35 * shipScale);
-            context.lineTo(15 * shipScale, -10 * shipScale);
-            context.lineTo(20 * shipScale, 20 * shipScale);
-            context.lineTo(-20 * shipScale, 20 * shipScale);
-            context.lineTo(-15 * shipScale, -10 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -35 * shipScale);
+            ctx.lineTo(15 * shipScale, -10 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.lineTo(-15 * shipScale, -10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
             
             // Measurement lines - ancient Greek mathematics style
             if (completeness > 0.15 && completeness < 0.35) {
-              context.setLineDash([5, 5]);
-              context.strokeStyle = "rgba(255, 255, 255, 0.3)";
+              ctx.setLineDash([5, 5]);
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
               
               // Golden ratio guides
               const goldenRatio = 1.618;
               
               // Horizontal golden ratio
-              context.beginPath();
-              context.moveTo(-30 * shipScale, 0);
-              context.lineTo(30 * shipScale, 0);
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(-30 * shipScale, 0);
+              ctx.lineTo(30 * shipScale, 0);
+              ctx.stroke();
               
               // Vertical golden ratio
-              context.beginPath();
-              context.moveTo(0, -40 * shipScale);
-              context.lineTo(0, 40 * shipScale);
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(0, -40 * shipScale);
+              ctx.lineTo(0, 40 * shipScale);
+              ctx.stroke();
               
               // Restore normal line style
-              context.setLineDash([]);
-              context.strokeStyle = "rgba(0, 200, 255, 0.8)";
+              ctx.setLineDash([]);
+              ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
             }
             
             // Fill hull later
             if (completeness > 0.4) {
-              context.fillStyle = "rgba(0, 100, 150, 0.2)";
-              context.fill();
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fill();
             }
           }
           
           // Draw sail-like energy collectors - second phase
           if (completeness > 0.5) {
             // Right sail first
-            context.beginPath();
-            context.moveTo(0, -10 * shipScale);
-            context.lineTo(0, -30 * shipScale);
-            context.lineTo(25 * shipScale, -25 * shipScale);
-            context.lineTo(15 * shipScale, -5 * shipScale);
-            context.closePath();
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -10 * shipScale);
+            ctx.lineTo(0, -30 * shipScale);
+            ctx.lineTo(25 * shipScale, -25 * shipScale);
+            ctx.lineTo(15 * shipScale, -5 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
             
             // Left sail with slight delay
             if (completeness > 0.55) {
-              context.beginPath();
-              context.moveTo(0, -10 * shipScale);
-              context.lineTo(0, -30 * shipScale);
-              context.lineTo(-25 * shipScale, -25 * shipScale);
-              context.lineTo(-15 * shipScale, -5 * shipScale);
-              context.closePath();
-              context.stroke();
+              ctx.beginPath();
+              ctx.moveTo(0, -10 * shipScale);
+              ctx.lineTo(0, -30 * shipScale);
+              ctx.lineTo(-25 * shipScale, -25 * shipScale);
+              ctx.lineTo(-15 * shipScale, -5 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
             }
             
             // Fill sails with energy pattern
             if (completeness > 0.65) {
-              context.fillStyle = "rgba(0, 200, 150, 0.2)";
+              ctx.fillStyle = "rgba(0, 200, 150, 0.2)";
               
               // Right sail
-              context.beginPath();
-              context.moveTo(0, -10 * shipScale);
-              context.lineTo(0, -30 * shipScale);
-              context.lineTo(25 * shipScale, -25 * shipScale);
-              context.lineTo(15 * shipScale, -5 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(0, -10 * shipScale);
+              ctx.lineTo(0, -30 * shipScale);
+              ctx.lineTo(25 * shipScale, -25 * shipScale);
+              ctx.lineTo(15 * shipScale, -5 * shipScale);
+              ctx.closePath();
+              ctx.fill();
               
               // Left sail
-              context.beginPath();
-              context.moveTo(0, -10 * shipScale);
-              context.lineTo(0, -30 * shipScale);
-              context.lineTo(-25 * shipScale, -25 * shipScale);
-              context.lineTo(-15 * shipScale, -5 * shipScale);
-              context.closePath();
-              context.fill();
+              ctx.beginPath();
+              ctx.moveTo(0, -10 * shipScale);
+              ctx.lineTo(0, -30 * shipScale);
+              ctx.lineTo(-25 * shipScale, -25 * shipScale);
+              ctx.lineTo(-15 * shipScale, -5 * shipScale);
+              ctx.closePath();
+              ctx.fill();
               
               // Add energy line pattern
               if (completeness > 0.7) {
-                context.strokeStyle = "rgba(0, 255, 220, 0.3)";
+                ctx.strokeStyle = "rgba(0, 255, 220, 0.3)";
                 
                 // Energy flowing through sails - right side
                 for (let i = 0; i < 5; i++) {
                   const yOffset = -25 * shipScale + i * 5 * shipScale;
-                  context.beginPath();
-                  context.moveTo(0, yOffset);
-                  context.lineTo(20 * shipScale - i * 3 * shipScale, yOffset + 5 * shipScale);
-                  context.stroke();
+                  ctx.beginPath();
+                  ctx.moveTo(0, yOffset);
+                  ctx.lineTo(20 * shipScale - i * 3 * shipScale, yOffset + 5 * shipScale);
+                  ctx.stroke();
                 }
                 
                 // Energy flowing through sails - left side
                 for (let i = 0; i < 5; i++) {
                   const yOffset = -25 * shipScale + i * 5 * shipScale;
-                  context.beginPath();
-                  context.moveTo(0, yOffset);
-                  context.lineTo(-20 * shipScale + i * 3 * shipScale, yOffset + 5 * shipScale);
-                  context.stroke();
+                  ctx.beginPath();
+                  ctx.moveTo(0, yOffset);
+                  ctx.lineTo(-20 * shipScale + i * 3 * shipScale, yOffset + 5 * shipScale);
+                  ctx.stroke();
                 }
               }
             }
@@ -1010,16 +1007,16 @@
             const eyeTime = performance.now() / 500;
             const pulseSize = 1 + Math.sin(eyeTime) * 0.2;
             
-            context.strokeStyle = "rgba(0, 255, 200, 0.6)";
+            ctx.strokeStyle = "rgba(0, 255, 200, 0.6)";
             
             // Eye outline
-            context.beginPath();
-            context.arc(0, -20 * shipScale, 5 * shipScale * pulseSize, 0, Math.PI * 2);
-            context.stroke();
+            ctx.beginPath();
+            ctx.arc(0, -20 * shipScale, 5 * shipScale * pulseSize, 0, Math.PI * 2);
+            ctx.stroke();
             
             // Eye interior
-            context.fillStyle = "rgba(0, 255, 200, 0.3)";
-            context.fill();
+            ctx.fillStyle = "rgba(0, 255, 200, 0.3)";
+            ctx.fill();
             
             // Vision rays
             if (completeness > 0.9) {
@@ -1030,13 +1027,13 @@
               
               for (let i = 0; i < rayCount; i++) {
                 const angle = (i / rayCount) * Math.PI * 2;
-                context.beginPath();
-                context.moveTo(0, -20 * shipScale);
-                context.lineTo(
+                ctx.beginPath();
+                ctx.moveTo(0, -20 * shipScale);
+                ctx.lineTo(
                   Math.cos(angle) * 30 * shipScale * rayPulse,
                   -20 * shipScale + Math.sin(angle) * 30 * shipScale * rayPulse
                 );
-                context.stroke();
+                ctx.stroke();
               }
             }
           }
@@ -1048,14 +1045,14 @@
         // Scanning lines effect
         const scanLineSpacing = 10;
         const scanLineAlpha = 0.1;
-        context.strokeStyle = `rgba(0, 200, 255, ${scanLineAlpha})`;
-        context.lineWidth = 1;
+        ctx.strokeStyle = `rgba(0, 200, 255, ${scanLineAlpha})`;
+        ctx.lineWidth = 1;
         
         for (let y = 0; y < canvas.height; y += scanLineSpacing) {
-          context.beginPath();
-          context.moveTo(0, y);
-          context.lineTo(canvas.width, y);
-          context.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
         }
         
         // Add some blinking dots/indicators
@@ -1067,14 +1064,14 @@
           const blink = Math.sin((realTime / 500) + i) > 0;
           
           if (blink) {
-            context.fillStyle = "rgba(0, 255, 200, 0.7)";
+            ctx.fillStyle = "rgba(0, 255, 200, 0.7)";
           } else {
-            context.fillStyle = "rgba(0, 100, 150, 0.3)";
+            ctx.fillStyle = "rgba(0, 100, 150, 0.3)";
           }
           
-          context.beginPath();
-          context.arc(x, y, 3, 0, Math.PI * 2);
-          context.fill();
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
         }
         
         // System status text - specific to each ship type
@@ -1110,8 +1107,8 @@
             systems.push("NAVIGATION", "WEAPONS", "SHIELDS", "THRUSTERS", "COMMS");
         }
         
-        context.textAlign = "right";
-        context.font = "16px monospace";
+        ctx.textAlign = "right";
+        ctx.font = "16px monospace";
         
         for (let i = 0; i < systems.length; i++) {
           // Slower, more deliberate system initialization
@@ -1138,15 +1135,15 @@
             statusColor = "rgba(0, 255, 100, 0.8)";
           }
           
-          context.fillStyle = "rgba(200, 200, 255, 0.8)";
-          context.fillText(systems[i] + ":", canvas.width - 150, canvas.height - 100 + (i * 20));
+          ctx.fillStyle = "rgba(200, 200, 255, 0.8)";
+          ctx.fillText(systems[i] + ":", canvas.width - 150, canvas.height - 100 + (i * 20));
           
-          context.fillStyle = statusColor;
-          context.fillText(statusText, canvas.width - 20, canvas.height - 100 + (i * 20));
+          ctx.fillStyle = statusColor;
+          ctx.fillText(statusText, canvas.width - 20, canvas.height - 100 + (i * 20));
         }
         
-        context.textAlign = "center"; // Reset text alignment
-        context.restore();
+        ctx.textAlign = "center"; // Reset text alignment
+        ctx.restore();
       }
       
       // Function to toggle all sounds (music and effects)
@@ -1332,22 +1329,60 @@
         }
       }
       
-      // Function to start gameplay music - simplified without loading screen
+      // Function to start gameplay music with delay
       function startGameplayMusic() {
-        // Start the gameplay music
-        if (currentMusicTrack !== "gameplay") {
-          bgMusic.pause();
-          bgMusic.src = "ingame_music.mp3";
-          bgMusic.load();
-          if (musicEnabled) {
-            bgMusic.volume = 0.7; // Increased volume for gameplay music
-            bgMusic.play().catch(err => console.error("Error playing gameplay music:", err));
+        // Set loading flag to pause game updates
+        isLoading = true;
+        
+        // Disable all sounds during loading
+        disableSounds();
+        
+        // Show loading screen
+        document.getElementById('loading-screen').style.display = 'flex';
+        document.getElementById('loading-bar').style.width = '0%';
+        
+        // Preload resources
+        const ingameMusic = new Audio("ingame_music.mp3");
+        
+        // Loading animation - slower to give 5 seconds total
+        let loadProgress = 0;
+        const loadInterval = setInterval(() => {
+          // Slower progress to make it last 5 seconds
+          loadProgress += 2;
+          document.getElementById('loading-bar').style.width = loadProgress + '%';
+          
+          if (loadProgress >= 100) {
+            clearInterval(loadInterval);
+            
+            // Hide loading screen and start the game
+            setTimeout(() => {
+              // First reset all game objects
+              resetGameState();
+              
+              // Then hide loading screen
+              document.getElementById('loading-screen').style.display = 'none';
+              
+              // Start the gameplay music
+              if (currentMusicTrack !== "gameplay") {
+                bgMusic.pause();
+                bgMusic.src = "ingame_music.mp3";
+                bgMusic.load();
+                if (musicEnabled) {
+                  bgMusic.play().catch(err => console.error("Error playing gameplay music:", err));
+                }
+                currentMusicTrack = "gameplay";
+              } else if (musicEnabled && bgMusic.paused) {
+                bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
+              }
+              
+              // Restore sounds to original state
+              restoreSounds();
+              
+              // Release the loading flag to allow game updates
+              isLoading = false;
+            }, 500);
           }
-          currentMusicTrack = "gameplay";
-        } else if (musicEnabled && bgMusic.paused) {
-          bgMusic.volume = 0.7; // Also ensure volume when resuming
-          bgMusic.play().catch(err => console.error("Error resuming gameplay music:", err));
-        }
+        }, 100); // 50 steps × 100ms = 5000ms (5 seconds)
       }
 
       // Add error handling for music loading
@@ -1413,7 +1448,6 @@
       
       // Function to start a transition between game states
       function startTransition(fromState, toState) {
-        // Make all transitions use the transition state
         transitionEffects.active = true;
         transitionEffects.progress = 0;
         transitionEffects.startTime = performance.now() / 1000;
@@ -1421,18 +1455,6 @@
         transitionEffects.targetState = toState;
         transitionEffects.slideOffset = 0;
         transitionEffects.musicFadeValue = 1.0;
-        
-        // Use a longer transition for ship animations (8 seconds)
-        if (fromState === GAME_STATE.SHIP_SELECT && toState === GAME_STATE.PLAYING) {
-          // Longer transition with loading for ship selection to gameplay
-          transitionEffects.duration = 8.0;
-          
-          // Preload resources during this transition
-          loadResources();
-        } else {
-          // Normal transition for other state changes
-          transitionEffects.duration = 5.5;
-        }
         
         createTransitionParticles();
         
@@ -1443,6 +1465,7 @@
         }
         
         // Update the game state to the transition state
+        // Use a common transition state for all transitions
         updateGameState(GAME_STATE.TRANSITION_TO_SHIP);
       }
       
@@ -1457,67 +1480,6 @@
         
         // Draw remaining UI elements
         drawHealthBar();
-      }
-      
-      // Variables for resource loading
-      // These variables are used by both the transition and loading systems
-      if (typeof totalResources === 'undefined') {
-        var totalResources = 0;
-      }
-      if (typeof loadedResources === 'undefined') {
-        var loadedResources = 0;
-      }
-      var resourcesLoaded = false;
-      
-      // Function to load resources during ship transition
-      function loadResources() {
-        // Reset loading progress
-        loadedResources = 0;
-        resourcesLoaded = false;
-        
-        // Resources to preload
-        const audioElements = [
-          // Main audio tracks
-          new Audio('menu_music.mp3'),
-          new Audio('ingame_music.mp3'),
-          // Sound effects
-          powerUpSound, victorySound, defeatSound,
-          new Audio('mixkit-achievement-bell-600.wav'),
-          new Audio(explosionSoundURL),
-          new Audio('retro-explode.mp3'),
-          new Audio('small-explosion.mp3')
-        ];
-        
-        // Preload any images
-        const imageSources = [
-          'favicon.ico'
-        ];
-        
-        // Initialize resource counter
-        totalResources = audioElements.length + imageSources.length + 5; // Audio + Images + Initialization steps
-        
-        // Start preloading resources
-        preloadAudio(audioElements);
-        preloadImages(imageSources);
-        
-        // Initialization steps with slight delays
-        setTimeout(() => { loadingProgress(); }, 1000);
-        setTimeout(() => { loadingProgress(); }, 2000);
-        setTimeout(() => { loadingProgress(); }, 3000);
-        setTimeout(() => { loadingProgress(); }, 4000);
-        setTimeout(() => { startGameplayMusic(); loadingProgress(); }, 5000);
-      }
-      
-      // Function to update loading progress
-      function loadingProgress(increment = 1) {
-        loadedResources += increment;
-        
-        // Check if all resources are loaded
-        if (loadedResources >= totalResources && !resourcesLoaded) {
-          resourcesLoaded = true;
-          resourcesPreloaded = true; // Set both flags to ensure compatibility
-          console.log("All resources loaded for gameplay");
-        }
       }
       
       // Function to render the transition between screens
@@ -1541,15 +1503,7 @@
         if (transitionEffects.progress < fadeOutEnd) {
           // Fade out the source state
           const fadeOutProgress = transitionEffects.progress / fadeOutEnd;
-          
-          // Calculate slide offset - but NOT for the ship selection screen
-          if (transitionEffects.sourceState !== GAME_STATE.SHIP_SELECT) {
-            // Normal slide for other screens
-            transitionEffects.slideOffset = canvas.width * fadeOutProgress * -0.3; // Slide left (gentler)
-          } else {
-            // No slide for ship selection - keep it centered
-            transitionEffects.slideOffset = 0;
-          }
+          transitionEffects.slideOffset = canvas.width * fadeOutProgress * -0.3; // Slide left (gentler)
           
           // Draw the source state with fading and sliding
           ctx.save();
@@ -1616,26 +1570,10 @@
           
           // After transition completes
           if (transitionEffects.progress >= 1.0) {
-            // Transition is complete
+            // Transition is complete, switch to the target state
+            updateGameState(transitionEffects.targetState);
             transitionEffects.active = false;
             transitionEffects.setupPhase = false;
-            
-            // Special handling for transition to PLAYING - ensure loading is complete
-            if (transitionEffects.targetState === GAME_STATE.PLAYING) {
-              // Start gameplay music before state change
-              startGameplayMusic();
-              
-              // Force resource loading to complete
-              resourcesLoaded = true;
-              resourcesPreloaded = true;
-              
-              // Proceed to gameplay
-              console.log("Starting gameplay after transition and loading");
-              window.gameState = GAME_STATE.PLAYING;
-            } else {
-              // For other transitions, just update the game state
-              updateGameState(transitionEffects.targetState);
-            }
           }
         }
         
@@ -1733,17 +1671,6 @@
       // Ship selection menu
       let selectedShipMenuItem = 0;
       
-      // Transition animation for ship selection
-      let shipTransition = {
-        active: false,
-        progress: 0,
-        from: 0,
-        to: 0,
-        startTime: 0,
-        duration: 400, // ms
-        isSelectionConfirmed: false // Flag for final selection fade
-      };
-      
       // Ships and their descriptions - moved to global scope for wider accessibility
       const ships = [
         {
@@ -1810,19 +1737,53 @@
       loadHighScores();
       
       // Resource loading and game initialization system
-      // Note: We're now using the shared totalResources and loadedResources variables
-      var resourcesPreloaded = false;
+      let totalResources = 0;
+      let loadedResources = 0;
+      let resourcesPreloaded = false;
       
-      // Function to update loading progress (simplified - no longer uses loading screen)
+      // Function to update loading progress and render ship setup animations
       function updateLoadingProgress(increment = 1) {
         loadedResources += increment;
         const percentage = Math.min(100, Math.floor((loadedResources / totalResources) * 100));
+        const progress = percentage / 100;
+        document.getElementById('loading-bar').style.width = percentage + '%';
         
-        // If all resources are loaded, set the flags
+        // Update ship initialization animation
+        const loadingCanvas = document.querySelector('#loading-screen canvas');
+        if (loadingCanvas) {
+          const loadingAnimCtx = loadingCanvas.getContext('2d');
+          loadingAnimCtx.clearRect(0, 0, loadingCanvas.width, loadingCanvas.height);
+          
+          // Call the ship setup animation with current progress
+          drawShipSetupPhase.call({ctx: loadingAnimCtx}, progress);
+        }
+        
+        // If all resources are loaded, hide loading screen and start game
         if (loadedResources >= totalResources && !resourcesPreloaded) {
           resourcesPreloaded = true;
-          resourcesLoaded = true; // Set both flags to ensure compatibility
-          console.log("Loading complete - resources ready");
+          
+          // Start the actual game when loading is complete
+          setTimeout(() => {
+            document.getElementById('loading-screen').style.opacity = '0';
+            setTimeout(() => {
+              document.getElementById('loading-screen').style.display = 'none';
+              
+              // Make sure the canvas is visible
+              canvas.style.visibility = 'visible';
+              
+              // Remove our loading canvas
+              const loadingCanvas = document.querySelector('#loading-screen canvas');
+              if (loadingCanvas) {
+                loadingCanvas.remove();
+              }
+              
+              // Set game state to playing to actually start the game
+              // Use direct assignment to avoid our interceptor
+              window.gameState = GAME_STATE.PLAYING;
+              
+              console.log("Loading complete - starting game");
+            }, 500);
+          }, 200);
         }
       }
       
@@ -1831,17 +1792,17 @@
         audioArray.forEach(audio => {
           if (audio.src) {
             audio.addEventListener('canplaythrough', () => {
-              loadingProgress();
+              updateLoadingProgress();
             }, { once: true });
             
             // Handle errors during loading
             audio.addEventListener('error', () => {
               console.warn('Failed to load audio:', audio.src);
-              loadingProgress();
+              updateLoadingProgress();
             }, { once: true });
           } else {
             // If audio has no source, count it as already loaded
-            loadingProgress();
+            updateLoadingProgress();
           }
         });
       }
@@ -1854,12 +1815,12 @@
           const img = new Image();
           
           img.onload = () => {
-            loadingProgress();
+            updateLoadingProgress();
           };
           
           img.onerror = () => {
             console.warn('Failed to load image:', src);
-            loadingProgress();
+            updateLoadingProgress();
           };
           
           img.src = src;
@@ -1869,17 +1830,67 @@
         return images;
       }
       
-      // Function that redirects to the transition-based loading
+      // Function to wrap the normal game start process with loading screen and ship setup animations
       function startGameWithLoading(shipType) {
         // Store the selected ship type
         selectedShipType = shipType;
         
-        console.log("Using transition animation for ship loading");
+        // Set game to temporary loading state
+        const previousGameState = gameState;
+        gameState = "loading";  // Custom state to prevent drawing during loading
         
-        // Simply start the transition - all loading happens in the transition animation
-        startTransition(GAME_STATE.SHIP_SELECT, GAME_STATE.PLAYING);
+        // Reset loading progress
+        loadedResources = 0;
+        resourcesPreloaded = false;
+        document.getElementById('loading-bar').style.width = '0%';
         
-        // Initialize ship based on selected type (will be used by the transition)
+        // Get canvas context for animations
+        const loadingCanvas = document.createElement('canvas');
+        loadingCanvas.width = canvas.width;
+        loadingCanvas.height = canvas.height;
+        loadingCanvas.style.position = 'absolute';
+        loadingCanvas.style.left = '50%';
+        loadingCanvas.style.top = '50%';
+        loadingCanvas.style.transform = 'translate(-50%, -50%)';
+        loadingCanvas.style.zIndex = 2001;
+        
+        // Create a canvas for ship initialization animations
+        const loadingAnimCtx = loadingCanvas.getContext('2d');
+        
+        // Show the loading screen with integrated animations
+        document.getElementById('loading-screen').style.display = 'flex';
+        document.getElementById('loading-screen').style.opacity = '1';
+        document.getElementById('loading-screen').appendChild(loadingCanvas);
+        
+        // Hide the game canvas during loading
+        canvas.style.visibility = 'hidden';
+        
+        // Resources to preload
+        const audioElements = [
+          // Main audio tracks
+          new Audio('menu_music.mp3'),
+          new Audio('ingame_music.mp3'),
+          // Sound effects
+          powerUpSound, victorySound, defeatSound,
+          new Audio('mixkit-achievement-bell-600.wav'),
+          new Audio(explosionSoundURL),
+          new Audio('retro-explode.mp3'),
+          new Audio('small-explosion.mp3')
+        ];
+        
+        // Preload any images
+        const imageSources = [
+          'favicon.ico'
+        ];
+        
+        // Initialize resource counter
+        totalResources = audioElements.length + imageSources.length + 5; // Audio + Images + Initialization steps
+        
+        // Start preloading resources
+        preloadAudio(audioElements);
+        preloadImages(imageSources);
+        
+        // Initialize ship based on selected type
         initializeShip(selectedShipType);
         
         // Reset game variables
@@ -1910,40 +1921,38 @@
           return gameState; 
         },
         set: function(newValue) {
-          // Just update the game state directly - transitions are now handled by startTransition
-          gameState = newValue;
-          
-          // If changing to PLAYING, make sure to initialize the game properly
-          if (newValue === GAME_STATE.PLAYING) {
-            console.log("Game state set to PLAYING");
+          // If transitioning from SHIP_SELECT to PLAYING, show loading screen
+          if (gameState === GAME_STATE.SHIP_SELECT && newValue === GAME_STATE.PLAYING) {
+            console.log("Intercepted game state change: SHIP_SELECT -> PLAYING");
             
-            // Get the ship based on the selected ship menu item
-            let shipTypeToUse = selectedShipType || SHIP_TYPE.DEFAULT;
-            if (typeof selectedShipMenuItem !== 'undefined') {
-              switch(selectedShipMenuItem) {
-                case 0: shipTypeToUse = SHIP_TYPE.DEFAULT; break;
-                case 1: shipTypeToUse = SHIP_TYPE.LASER; break;
-                case 2: shipTypeToUse = SHIP_TYPE.MISSILE; break;
-                case 3: shipTypeToUse = SHIP_TYPE.XWING; break;
-                case 4: shipTypeToUse = SHIP_TYPE.ODYSSEUS; break;
-              }
+            // Call startGameWithLoading with the current selected ship type
+            let shipTypeToUse;
+            switch(selectedShipMenuItem) {
+              case 0: shipTypeToUse = SHIP_TYPE.DEFAULT; break;
+              case 1: shipTypeToUse = SHIP_TYPE.LASER; break;
+              case 2: shipTypeToUse = SHIP_TYPE.MISSILE; break;
+              case 3: shipTypeToUse = SHIP_TYPE.XWING; break;
+              default: shipTypeToUse = SHIP_TYPE.DEFAULT;
             }
             
-            // Initialize the ship if it hasn't already been initialized
-            if (typeof spaceship === 'undefined' || !spaceship.initialized) {
-              // Initialize the ship with the selected type
-              initializeShip(shipTypeToUse);
-            }
+            // Use our loading function instead of direct state change
+            startGameWithLoading(shipTypeToUse);
+            
+            // Set to a temporary state during loading
+            gameState = "loading";
+            return;
           }
+          
+          // For all other state changes, just set the state
+          gameState = newValue;
         }
       });
       
-      // Monkey patch the update function
+      // Monkey patch the update function to respect loading state
       const originalUpdate = window.update || function(){};
       window.update = function(dt) {
-        // Skip updates during transitions
-        if (gameState === GAME_STATE.TRANSITION_TO_SHIP) {
-          // Allow transition animation but skip gameplay updates
+        // Skip all updates while loading is in progress
+        if (isLoading || gameState === "loading") {
           return;
         }
         
@@ -1957,6 +1966,9 @@
       
       // Initialize basic elements when the page loads
       document.addEventListener('DOMContentLoaded', function() {
+        // Set loading screen transition
+        document.getElementById('loading-screen').style.transition = 'opacity 0.5s ease';
+        
         // Initialize sound pools before trying to use them
         createSoundPools();
         
@@ -2006,7 +2018,7 @@
       const hitSoundPool = [];
       for (let i = 0; i < HIT_SOUND_POOL_SIZE; i++) {
         let a = new Audio(hitSoundSrc);
-        a.volume = 0.01; // Even lower volume for hit sounds
+        a.volume = 0.05; // Greatly reduced base volume for all hit sounds
         hitSoundPool.push(a);
       }
       let nextHitSoundIndex = 0;
@@ -2021,7 +2033,7 @@
         if (now - lastHitSoundTime > HIT_SOUND_THROTTLE) {
           if (soundEnabled) {
             hitSoundPool[nextHitSoundIndex].currentTime = 0;
-            hitSoundPool[nextHitSoundIndex].volume = volume || 0.02; // Much lower default volume
+            hitSoundPool[nextHitSoundIndex].volume = volume || 0.1;
             hitSoundPool[nextHitSoundIndex].play();
             nextHitSoundIndex = (nextHitSoundIndex + 1) % HIT_SOUND_POOL_SIZE;
             lastHitSoundTime = now;
@@ -3643,7 +3655,7 @@
         // Play missile firing sound
         if (soundEnabled) {
           bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-          bulletSoundPool[nextBulletSoundIndex].volume = 0.2; // Louder for missiles (reduced by 50%)
+          bulletSoundPool[nextBulletSoundIndex].volume = 0.4; // Louder for missiles
           bulletSoundPool[nextBulletSoundIndex].play();
           nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
         }
@@ -3996,7 +4008,7 @@
                 // Play laser activation sound
                 if (soundEnabled) {
                   bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-                  bulletSoundPool[nextBulletSoundIndex].volume = 0.2; // Reduced by 50%
+                  bulletSoundPool[nextBulletSoundIndex].volume = 0.4;
                   bulletSoundPool[nextBulletSoundIndex].play();
                   nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
                 }
@@ -4029,7 +4041,7 @@
                 // Play activation sound
                 if (soundEnabled) {
                   bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-                  bulletSoundPool[nextBulletSoundIndex].volume = 0.25; // Reduced by 50%
+                  bulletSoundPool[nextBulletSoundIndex].volume = 0.5;
                   bulletSoundPool[nextBulletSoundIndex].play();
                   nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
                 }
@@ -4272,14 +4284,14 @@
           case GAME_STATE.SHIP_SELECT:
             // Handle ship selection navigation
             if (key === "arrowleft" || code === "ArrowLeft") {
-              // Simple navigation without transition
+              // Navigate left in ship selection
               selectedShipMenuItem = (selectedShipMenuItem - 1 + 5) % 5; // Updated for 5 ships including Odysseus
               e.preventDefault();
               return;
             }
             
             if (key === "arrowright" || code === "ArrowRight") {
-              // Simple navigation without transition
+              // Navigate right in ship selection
               selectedShipMenuItem = (selectedShipMenuItem + 1) % 5; // Updated for 5 ships including Odysseus
               e.preventDefault();
               return;
@@ -4290,9 +4302,6 @@
               // Get the ship based on the currently selected menu item
               const selectedShip = ships[selectedShipMenuItem];
               selectedShipType = selectedShip.type;
-              
-              // Don't use the ship selection fade, let the transition system handle it
-              shipTransition.active = false; // Reset any active transition
               
               // Reset game variables
               score = 0;
@@ -4306,10 +4315,9 @@
               // Initialize ship based on selected type
               initializeShip(selectedShipType);
               
-              // Directly transition to gameplay - skip the ship selection fade
               // Start a transition to the game with initialization animation for the selected ship
+              // This must come after initializing the ship and variables
               startTransition(GAME_STATE.SHIP_SELECT, GAME_STATE.PLAYING);
-              
               e.preventDefault();
               return;
             }
@@ -5220,26 +5228,9 @@
       let g_timeWarpCharge = 0;
       let g_timeWarpOnCooldown = true;
       
-      // Create spaceship object early to avoid undefined errors
-      if (typeof window.spaceship === 'undefined') {
-        window.spaceship = {
-          initialized: false,
-          x: 0, y: 0, vx: 0, vy: 0, angle: 0, 
-          hitPoints: 5, type: SHIP_TYPE.DEFAULT
-        };
-      }
-      
       // Initialize ship based on selected type
       function initializeShip(shipType) {
         console.log("Initializing ship of type:", shipType);
-        
-        // Create spaceship object if it doesn't exist yet
-        if (typeof spaceship === 'undefined') {
-          window.spaceship = {};
-        }
-        
-        // Mark ship as initialized
-        spaceship.initialized = true;
         
         // Reset basic properties
         spaceship.x = canvas.width / 2;
@@ -5428,7 +5419,7 @@
         // Play missile firing sound
         if (soundEnabled) {
           bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-          bulletSoundPool[nextBulletSoundIndex].volume = 0.25; // Louder for super missiles (reduced by 50%)
+          bulletSoundPool[nextBulletSoundIndex].volume = 0.5; // Louder for super missiles
           bulletSoundPool[nextBulletSoundIndex].play();
           nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
         }
@@ -5508,7 +5499,7 @@
         if (soundEnabled) {
           // Use an existing sound for now
           bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-          bulletSoundPool[nextBulletSoundIndex].volume = 0.35; // Reduced by 50%
+          bulletSoundPool[nextBulletSoundIndex].volume = 0.7;
           bulletSoundPool[nextBulletSoundIndex].play();
           nextBulletSoundIndex = (nextBulletSoundIndex + 1) % bulletSoundPool.length;
         }
@@ -9364,18 +9355,6 @@
         // Preload all ship assets on first draw to prevent freezing
         preloadShipAssets();
         
-        // Update transition animation if active
-        if (shipTransition.active) {
-          const now = performance.now();
-          const elapsed = now - shipTransition.startTime;
-          shipTransition.progress = Math.min(elapsed / shipTransition.duration, 1.0);
-          
-          // Check if transition is complete
-          if (shipTransition.progress >= 1.0) {
-            shipTransition.active = false;
-          }
-        }
-        
         ctx.fillStyle = "white";
         ctx.font = "36px sans-serif";
         ctx.textAlign = "center";
@@ -9415,32 +9394,13 @@
           }
         };
         
-        // Get both current and previous ships for transition
-        let currentShip, previousShip, currentStats, fadeOpacity;
+        // Ships and their descriptions - using the global ships array
         
-        if (shipTransition.active) {
-          if (shipTransition.isSelectionConfirmed) {
-            // Fade out transition for selected ship
-            currentShip = ships[selectedShipMenuItem];
-            currentStats = shipStats[currentShip.type];
-            
-            // Fade out the entire card (fadeOpacity reduces to 0)
-            fadeOpacity = 1.0 - shipTransition.progress;
-          } else {
-            // Normal navigation - not used anymore
-            currentShip = ships[shipTransition.to];
-            previousShip = ships[shipTransition.from];
-            currentStats = shipStats[currentShip.type];
-            fadeOpacity = shipTransition.progress;
-          }
-        } else {
-          // Normal display - just the current ship
-          currentShip = ships[selectedShipMenuItem];
-          currentStats = shipStats[currentShip.type];
-          fadeOpacity = 1.0;
-        }
+        // We'll only show the currently selected ship
+        const currentShip = ships[selectedShipMenuItem];
+        const currentStats = shipStats[currentShip.type];
         
-        // Create temporary spaceship objects for display
+        // Create a temporary spaceship object for the selection screen to avoid missing properties
         const tempShipForDisplay = {
           x: 0,
           y: 0,
@@ -9486,130 +9446,14 @@
           ] : null
         };
         
-        // Create previous ship object for transitions
-        let tempPrevShipForDisplay;
-        if (shipTransition.active) {
-          tempPrevShipForDisplay = {
-            x: 0,
-            y: 0,
-            size: SHIP_SIZE,
-            angle: 0,
-            vx: 0,
-            vy: 0,
-            thrusting: false,
-            type: previousShip.type,
-            // X-Wing specific properties
-            animeCooldown: true,
-            animeChargeLevel: 50,
-            animeCooldownTimer: 0,
-            animeMaxCooldown: 20,
-            // Odysseus specific properties
-            oracleReady: true,
-            oracleActive: false,
-            oracleCooldown: false,
-            piercingShots: true,
-            // Initialize orbs for selection menu
-            orbs: previousShip.type === SHIP_TYPE.ODYSSEUS ? [
-              { 
-                angle: 0, 
-                distance: SHIP_SIZE * 1.2, 
-                size: SHIP_SIZE * 0.18,
-                orbitSpeed: 1.5,
-                color: "rgba(60, 220, 220, 0.9)"
-              },
-              { 
-                angle: Math.PI * 2/3, 
-                distance: SHIP_SIZE * 1.2, 
-                size: SHIP_SIZE * 0.18,
-                orbitSpeed: 1.5,
-                color: "rgba(60, 220, 220, 0.9)"
-              },
-              { 
-                angle: Math.PI * 4/3, 
-                distance: SHIP_SIZE * 1.2, 
-                size: SHIP_SIZE * 0.18,
-                orbitSpeed: 1.5,
-                color: "rgba(60, 220, 220, 0.9)"
-              }
-            ] : null
-          };
-        }
-        
         // Layout for a single card
         const centerX = canvas.width / 2;
         const cardWidth = canvas.width * 0.4;  // Card width
         const cardHeight = canvas.height * 0.55; // Card height
         const cardY = canvas.height * 0.3;
         
-        // Draw cards with transition effect
-        // If in transition but NOT selection confirmation, draw the previous ship
-        if (shipTransition.active && !shipTransition.isSelectionConfirmed && tempPrevShipForDisplay) {
-          const prevStats = shipStats[previousShip.type];
-          
-          // Draw the previous ship card with fading out opacity
-          ctx.save();
-          
-          // Reduce opacity based on transition progress
-          ctx.globalAlpha = 1.0 - fadeOpacity;
-          
-          // Draw the previous ship card
-          // Intense glow effect
-          ctx.shadowColor = "rgba(0, 220, 255, 0.9)";
-          ctx.shadowBlur = 20;
-          
-          // Dark tech panel background
-          ctx.fillStyle = "rgba(5, 15, 35, 0.85)";
-          ctx.strokeStyle = "rgba(0, 240, 255, 0.9)";
-          ctx.lineWidth = 3;
-          
-          // Draw card background - in the center
-          roundRect(ctx, centerX - cardWidth/2, cardY, cardWidth, cardHeight, 15);
-          
-          // Draw grid pattern
-          ctx.lineWidth = 0.5;
-          ctx.strokeStyle = "rgba(0, 150, 255, 0.25)";
-          
-          // Horizontal grid lines
-          for (let y = cardY + 50; y < cardY + cardHeight; y += 20) {
-              ctx.beginPath();
-              ctx.moveTo(centerX - cardWidth/2, y);
-              ctx.lineTo(centerX + cardWidth/2, y);
-              ctx.stroke();
-          }
-          
-          // Vertical grid lines
-          for (let x = centerX - cardWidth/2; x < centerX + cardWidth/2; x += 20) {
-              ctx.beginPath();
-              ctx.moveTo(x, cardY + 50);
-              ctx.lineTo(x, cardY + cardHeight);
-              ctx.stroke();
-          }
-          
-          // Only draw complete details for the previous ship if early in transition
-          if (fadeOpacity < 0.5) {
-            // Draw ship name
-            ctx.font = "bold 20px monospace";
-            ctx.fillStyle = "rgb(0, 255, 255)";
-            ctx.fillText(previousShip.name, centerX, cardY + 30);
-            
-            // Draw the ship image in the card
-            ctx.save();
-            ctx.translate(centerX, cardY + cardHeight * 0.38);
-            ctx.scale(1.8, 1.8); // Make ship bigger
-            drawSpaceship(ctx, tempPrevShipForDisplay);
-            ctx.restore();
-          }
-          
-          ctx.restore();
-        }
-        
         // Draw main card panel with 80s anime tech style
         ctx.save();
-        
-        // Set opacity for current ship based on transition
-        if (shipTransition.active) {
-          ctx.globalAlpha = fadeOpacity;
-        }
         
         // Intense glow effect
         ctx.shadowColor = "rgba(0, 220, 255, 0.9)";
@@ -9620,7 +9464,7 @@
         ctx.strokeStyle = "rgba(0, 240, 255, 0.9)";
         ctx.lineWidth = 3;
         
-        // Draw card background - keeping it centered during transition
+        // Draw card background
         roundRect(ctx, centerX - cardWidth/2, cardY, cardWidth, cardHeight, 15);
         
         // Draw tech grid pattern
@@ -11252,8 +11096,10 @@
         ctx.fillStyle = "black";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Transitions are managed by the transition rendering system
-        // No special loading state needed anymore
+        // If in loading state, don't render game elements
+        if (isLoading || gameState === "loading") {
+          return;
+        }
 
         // For menu screens, use the dedicated menu background
         const isMenuScreen = 
@@ -12514,13 +12360,6 @@
 
       // The main update function
       function update(dt) {
-        // Ensure spaceship exists
-        if (typeof spaceship === 'undefined') {
-          window.spaceship = {};
-          initializeShip(SHIP_TYPE.DEFAULT);
-          console.warn("Spaceship was undefined in update, created default ship");
-        }
-        
         // CRITICAL: Set the global time factor at the start of each update
         // This is needed before any physics calculations
         let timeFactor = 1.0; // Default to normal speed
@@ -12781,7 +12620,7 @@
               // Periodic sound effects for sustained laser
               if (Math.floor(spaceship.laserTimer * 3) % 1 === 0 && soundEnabled) {
                 bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-                bulletSoundPool[nextBulletSoundIndex].volume = 0.1; // Reduced by 50%
+                bulletSoundPool[nextBulletSoundIndex].volume = 0.2;
                 bulletSoundPool[nextBulletSoundIndex].play();
                 nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
               }
@@ -13665,7 +13504,7 @@
                   // Play two sounds simultaneously for a more distinctive effect
                   // Sound 1: normal bullet sound (higher pitch)
                   bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-                  bulletSoundPool[nextBulletSoundIndex].volume = 0.2; // Reduced by 50%
+                  bulletSoundPool[nextBulletSoundIndex].volume = 0.4;
                   bulletSoundPool[nextBulletSoundIndex].playbackRate = 1.5; // Higher pitch for "whoosh" effect
                   bulletSoundPool[nextBulletSoundIndex].play();
                   
@@ -13853,7 +13692,6 @@
             }
           }
           bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
-          bulletSoundPool[nextBulletSoundIndex].volume = 0.2; // Set low volume
           bulletSoundPool[nextBulletSoundIndex].play();
           nextBulletSoundIndex = (nextBulletSoundIndex + 1) % BULLET_SOUND_POOL_SIZE;
           lastBulletTime = 0;
