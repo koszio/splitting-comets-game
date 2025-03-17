@@ -1463,7 +1463,21 @@
         }
         
         // Update the game state to the transition state
+        // Use a common transition state for all transitions
         updateGameState(GAME_STATE.TRANSITION_TO_SHIP);
+      }
+      
+      // Function to draw the game screen (used for transitions)
+      function drawGameScreen() {
+        // Draw comets
+        drawNormalComets();
+        drawBigComets(ctx);
+        
+        // Draw spaceship
+        drawSpaceship();
+        
+        // Draw remaining UI elements
+        drawHealthBar();
       }
       
       // Function to render the transition between screens
@@ -1497,6 +1511,8 @@
           // Draw the source state content
           if (transitionEffects.sourceState === GAME_STATE.DIFFICULTY_SELECT) {
             drawDifficultySelect();
+          } else if (transitionEffects.sourceState === GAME_STATE.SHIP_SELECT) {
+            drawShipSelect();
           }
           
           ctx.restore();
@@ -1514,12 +1530,18 @@
           transitionEffects.setupProgress = setupProgress;
           transitionEffects.setupPhase = true;
           
-          // Draw the ship setup phase
+          // Draw the ship setup phase - we're showing the ship selected in the ship select screen
+          // selectedShipType is already set when the user selects their ship
           drawShipSetupPhase(setupProgress);
           
-          // Start ship selection music near the end of setup phase
-          if (setupProgress > 0.8 && currentMusicTrack !== "shipSelect") {
-            startShipSelectMusic(); // Start the ship selection music
+          // Start appropriate music near the end of setup phase
+          if (setupProgress > 0.8) {
+            // Start appropriate music based on the target state
+            if (transitionEffects.targetState === GAME_STATE.SHIP_SELECT && currentMusicTrack !== "shipSelect") {
+              startShipSelectMusic(); // Start the ship selection music
+            } else if (transitionEffects.targetState === GAME_STATE.PLAYING && currentMusicTrack !== "gameplay") {
+              startGameplayMusic(); // Start the gameplay music
+            }
           }
         }
         
@@ -1537,6 +1559,9 @@
           // Draw the target state content
           if (transitionEffects.targetState === GAME_STATE.SHIP_SELECT) {
             drawShipSelect();
+          } else if (transitionEffects.targetState === GAME_STATE.PLAYING) {
+            // Draw the gameplay screen
+            drawGameScreen();
           }
           
           ctx.restore();
@@ -4207,8 +4232,8 @@
             }
             
             if (key === "enter" || code === "Enter") {
-              // Start the transition to ship selection screen
-              startTransition(GAME_STATE.DIFFICULTY_SELECT, GAME_STATE.SHIP_SELECT);
+              // Go directly to ship selection screen
+              updateGameState(GAME_STATE.SHIP_SELECT);
               // Reset to first ship in the selection
               selectedShipMenuItem = 0;
               e.preventDefault();
@@ -4245,8 +4270,7 @@
               const selectedShip = ships[selectedShipMenuItem];
               selectedShipType = selectedShip.type;
               
-              // Start the game
-              updateGameState(GAME_STATE.PLAYING);
+              // Reset game variables
               score = 0;
               gameTime = 0;
               winTriggered = false;
@@ -4258,7 +4282,9 @@
               // Initialize ship based on selected type
               initializeShip(selectedShipType);
               
-              startGameplayMusic();
+              // Start a transition to the game with initialization animation for the selected ship
+              // This must come after initializing the ship and variables
+              startTransition(GAME_STATE.SHIP_SELECT, GAME_STATE.PLAYING);
               e.preventDefault();
               return;
             }
