@@ -148,14 +148,17 @@
       // Pre-initialize audio sources with constants
       const AUDIO_PATHS = {
         MENU_MUSIC: "menu_music.mp3",
-        GAMEPLAY_MUSIC: "ingame_music.mp3"
+        GAMEPLAY_MUSIC: "ingame_music.mp3",
+        SHIP_SELECT_MUSIC: "bensound-slowmotion.mp3"  // Using existing music file for ship selection
       };
       
       const powerUpSound = new Audio("mixkit-video-game-health-recharge-2837.wav");
       const victorySound = new Audio("mixkit-cheering-crowd-loud-whistle.wav");
       const defeatSound = new Audio("mixkit-arcade-retro-game-over.wav");
+      const transitionSound = new Audio("mixkit-video-game-health-recharge-2837.wav"); // Using existing sound for transition
       victorySound.volume = 0.4;
       defeatSound.volume = 0.3;
+      transitionSound.volume = 0.25;
 
       // Initialize sound system
       let currentMusicTrack = "";
@@ -217,6 +220,928 @@
           // Pause music
           bgMusic.pause();
         }
+      }
+      
+      // Function to draw the ship setup phase
+      function drawShipSetupPhase(progress) {
+        ctx.save();
+        
+        // Background
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Grid effect
+        const gridSize = 30;
+        const gridAlpha = 0.2 + (Math.sin(performance.now() / 1000 * 3) * 0.05);
+        ctx.strokeStyle = `rgba(0, 150, 255, ${gridAlpha})`;
+        ctx.lineWidth = 1;
+        
+        // Draw horizontal grid lines
+        for (let y = 0; y < canvas.height; y += gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+        
+        // Draw vertical grid lines
+        for (let x = 0; x < canvas.width; x += gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
+        }
+        
+        // Draw loading text
+        ctx.font = "24px monospace";
+        ctx.fillStyle = "rgba(0, 200, 255, 0.9)";
+        ctx.textAlign = "center";
+        
+        // Show percentage
+        const percent = Math.floor(progress * 100);
+        ctx.fillText(`SHIP SYSTEMS: ${percent}% INITIALIZED`, canvas.width / 2, canvas.height / 4);
+        
+        // Loading bar
+        const barWidth = 400;
+        const barHeight = 15;
+        const barX = (canvas.width - barWidth) / 2;
+        const barY = canvas.height / 4 + 40;
+        
+        // Bar background
+        ctx.fillStyle = "rgba(0, 50, 100, 0.5)";
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Bar progress
+        ctx.fillStyle = "rgba(0, 200, 255, 0.8)";
+        ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+        
+        // Add pulsing edge to progress bar
+        const pulseSize = 5 + Math.sin(performance.now() / 100) * 3;
+        const pulseX = barX + (barWidth * progress);
+        
+        if (progress < 0.99) {
+          ctx.fillStyle = "rgba(100, 200, 255, 0.8)";
+          ctx.beginPath();
+          ctx.arc(pulseX, barY + barHeight/2, pulseSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        // Ship schematic
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2 + 50;
+        const shipScale = 3.0; // Size of the ship schematic
+        
+        // Draw the ship outlines
+        ctx.strokeStyle = "rgba(0, 200, 255, 0.5)";
+        ctx.lineWidth = 1;
+        
+        // Function to draw the player's selected ship schematic
+        function drawShipSchematic() {
+          // Find the chosen ship based on selectedShipType
+          let shipIndex = 0; // Default to Nova Striker
+          
+          // Find the index of the player's selected ship
+          for (let i = 0; i < ships.length; i++) {
+            if (ships[i].type === selectedShipType) {
+              shipIndex = i;
+              break;
+            }
+          }
+          
+          const ship = ships[shipIndex];
+          const localProgress = progress; // Use the full progress range (0-1) for a single ship
+          
+          // Draw ship name and type
+          ctx.font = "bold 28px monospace";
+          ctx.fillStyle = "rgba(0, 200, 255, 0.9)";
+          ctx.fillText(ship.name, centerX, centerY - 100);
+          
+          ctx.font = "18px monospace";
+          ctx.fillStyle = "rgba(100, 220, 255, 0.8)";
+          ctx.fillText(ship.desc, centerX, centerY - 70);
+          
+          // Draw ship outline based on type
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.lineWidth = 2;
+          
+          // Slower progression through the ship animation stages
+          // First 40% of progress just for initial outline, then gradual component additions
+          const completeness = Math.min(1, localProgress * 1.2); // Slower completion rate
+          
+          // Each ship has a slightly different schematic
+          switch(ship.type) {
+            case SHIP_TYPE.DEFAULT: // Nova Striker
+              drawNovaStrikerSchematic(completeness);
+              break;
+            case SHIP_TYPE.LASER: // Heavy Cruiser
+              drawHeavyCruiserSchematic(completeness);
+              break;
+            case SHIP_TYPE.MISSILE: // Stealth Interceptor
+              drawInterceptorSchematic(completeness);
+              break;
+            case SHIP_TYPE.XWING: // Star Striker
+              drawStarStrikerSchematic(completeness);
+              break;
+            case SHIP_TYPE.ODYSSEUS: // Odysseus
+              drawOdysseusSchematic(completeness);
+              break;
+          }
+          
+          ctx.restore();
+          
+          // Draw ship features - start later in the animation
+          if (localProgress > 0.6) {
+            ctx.textAlign = "left";
+            ctx.font = "16px monospace";
+            
+            // Animate each feature appearing - with slower typing
+            const featCount = ship.features.length;
+            const featuresProgress = (localProgress - 0.6) * 2.5; // 0-1 for features phase (slower progression)
+            
+            for (let i = 0; i < featCount; i++) {
+              // Only show features that have "loaded"
+              if (featuresProgress > (i / featCount)) {
+                const featY = centerY + 100 + (i * 25);
+                
+                // Draw feature with typing effect
+                const feature = ship.features[i];
+                const charCount = feature.length;
+                const visibleChars = Math.floor(charCount * Math.min(1, (featuresProgress - i/featCount) * featCount * 2));
+                const visibleText = feature.substring(0, visibleChars);
+                
+                ctx.fillStyle = "rgba(0, 255, 200, 0.8)";
+                ctx.fillText(`> ${visibleText}`, centerX - 150, featY);
+                
+                // Add blinking cursor at end if still typing
+                if (visibleChars < charCount && Math.sin(performance.now() / 200) > 0) {
+                  const textWidth = ctx.measureText(`> ${visibleText}`).width;
+                  ctx.fillStyle = "rgba(200, 255, 255, 0.9)";
+                  ctx.fillRect(centerX - 150 + textWidth + 2, featY - 12, 8, 2);
+                }
+              }
+            }
+            
+            ctx.textAlign = "center"; // Reset text alignment
+          }
+        }
+        
+        // Draw different ship schematics
+        function drawNovaStrikerSchematic(completeness) {
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+          
+          // Draw ship body outline - very early in the animation
+          if (completeness > 0.05) {
+            // Main body outline only
+            ctx.beginPath();
+            ctx.moveTo(0, -30 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Ship body calculation/measurement lines (appear briefly)
+            if (completeness > 0.1 && completeness < 0.3) {
+              // Add measurement lines
+              ctx.setLineDash([2, 2]);
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+              
+              // Vertical center line
+              ctx.beginPath();
+              ctx.moveTo(0, -40 * shipScale);
+              ctx.lineTo(0, 40 * shipScale);
+              ctx.stroke();
+              
+              // Horizontal measurement
+              ctx.beginPath();
+              ctx.moveTo(-25 * shipScale, 0);
+              ctx.lineTo(25 * shipScale, 0);
+              ctx.stroke();
+              
+              ctx.setLineDash([]);
+              ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+            }
+            
+            // Fill main body later in the animation
+            if (completeness > 0.35) {
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fill();
+            }
+          }
+          
+          // Draw left wing - appear after body outline
+          if (completeness > 0.25) {
+            ctx.beginPath();
+            ctx.moveTo(-15 * shipScale, 0);
+            ctx.lineTo(-30 * shipScale, 15 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+          }
+          
+          // Draw right wing - appear shortly after left wing
+          if (completeness > 0.3) {
+            ctx.beginPath();
+            ctx.moveTo(15 * shipScale, 0);
+            ctx.lineTo(30 * shipScale, 15 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+          }
+          
+          // Fill wings - after both are drawn
+          if (completeness > 0.45) {
+            ctx.save();
+            ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+            
+            // Left wing fill
+            ctx.beginPath();
+            ctx.moveTo(-15 * shipScale, 0);
+            ctx.lineTo(-30 * shipScale, 15 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Right wing fill
+            ctx.beginPath();
+            ctx.moveTo(15 * shipScale, 0);
+            ctx.lineTo(30 * shipScale, 15 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.restore();
+          }
+          
+          // Draw engine - middle of animation
+          if (completeness > 0.6) {
+            // Engine outline
+            ctx.beginPath();
+            ctx.moveTo(-15 * shipScale, 20 * shipScale);
+            ctx.lineTo(15 * shipScale, 20 * shipScale);
+            ctx.lineTo(10 * shipScale, 30 * shipScale);
+            ctx.lineTo(-10 * shipScale, 30 * shipScale);
+            ctx.closePath();
+            ctx.strokeStyle = "rgba(255, 150, 50, 0.7)";
+            ctx.stroke();
+            
+            // Engine glow effect that pulses
+            if (completeness > 0.65) {
+              // Engine interior
+              ctx.fillStyle = "rgba(255, 100, 0, 0.2)";
+              ctx.fill();
+              
+              // Engine exhaust animation with forced animation timing
+              const animTime = performance.now() / 300;
+              const pulseAmount = 0.3 + Math.sin(animTime) * 0.2;
+              const exhaustLength = 15 * shipScale * pulseAmount;
+              
+              // Exhaust gradient
+              const exhaustGradient = ctx.createLinearGradient(
+                0, 30 * shipScale,
+                0, 30 * shipScale + exhaustLength
+              );
+              exhaustGradient.addColorStop(0, "rgba(255, 100, 0, 0.7)");
+              exhaustGradient.addColorStop(0.3, "rgba(255, 160, 0, 0.5)");
+              exhaustGradient.addColorStop(1, "rgba(255, 200, 50, 0)");
+              
+              ctx.fillStyle = exhaustGradient;
+              ctx.beginPath();
+              ctx.moveTo(-8 * shipScale, 30 * shipScale);
+              ctx.lineTo(8 * shipScale, 30 * shipScale);
+              ctx.lineTo(5 * shipScale, 30 * shipScale + exhaustLength);
+              ctx.lineTo(-5 * shipScale, 30 * shipScale + exhaustLength);
+              ctx.closePath();
+              ctx.fill();
+            }
+          }
+          
+          // Draw EMP system - near the end of animation
+          if (completeness > 0.75) {
+            // EMP system diagram
+            ctx.beginPath();
+            ctx.arc(0, 0, 20 * shipScale, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.3)";
+            ctx.setLineDash([2, 3]);
+            ctx.stroke();
+            
+            // Show EMP activation radius
+            if (completeness > 0.85) {
+              // Pulsing EMP field
+              const pulseSize = 1 + Math.sin(performance.now() / 400) * 0.2;
+              
+              ctx.beginPath();
+              ctx.arc(0, 0, 25 * shipScale * pulseSize, 0, Math.PI * 2);
+              ctx.strokeStyle = "rgba(50, 150, 255, 0.2)";
+              ctx.stroke();
+              
+              // EMP energy nodes at key points
+              const nodeCount = 6;
+              ctx.fillStyle = "rgba(100, 200, 255, 0.4)";
+              
+              for (let i = 0; i < nodeCount; i++) {
+                const angle = (i / nodeCount) * Math.PI * 2;
+                const x = Math.cos(angle) * 20 * shipScale;
+                const y = Math.sin(angle) * 20 * shipScale;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 2 * shipScale, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+            
+            ctx.setLineDash([]);
+          }
+          
+          // Final details and highlights - only at the very end
+          if (completeness > 0.95) {
+            // Cockpit detail
+            ctx.fillStyle = "rgba(200, 230, 255, 0.5)";
+            ctx.beginPath();
+            ctx.arc(0, -10 * shipScale, 5 * shipScale, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Ship highlights
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+            ctx.lineWidth = 1;
+            
+            // Highlight along top edge
+            ctx.beginPath();
+            ctx.moveTo(-5 * shipScale, -20 * shipScale);
+            ctx.lineTo(5 * shipScale, -20 * shipScale);
+            ctx.stroke();
+          }
+        }
+        
+        function drawHeavyCruiserSchematic(completeness) {
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+          
+          // Draw main hull - early in animation
+          if (completeness > 0.1) {
+            ctx.beginPath();
+            ctx.moveTo(0, -25 * shipScale);
+            ctx.lineTo(25 * shipScale, 10 * shipScale);
+            ctx.lineTo(15 * shipScale, 30 * shipScale);
+            ctx.lineTo(-15 * shipScale, 30 * shipScale);
+            ctx.lineTo(-25 * shipScale, 10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Measurement lines
+            if (completeness > 0.15 && completeness < 0.35) {
+              ctx.setLineDash([2, 2]);
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+              
+              // Center line
+              ctx.beginPath();
+              ctx.moveTo(0, -35 * shipScale);
+              ctx.lineTo(0, 35 * shipScale);
+              ctx.stroke();
+              
+              ctx.setLineDash([]);
+              ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+            }
+            
+            // Fill hull later
+            if (completeness > 0.4) {
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fill();
+            }
+          }
+          
+          // Draw laser cannon - middle of animation
+          if (completeness > 0.5) {
+            ctx.beginPath();
+            ctx.moveTo(0, -25 * shipScale);
+            ctx.lineTo(0, -40 * shipScale);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.arc(0, -40 * shipScale, 5 * shipScale, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Draw laser beam later
+            if (completeness > 0.8) {
+              // Laser beam effect
+              const beamTime = performance.now() / 500;
+              const beamWidth = 3 + Math.sin(beamTime) * 1;
+              
+              ctx.strokeStyle = "rgba(0, 255, 255, 0.5)";
+              ctx.lineWidth = beamWidth;
+              ctx.setLineDash([5, 5]);
+              ctx.beginPath();
+              ctx.moveTo(0, -45 * shipScale);
+              ctx.lineTo(0, -100 * shipScale);
+              ctx.stroke();
+              
+              // Add glow effect
+              ctx.strokeStyle = "rgba(0, 150, 255, 0.2)";
+              ctx.lineWidth = beamWidth * 3;
+              ctx.beginPath();
+              ctx.moveTo(0, -45 * shipScale);
+              ctx.lineTo(0, -80 * shipScale);
+              ctx.stroke();
+              
+              ctx.setLineDash([]);
+              ctx.lineWidth = 2;
+            }
+          }
+          
+          // Draw armor plating - later stages
+          if (completeness > 0.7) {
+            ctx.strokeStyle = "rgba(150, 150, 255, 0.5)";
+            
+            // Draw armor plates sequentially
+            const numPlates = 4;
+            const platesComplete = Math.min(numPlates, Math.floor((completeness - 0.7) * 10));
+            
+            for (let i = 0; i < platesComplete; i++) {
+              ctx.beginPath();
+              ctx.moveTo(-20 * shipScale + (i * 10 * shipScale), 15 * shipScale);
+              ctx.lineTo(-15 * shipScale + (i * 10 * shipScale), 25 * shipScale);
+              ctx.stroke();
+            }
+          }
+        }
+        
+        function drawInterceptorSchematic(completeness) {
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+          
+          // Draw sleek body - first
+          if (completeness > 0.1) {
+            ctx.beginPath();
+            ctx.moveTo(0, -35 * shipScale);
+            ctx.lineTo(10 * shipScale, -10 * shipScale);
+            ctx.lineTo(10 * shipScale, 20 * shipScale);
+            ctx.lineTo(-10 * shipScale, 20 * shipScale);
+            ctx.lineTo(-10 * shipScale, -10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Fill later
+            if (completeness > 0.3) ctx.fill();
+          }
+          
+          // Draw wings - second phase
+          if (completeness > 0.4) {
+            // Draw right wing
+            ctx.beginPath();
+            ctx.moveTo(10 * shipScale, 0);
+            ctx.lineTo(35 * shipScale, 10 * shipScale);
+            ctx.lineTo(15 * shipScale, 20 * shipScale);
+            ctx.stroke();
+            
+            // Draw left wing with delay
+            if (completeness > 0.45) {
+              ctx.beginPath();
+              ctx.moveTo(-10 * shipScale, 0);
+              ctx.lineTo(-35 * shipScale, 10 * shipScale);
+              ctx.lineTo(-15 * shipScale, 20 * shipScale);
+              ctx.stroke();
+            }
+            
+            // Fill wings later
+            if (completeness > 0.55) {
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              
+              // Fill right wing
+              ctx.beginPath();
+              ctx.moveTo(10 * shipScale, 0);
+              ctx.lineTo(35 * shipScale, 10 * shipScale);
+              ctx.lineTo(15 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+              
+              // Fill left wing
+              ctx.beginPath();
+              ctx.moveTo(-10 * shipScale, 0);
+              ctx.lineTo(-35 * shipScale, 10 * shipScale);
+              ctx.lineTo(-15 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+            }
+          }
+          
+          // Draw missile system - final phase
+          if (completeness > 0.7) {
+            ctx.strokeStyle = "rgba(255, 100, 0, 0.6)";
+            
+            // Draw missile pods sequentially
+            const podCount = 6;
+            const podsComplete = Math.min(podCount, Math.floor((completeness - 0.7) * 18));
+            
+            for (let i = 0; i < podsComplete; i++) {
+              const offset = (i - 3) * 5 * shipScale;
+              if (offset !== 0) {
+                ctx.beginPath();
+                ctx.moveTo(offset, -10 * shipScale);
+                ctx.lineTo(offset, -5 * shipScale);
+                ctx.stroke();
+              }
+            }
+            
+            // Missile trajectories at very end
+            if (completeness > 0.9) {
+              ctx.setLineDash([2, 4]);
+              
+              // Only show half the trajectories at first
+              const trajectoryCount = Math.min(6, Math.floor((completeness - 0.9) * 60));
+              
+              for (let i = 0; i < trajectoryCount; i++) {
+                const offset = (i - 3) * 5 * shipScale;
+                if (offset !== 0) {
+                  ctx.beginPath();
+                  ctx.moveTo(offset, -5 * shipScale);
+                  ctx.lineTo(offset * 2, -50 * shipScale);
+                  ctx.stroke();
+                }
+              }
+              ctx.setLineDash([]);
+            }
+          }
+        }
+        
+        function drawStarStrikerSchematic(completeness) {
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+          
+          // Draw central body first
+          if (completeness > 0.1) {
+            ctx.beginPath();
+            ctx.moveTo(0, -30 * shipScale);
+            ctx.lineTo(5 * shipScale, -10 * shipScale);
+            ctx.lineTo(5 * shipScale, 30 * shipScale);
+            ctx.lineTo(-5 * shipScale, 30 * shipScale);
+            ctx.lineTo(-5 * shipScale, -10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Fill body later
+            if (completeness > 0.3) ctx.fill();
+          }
+          
+          // Draw X-wings in sequence
+          if (completeness > 0.4) {
+            // Top right wing first
+            if (completeness > 0.4) {
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, -5 * shipScale);
+              ctx.lineTo(30 * shipScale, -25 * shipScale);
+              ctx.lineTo(25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
+            }
+            
+            // Top left wing second
+            if (completeness > 0.45) {
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, -5 * shipScale);
+              ctx.lineTo(-30 * shipScale, -25 * shipScale);
+              ctx.lineTo(-25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
+            }
+            
+            // Bottom right wing third
+            if (completeness > 0.5) {
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, 15 * shipScale);
+              ctx.lineTo(30 * shipScale, 35 * shipScale);
+              ctx.lineTo(25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
+            }
+            
+            // Bottom left wing last
+            if (completeness > 0.55) {
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, 15 * shipScale);
+              ctx.lineTo(-30 * shipScale, 35 * shipScale);
+              ctx.lineTo(-25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
+            }
+            
+            // Fill wings
+            if (completeness > 0.65) {
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              
+              // Fill all wings
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, -5 * shipScale);
+              ctx.lineTo(30 * shipScale, -25 * shipScale);
+              ctx.lineTo(25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+              
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, -5 * shipScale);
+              ctx.lineTo(-30 * shipScale, -25 * shipScale);
+              ctx.lineTo(-25 * shipScale, -10 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+              
+              ctx.beginPath();
+              ctx.moveTo(5 * shipScale, 15 * shipScale);
+              ctx.lineTo(30 * shipScale, 35 * shipScale);
+              ctx.lineTo(25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+              
+              ctx.beginPath();
+              ctx.moveTo(-5 * shipScale, 15 * shipScale);
+              ctx.lineTo(-30 * shipScale, 35 * shipScale);
+              ctx.lineTo(-25 * shipScale, 20 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+            }
+          }
+          
+          // Draw time warp system at the end
+          if (completeness > 0.8) {
+            // Animate the time distortion waves
+            const warpTime = performance.now() / 600;
+            
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = "rgba(255, 100, 255, 0.5)";
+            
+            // Dynamic waves that pulse outward
+            const waveCount = 3;
+            for (let i = 1; i <= waveCount; i++) {
+              const wavePhase = (i / waveCount + warpTime) % 1;
+              const waveSize = 15 * shipScale * (0.5 + wavePhase);
+              
+              ctx.beginPath();
+              ctx.arc(0, 0, waveSize, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            
+            ctx.setLineDash([]);
+          }
+        }
+        
+        function drawOdysseusSchematic(completeness) {
+          ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+          ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+          
+          // Draw trireme-like hull
+          if (completeness > 0.1) {
+            ctx.beginPath();
+            ctx.moveTo(0, -35 * shipScale);
+            ctx.lineTo(15 * shipScale, -10 * shipScale);
+            ctx.lineTo(20 * shipScale, 20 * shipScale);
+            ctx.lineTo(-20 * shipScale, 20 * shipScale);
+            ctx.lineTo(-15 * shipScale, -10 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Measurement lines - ancient Greek mathematics style
+            if (completeness > 0.15 && completeness < 0.35) {
+              ctx.setLineDash([5, 5]);
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+              
+              // Golden ratio guides
+              const goldenRatio = 1.618;
+              
+              // Horizontal golden ratio
+              ctx.beginPath();
+              ctx.moveTo(-30 * shipScale, 0);
+              ctx.lineTo(30 * shipScale, 0);
+              ctx.stroke();
+              
+              // Vertical golden ratio
+              ctx.beginPath();
+              ctx.moveTo(0, -40 * shipScale);
+              ctx.lineTo(0, 40 * shipScale);
+              ctx.stroke();
+              
+              // Restore normal line style
+              ctx.setLineDash([]);
+              ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+            }
+            
+            // Fill hull later
+            if (completeness > 0.4) {
+              ctx.fillStyle = "rgba(0, 100, 150, 0.2)";
+              ctx.fill();
+            }
+          }
+          
+          // Draw sail-like energy collectors - second phase
+          if (completeness > 0.5) {
+            // Right sail first
+            ctx.beginPath();
+            ctx.moveTo(0, -10 * shipScale);
+            ctx.lineTo(0, -30 * shipScale);
+            ctx.lineTo(25 * shipScale, -25 * shipScale);
+            ctx.lineTo(15 * shipScale, -5 * shipScale);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Left sail with slight delay
+            if (completeness > 0.55) {
+              ctx.beginPath();
+              ctx.moveTo(0, -10 * shipScale);
+              ctx.lineTo(0, -30 * shipScale);
+              ctx.lineTo(-25 * shipScale, -25 * shipScale);
+              ctx.lineTo(-15 * shipScale, -5 * shipScale);
+              ctx.closePath();
+              ctx.stroke();
+            }
+            
+            // Fill sails with energy pattern
+            if (completeness > 0.65) {
+              ctx.fillStyle = "rgba(0, 200, 150, 0.2)";
+              
+              // Right sail
+              ctx.beginPath();
+              ctx.moveTo(0, -10 * shipScale);
+              ctx.lineTo(0, -30 * shipScale);
+              ctx.lineTo(25 * shipScale, -25 * shipScale);
+              ctx.lineTo(15 * shipScale, -5 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+              
+              // Left sail
+              ctx.beginPath();
+              ctx.moveTo(0, -10 * shipScale);
+              ctx.lineTo(0, -30 * shipScale);
+              ctx.lineTo(-25 * shipScale, -25 * shipScale);
+              ctx.lineTo(-15 * shipScale, -5 * shipScale);
+              ctx.closePath();
+              ctx.fill();
+              
+              // Add energy line pattern
+              if (completeness > 0.7) {
+                ctx.strokeStyle = "rgba(0, 255, 220, 0.3)";
+                
+                // Energy flowing through sails - right side
+                for (let i = 0; i < 5; i++) {
+                  const yOffset = -25 * shipScale + i * 5 * shipScale;
+                  ctx.beginPath();
+                  ctx.moveTo(0, yOffset);
+                  ctx.lineTo(20 * shipScale - i * 3 * shipScale, yOffset + 5 * shipScale);
+                  ctx.stroke();
+                }
+                
+                // Energy flowing through sails - left side
+                for (let i = 0; i < 5; i++) {
+                  const yOffset = -25 * shipScale + i * 5 * shipScale;
+                  ctx.beginPath();
+                  ctx.moveTo(0, yOffset);
+                  ctx.lineTo(-20 * shipScale + i * 3 * shipScale, yOffset + 5 * shipScale);
+                  ctx.stroke();
+                }
+              }
+            }
+          }
+          
+          // Draw Oracle Vision system at the end
+          if (completeness > 0.85) {
+            // Oracle's Eye - animate with a pulsing effect
+            const eyeTime = performance.now() / 500;
+            const pulseSize = 1 + Math.sin(eyeTime) * 0.2;
+            
+            ctx.strokeStyle = "rgba(0, 255, 200, 0.6)";
+            
+            // Eye outline
+            ctx.beginPath();
+            ctx.arc(0, -20 * shipScale, 5 * shipScale * pulseSize, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Eye interior
+            ctx.fillStyle = "rgba(0, 255, 200, 0.3)";
+            ctx.fill();
+            
+            // Vision rays
+            if (completeness > 0.9) {
+              const rayCount = 8;
+              
+              // Animate ray length
+              const rayPulse = 0.7 + Math.sin(eyeTime * 2) * 0.3;
+              
+              for (let i = 0; i < rayCount; i++) {
+                const angle = (i / rayCount) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(0, -20 * shipScale);
+                ctx.lineTo(
+                  Math.cos(angle) * 30 * shipScale * rayPulse,
+                  -20 * shipScale + Math.sin(angle) * 30 * shipScale * rayPulse
+                );
+                ctx.stroke();
+              }
+            }
+          }
+        }
+        
+        // Draw the ship schematics
+        drawShipSchematic();
+        
+        // Scanning lines effect
+        const scanLineSpacing = 10;
+        const scanLineAlpha = 0.1;
+        ctx.strokeStyle = `rgba(0, 200, 255, ${scanLineAlpha})`;
+        ctx.lineWidth = 1;
+        
+        for (let y = 0; y < canvas.height; y += scanLineSpacing) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+        
+        // Add some blinking dots/indicators
+        const realTime = performance.now();
+        const numIndicators = 20;
+        for (let i = 0; i < numIndicators; i++) {
+          const x = 30 + (i % 5) * 15;
+          const y = canvas.height - 50 + Math.floor(i / 5) * 15;
+          const blink = Math.sin((realTime / 500) + i) > 0;
+          
+          if (blink) {
+            ctx.fillStyle = "rgba(0, 255, 200, 0.7)";
+          } else {
+            ctx.fillStyle = "rgba(0, 100, 150, 0.3)";
+          }
+          
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        // System status text - specific to each ship type
+        const systems = [];
+        
+        // Find the current ship to get ship-specific systems
+        let shipIndex = 0;
+        for (let i = 0; i < ships.length; i++) {
+          if (ships[i].type === selectedShipType) {
+            shipIndex = i;
+            break;
+          }
+        }
+        
+        // Define systems based on ship type
+        switch(selectedShipType) {
+          case SHIP_TYPE.DEFAULT: // Nova Striker
+            systems.push("NAVIGATION", "TWIN BLASTERS", "EMP MODULE", "SHIELDS", "THRUSTERS");
+            break;
+          case SHIP_TYPE.LASER: // Heavy Cruiser
+            systems.push("NAVIGATION", "MAIN LASER CANNON", "POWER CORE", "HEAVY SHIELDS", "THRUSTERS");
+            break;
+          case SHIP_TYPE.MISSILE: // Stealth Interceptor
+            systems.push("NAVIGATION", "MISSILE PODS", "TARGETING", "LIGHT SHIELDS", "STEALTH DRIVE");
+            break;
+          case SHIP_TYPE.XWING: // Star Striker
+            systems.push("NAVIGATION", "QUAD CANNONS", "TIME FIELD", "SHIELDS", "HYPERDRIVE");
+            break;
+          case SHIP_TYPE.ODYSSEUS: // Odysseus
+            systems.push("NAVIGATION", "ORACLE VISION", "PIERCING SHOTS", "TEMPORAL SHIELD", "SOLAR SAIL");
+            break;
+          default:
+            systems.push("NAVIGATION", "WEAPONS", "SHIELDS", "THRUSTERS", "COMMS");
+        }
+        
+        ctx.textAlign = "right";
+        ctx.font = "16px monospace";
+        
+        for (let i = 0; i < systems.length; i++) {
+          // Slower, more deliberate system initialization
+          // Each system comes online at specific ship component completion points
+          const systemThresholds = [0.2, 0.4, 0.6, 0.8, 0.95];
+          const systemProgress = progress > systemThresholds[i] ? 
+            Math.min(1, (progress - systemThresholds[i]) * 5) : 0;
+            
+          // Different status text based on progress
+          let statusText = "OFFLINE";
+          let statusColor = "rgba(255, 50, 50, 0.8)";
+          
+          if (systemProgress > 0 && systemProgress < 0.5) {
+            statusText = "INITIALIZING...";
+            statusColor = "rgba(255, 200, 0, 0.8)";
+          } else if (systemProgress >= 0.5 && systemProgress < 0.9) {
+            statusText = "CALIBRATING...";
+            statusColor = "rgba(255, 220, 50, 0.8)";
+          } else if (systemProgress >= 0.9 && systemProgress < 1) {
+            statusText = "FINAL CHECKS...";
+            statusColor = "rgba(100, 255, 100, 0.8)";
+          } else if (systemProgress >= 1) {
+            statusText = "ONLINE";
+            statusColor = "rgba(0, 255, 100, 0.8)";
+          }
+          
+          ctx.fillStyle = "rgba(200, 200, 255, 0.8)";
+          ctx.fillText(systems[i] + ":", canvas.width - 150, canvas.height - 100 + (i * 20));
+          
+          ctx.fillStyle = statusColor;
+          ctx.fillText(statusText, canvas.width - 20, canvas.height - 100 + (i * 20));
+        }
+        
+        ctx.textAlign = "center"; // Reset text alignment
+        ctx.restore();
       }
       
       // Function to toggle all sounds (music and effects)
@@ -282,6 +1207,46 @@
         } else if (musicEnabled && bgMusic.paused) {
           setTimeout(() => {
             bgMusic.play().catch(err => console.error("Error resuming menu music:", err));
+          }, 100);
+        }
+      }
+      
+      // Function to start ship selection music
+      function startShipSelectMusic() {
+        if (currentMusicTrack !== "shipSelect") {
+          // Safely handle the audio source change
+          try {
+            bgMusic.pause();
+            bgMusic.src = AUDIO_PATHS.SHIP_SELECT_MUSIC;
+            bgMusic.load();
+            
+            if (musicEnabled) {
+              // Use a timeout to ensure loading completes
+              setTimeout(() => {
+                bgMusic.volume = 0.1; // Start with low volume for fade-in
+                bgMusic.play().catch(err => {
+                  console.error("Error playing ship selection music:", err);
+                });
+                
+                // Fade in the music
+                let fadeVolume = 0.1;
+                const fadeInterval = setInterval(() => {
+                  fadeVolume += 0.05;
+                  if (fadeVolume >= 0.2) {
+                    fadeVolume = 0.2;
+                    clearInterval(fadeInterval);
+                  }
+                  bgMusic.volume = fadeVolume;
+                }, 100);
+              }, 100);
+            }
+            currentMusicTrack = "shipSelect";
+          } catch (error) {
+            console.error("Failed to set up ship selection music:", error);
+          }
+        } else if (musicEnabled && bgMusic.paused) {
+          setTimeout(() => {
+            bgMusic.play().catch(err => console.error("Error resuming ship selection music:", err));
           }, 100);
         }
       }
@@ -427,6 +1392,7 @@
       const GAME_STATE = {
         MAIN_MENU: "mainMenu",
         DIFFICULTY_SELECT: "difficultySelect",
+        TRANSITION_TO_SHIP: "transitionToShip", // New transition state
         SHIP_SELECT: "shipSelect",
         SETTINGS: "settings",
         HOW_TO_PLAY: "howToPlay",
@@ -444,6 +1410,210 @@
       
       // Make gameState accessible to auth.js
       window.gameState = gameState;
+      
+      // Transition animation variables
+      const transitionEffects = {
+        active: false,
+        progress: 0,
+        duration: 5.5, // slower transition (5.5 seconds)
+        startTime: 0,
+        sourceState: null,
+        targetState: null,
+        direction: 1, // 1 for fade in, -1 for fade out
+        particles: [],
+        slideOffset: 0,
+        musicFadeValue: 1.0,
+        setupPhase: false, // tracks if we're in the "setting up" phase
+        setupProgress: 0   // progress of setup animation
+      };
+      
+      // Create particle system for transitions
+      function createTransitionParticles() {
+        transitionEffects.particles = [];
+        const numParticles = 100;
+        
+        for (let i = 0; i < numParticles; i++) {
+          transitionEffects.particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: 1 + Math.random() * 3,
+            speed: 2 + Math.random() * 8,
+            angle: Math.random() * Math.PI * 2,
+            color: `rgba(${Math.floor(Math.random() * 100) + 155}, ${Math.floor(Math.random() * 100) + 155}, 255, ${0.2 + Math.random() * 0.8})`
+          });
+        }
+      }
+      
+      // Function to start a transition between game states
+      function startTransition(fromState, toState) {
+        transitionEffects.active = true;
+        transitionEffects.progress = 0;
+        transitionEffects.startTime = performance.now() / 1000;
+        transitionEffects.sourceState = fromState;
+        transitionEffects.targetState = toState;
+        transitionEffects.slideOffset = 0;
+        transitionEffects.musicFadeValue = 1.0;
+        
+        createTransitionParticles();
+        
+        // Play transition sound
+        if (soundEnabled) {
+          transitionSound.currentTime = 0;
+          transitionSound.play().catch(e => console.error("Error playing transition sound:", e));
+        }
+        
+        // Update the game state to the transition state
+        updateGameState(GAME_STATE.TRANSITION_TO_SHIP);
+      }
+      
+      // Function to render the transition between screens
+      function drawTransition() {
+        const currentTime = performance.now() / 1000;
+        const elapsed = currentTime - transitionEffects.startTime;
+        
+        // Update transition progress
+        transitionEffects.progress = Math.min(elapsed / transitionEffects.duration, 1.0);
+        
+        // Calculate transition phases:
+        // 0-0.25: fade out source
+        // 0.25-0.75: "setting up" phase with ship schematics and systems
+        // 0.75-1.0: fade in target
+        const fadeOutEnd = 0.25;
+        const setupStart = 0.25;
+        const setupEnd = 0.75;
+        const fadeInStart = 0.75;
+        
+        // PHASE 1: FADE OUT SOURCE
+        if (transitionEffects.progress < fadeOutEnd) {
+          // Fade out the source state
+          const fadeOutProgress = transitionEffects.progress / fadeOutEnd;
+          transitionEffects.slideOffset = canvas.width * fadeOutProgress * -0.3; // Slide left (gentler)
+          
+          // Draw the source state with fading and sliding
+          ctx.save();
+          ctx.globalAlpha = 1 - fadeOutProgress;
+          ctx.translate(transitionEffects.slideOffset, 0);
+          
+          // Draw the source state content
+          if (transitionEffects.sourceState === GAME_STATE.DIFFICULTY_SELECT) {
+            drawDifficultySelect();
+          }
+          
+          ctx.restore();
+          
+          // Fade out the current music
+          if (musicEnabled && bgMusic.volume > 0.01) {
+            bgMusic.volume = Math.max(0.01, 0.2 * (1 - fadeOutProgress));
+          }
+        }
+        
+        // PHASE 2: SETTING UP PHASE
+        if (transitionEffects.progress >= setupStart && transitionEffects.progress <= setupEnd) {
+          // Calculate setup phase progress (0-1)
+          const setupProgress = (transitionEffects.progress - setupStart) / (setupEnd - setupStart);
+          transitionEffects.setupProgress = setupProgress;
+          transitionEffects.setupPhase = true;
+          
+          // Draw the ship setup phase
+          drawShipSetupPhase(setupProgress);
+          
+          // Start ship selection music near the end of setup phase
+          if (setupProgress > 0.8 && currentMusicTrack !== "shipSelect") {
+            startShipSelectMusic(); // Start the ship selection music
+          }
+        }
+        
+        // PHASE 3: FADE IN TARGET
+        if (transitionEffects.progress > fadeInStart) {
+          // Fade in the target state
+          const fadeInProgress = (transitionEffects.progress - fadeInStart) / (1.0 - fadeInStart);
+          transitionEffects.slideOffset = canvas.width * (1 - fadeInProgress) * 0.3; // Slide from right (gentler)
+          
+          // Draw the target state with fading and sliding
+          ctx.save();
+          ctx.globalAlpha = fadeInProgress;
+          ctx.translate(transitionEffects.slideOffset, 0);
+          
+          // Draw the target state content
+          if (transitionEffects.targetState === GAME_STATE.SHIP_SELECT) {
+            drawShipSelect();
+          }
+          
+          ctx.restore();
+          
+          // After transition completes
+          if (transitionEffects.progress >= 1.0) {
+            // Transition is complete, switch to the target state
+            updateGameState(transitionEffects.targetState);
+            transitionEffects.active = false;
+            transitionEffects.setupPhase = false;
+          }
+        }
+        
+        // Draw particles on top of everything
+        ctx.save();
+        
+        // Update and draw transition particles
+        for (let i = 0; i < transitionEffects.particles.length; i++) {
+          const p = transitionEffects.particles[i];
+          
+          // Update particle position based on progress
+          const speedMultiplier = transitionEffects.progress < fadeOutEnd 
+            ? 1 + transitionEffects.progress * 4  // Accelerate during fade out
+            : 5 - (transitionEffects.progress - fadeOutEnd) * 8; // Decelerate during fade in
+          
+          p.x += Math.cos(p.angle) * p.speed * speedMultiplier * 0.016; // Scale by typical frame time
+          p.y += Math.sin(p.angle) * p.speed * speedMultiplier * 0.016;
+          
+          // Wrap particles around the screen
+          if (p.x < 0) p.x = canvas.width;
+          if (p.x > canvas.width) p.x = 0;
+          if (p.y < 0) p.y = canvas.height;
+          if (p.y > canvas.height) p.y = 0;
+          
+          // Draw particle
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        ctx.restore();
+        
+        // Add a warp-speed effect during the middle of the transition (during setup phase)
+        if (transitionEffects.progress > setupStart && transitionEffects.progress < setupEnd) {
+          const setupMidpoint = (setupStart + setupEnd) / 2; // Middle of setup phase
+          const warpIntensity = (transitionEffects.progress > setupMidpoint) 
+            ? (setupEnd - transitionEffects.progress) * 5  // Fade out
+            : (transitionEffects.progress - setupStart) * 5; // Fade in
+          
+          ctx.save();
+          ctx.fillStyle = `rgba(255, 255, 255, ${warpIntensity * 0.15})`;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Add radial streaks
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const numStreaks = 50;
+          
+          for (let i = 0; i < numStreaks; i++) {
+            const angle = (i / numStreaks) * Math.PI * 2;
+            const length = Math.min(canvas.width, canvas.height) * 0.6 * warpIntensity;
+            
+            ctx.strokeStyle = `rgba(100, 180, 255, ${warpIntensity * 0.4})`;
+            ctx.lineWidth = 1 + Math.random() * 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(
+              centerX + Math.cos(angle) * length,
+              centerY + Math.sin(angle) * length
+            );
+            ctx.stroke();
+          }
+          
+          ctx.restore();
+        }
+      }
       
       // Variables to track high scores
       let highScores = {
@@ -3037,8 +4207,8 @@
             }
             
             if (key === "enter" || code === "Enter") {
-              // Go to ship selection screen
-              updateGameState(GAME_STATE.SHIP_SELECT);
+              // Start the transition to ship selection screen
+              startTransition(GAME_STATE.DIFFICULTY_SELECT, GAME_STATE.SHIP_SELECT);
               // Reset to first ship in the selection
               selectedShipMenuItem = 0;
               e.preventDefault();
@@ -9898,6 +11068,9 @@
           case GAME_STATE.DIFFICULTY_SELECT:
             drawDifficultySelect();
             return;
+          case GAME_STATE.TRANSITION_TO_SHIP:
+            drawTransition(); // Draw the transition animation
+            return;  
           case GAME_STATE.SHIP_SELECT:
             drawShipSelect();
             return;
