@@ -1265,7 +1265,10 @@
         // Reset all game objects and timers
         comets = [];
         bigComets = [];
-        bullets = [];
+        // Reset bullet pool
+        for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+          bulletPool[i].active = false;
+        }
         sparks = [];
         smallExplosionParticles = [];
         powerUps = [];
@@ -1542,14 +1545,8 @@
           // Fade out the source state
           const fadeOutProgress = transitionEffects.progress / fadeOutEnd;
           
-          // Calculate slide offset - but NOT for the ship selection screen
-          if (transitionEffects.sourceState !== GAME_STATE.SHIP_SELECT) {
-            // Normal slide for other screens
-            transitionEffects.slideOffset = canvas.width * fadeOutProgress * -0.3; // Slide left (gentler)
-          } else {
-            // No slide for ship selection - keep it centered
-            transitionEffects.slideOffset = 0;
-          }
+          // Remove the slide offset
+          transitionEffects.slideOffset = 0;
           
           // Draw the source state with fading and sliding
           ctx.save();
@@ -1597,7 +1594,7 @@
         if (transitionEffects.progress > fadeInStart) {
           // Fade in the target state
           const fadeInProgress = (transitionEffects.progress - fadeInStart) / (1.0 - fadeInStart);
-          transitionEffects.slideOffset = canvas.width * (1 - fadeInProgress) * 0.3; // Slide from right (gentler)
+          transitionEffects.slideOffset = 0; // No slide
           
           // Draw the target state with fading and sliding
           ctx.save();
@@ -1628,6 +1625,14 @@
               // Force resource loading to complete
               resourcesLoaded = true;
               resourcesPreloaded = true;
+              
+              // Start the zoom animation for gameplay
+              gameStartZoom = {
+                active: true,
+                startTime: performance.now(),
+                duration: 2000, // 2 seconds zoom animation
+                zoomFactor: 3.5 // Start at 3.5x zoom and zoom out to normal
+              };
               
               // Proceed to gameplay
               console.log("Starting gameplay after transition and loading");
@@ -2408,6 +2413,24 @@
       const SHIP_SIZE = 30;      // spaceship size (pixels)
       const SHIP_ACCEL = 800;     // pixels/sec²
       
+      // ==== Bullet pool ====
+      const BULLET_POOL_SIZE = 400;        // tweak later; 60 FPS × 6 s of fire
+      const bulletPool = new Array(BULLET_POOL_SIZE).fill(0).map(() => ({
+        active: false, x:0, y:0, vx:0, vy:0, radius: BULLET_RADIUS,
+        isMissile:false, fromPlayer:true, hitCount:0
+      }));
+      let nextBullet = 0;                  // circular index
+      function getBullet() {               // grab + activate
+        const b = bulletPool[nextBullet];
+        nextBullet = (nextBullet + 1) % BULLET_POOL_SIZE;
+        b.active = true;
+        b.radius = BULLET_RADIUS;  // Ensure radius is set correctly
+        return b;
+      }
+      
+      // 0 = potato mode, 1 = full eye-candy.  Try 0.5 on slow rigs.
+      let PERF_SCALE = 0.5;
+      
       // Triple Shot Power-up Constants
       const TRIPLE_SHOT_DURATION = 20;  // Seconds the power-up lasts
       const TRIPLE_SHOT_POWERUP_COLOR = "#1e90ff"; // Dodger blue color
@@ -2432,6 +2455,7 @@
       const COMET_SPAWN_MAX = 3;
       const COMET_SPAWN_BATCH_MIN = 1;
       const COMET_SPAWN_BATCH_MAX = 3;
+      
       const COMET_MIN_SPEED = 250;
 
       // Big Comets
@@ -2547,7 +2571,7 @@
       let lastMissileSpawnTime = 0;
       let missilePatternRotation = 0; // Current rotation angle of the missile pattern
 
-      let bullets = [];
+      // Bullets array no longer used - we use bulletPool instead
       let sparks = [];
       let smallExplosionParticles = [];
       let comets = [];
@@ -3628,16 +3652,15 @@
           }
           
           // Create missile at spaceship position
-          bullets.push({
-            x: spaceship.x + Math.cos(angle) * spaceship.size * 1.2,
-            y: spaceship.y + Math.sin(angle) * spaceship.size * 1.2,
-            vx: Math.cos(angle) * MISSILE_SPEED * distanceMultiplier,
-            vy: Math.sin(angle) * MISSILE_SPEED * distanceMultiplier,
-            radius: 5, // Slightly larger than normal bullets
-            isMissile: true,
-            fromPlayer: true, // Mark as player bullet for time dilation immunity
-            creation: gameTime // Track when the missile was created
-          });
+          const missile = getBullet();
+          missile.x = spaceship.x + Math.cos(angle) * spaceship.size * 1.2;
+          missile.y = spaceship.y + Math.sin(angle) * spaceship.size * 1.2;
+          missile.vx = Math.cos(angle) * MISSILE_SPEED * distanceMultiplier;
+          missile.vy = Math.sin(angle) * MISSILE_SPEED * distanceMultiplier;
+          missile.radius = 5; // Slightly larger than normal bullets
+          missile.isMissile = true;
+          missile.fromPlayer = true; // Mark as player bullet for time dilation immunity
+          missile.creation = gameTime; // Track when the missile was created
         }
         
         // Play missile firing sound
@@ -3759,6 +3782,22 @@
         if (spaceship.healthScaleTimer > 0) {
           spaceship.healthScaleTimer -= dt;
           if (spaceship.healthScaleTimer < 0) spaceship.healthScaleTimer = 0;
+        }
+        
+        // Handle Star Striker's time warp effect timer
+        if (spaceship.type === SHIP_TYPE.XWING && spaceship.animeSlowMotionActive) {
+          spaceship.animeSlowMotionTimer -= dt;
+          
+          // When the timer ends, restore normal game state and music volume
+          if (spaceship.animeSlowMotionTimer <= 0) {
+            spaceship.animeSlowMotionActive = false;
+            spaceship.animeSlowMotionTimer = 0;
+            
+            // Restore music volume to original level
+            if (musicEnabled && bgMusic && spaceship.originalMusicVolume) {
+              bgMusic.volume = spaceship.originalMusicVolume;
+            }
+          }
         }
       }
 
@@ -4137,7 +4176,10 @@
                     // Reset the game state manually
                     
                     // Clear all game objects
-                    bullets = [];
+                    // Reset bullet pool
+                    for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+                      bulletPool[i].active = false;
+                    }
                     sparks = [];
                     comets = [];
                     bigComets = [];
@@ -4758,7 +4800,7 @@
         });
         
         // Create spiraling particles that get sucked into the black hole - darker colors
-        const particleCount = Math.floor(80 * sizeScale); // Scale particle count with size
+        const particleCount = Math.floor(80 * sizeScale * PERF_SCALE); // Scale particle count with size and performance
         for (let i = 0; i < particleCount; i++) {
           const angle = Math.random() * Math.PI * 2;
           const distance = (50 + Math.random() * 150) * sizeScale;
@@ -4784,7 +4826,7 @@
         }
         
         // Create event horizon ring effect - much darker
-        const ringCount = Math.floor(36 * sizeScale); // Scale ring particle count
+        const ringCount = Math.floor(36 * sizeScale * PERF_SCALE); // Scale ring particle count
         for (let i = 0; i < ringCount; i++) {
           const angle = i * (Math.PI * 2 / ringCount);
           smallExplosionParticles.push({
@@ -4805,7 +4847,7 @@
         }
         
         // Create outer accretion disk particles (darker with occasional bright ones)
-        const diskCount = Math.floor(20 * sizeScale); // Scale disk particle count
+        const diskCount = Math.floor(20 * sizeScale * PERF_SCALE); // Scale disk particle count
         for (let i = 0; i < diskCount; i++) {
           const angle = Math.random() * Math.PI * 2;
           const distance = (60 + Math.random() * 40) * sizeScale;
@@ -4831,7 +4873,7 @@
         }
         
         // Create horizontal lightning effect
-        const lightningCount = Math.max(2, Math.floor((3 + Math.floor(Math.random() * 3)) * sizeScale)); // 2-5 lightning bolts, scaled
+        const lightningCount = Math.max(1, Math.floor((3 + Math.floor(Math.random() * 3)) * sizeScale * PERF_SCALE)); // 1-5 lightning bolts, scaled
         for (let i = 0; i < lightningCount; i++) {
           // Delay creation of each lightning bolt
           setTimeout(() => {
@@ -5027,6 +5069,9 @@
         
         // Apply gravitational pull from black holes to comets
         if (blackHoleCenters.length > 0 && comets) {
+          // toggle to skip gravity every other frame
+          window.skipGravity = !window.skipGravity;
+          if (!window.skipGravity) {
           for (let i = 0; i < comets.length; i++) {
             const comet = comets[i];
             
@@ -5047,11 +5092,10 @@
               const dx = center.x - comet.x;
               const dy = center.y - comet.y;
               const distSq = dx*dx + dy*dy;
-              const dist = Math.sqrt(distSq);
-              
-              // Only affect comets within range
               const MAX_EFFECT_DIST = 150;
-              if (dist < MAX_EFFECT_DIST && dist > 5) {
+              const maxDistSq = MAX_EFFECT_DIST * MAX_EFFECT_DIST;
+              if (distSq < maxDistSq && distSq > 25) {      // 5² = 25
+                const dist = Math.sqrt(distSq);             // only when needed
                 // Normalize direction and apply force inversely proportional to distance
                 const nx = dx / dist;
                 const ny = dy / dist;
@@ -5104,6 +5148,7 @@
           
           // Remove comets that were marked for removal by black holes
           comets = comets.filter(comet => !comet.markedForRemoval);
+          }
         }
       }
 
@@ -5455,18 +5500,17 @@
         const missileAngle = spaceship.angle + angleOffset;
         
         // Create a more powerful missile (20x regular bullet)
-        bullets.push({
-          x: missileX,
-          y: missileY,
-          vx: Math.cos(missileAngle) * MISSILE_SPEED * 1.2, // 20% faster
-          vy: Math.sin(missileAngle) * MISSILE_SPEED * 1.2,
-          radius: 8, // Larger than regular missiles
-          isMissile: true,
-          isPowerfulMissile: true, // Flag for increased damage
-          missilePower: 20, // 20x regular bullet damage
-          creation: gameTime, // Track when the missile was created
-          sequenceNumber: missileSequenceState.currentMissile // Track which missile in sequence (for color variation)
-        });
+        const missile = getBullet();
+        missile.x = missileX;
+        missile.y = missileY;
+        missile.vx = Math.cos(missileAngle) * MISSILE_SPEED * 1.2; // 20% faster
+        missile.vy = Math.sin(missileAngle) * MISSILE_SPEED * 1.2;
+        missile.radius = 8; // Larger than regular missiles
+        missile.isMissile = true;
+        missile.isPowerfulMissile = true; // Flag for increased damage
+        missile.missilePower = 20; // 20x regular bullet damage
+        missile.creation = gameTime; // Track when the missile was created
+        missile.sequenceNumber = missileSequenceState.currentMissile; // Track which missile in sequence (for color variation)
         
         // Increment to the next missile
         missileSequenceState.currentMissile++;
@@ -5539,7 +5583,10 @@
         // Nothing to reset now that missile barrage is a pickup
         
         // Clear all game objects
-        bullets = [];
+        // Reset bullet pool
+        for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+          bulletPool[i].active = false;
+        }
         sparks = [];
         comets = [];
         bigComets = [];
@@ -8650,7 +8697,9 @@
         drawSpaceship();
         
         // Draw comets, bullets, etc.
-        for (let b of bullets) {
+        for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+          const b = bulletPool[i];
+          if (!b.active) continue;
           ctx.fillStyle = "white";
           ctx.beginPath();
           ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -11997,7 +12046,9 @@
         ctx.restore();
 
         // Bullets
-        for (let b of bullets) {
+        for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+          const b = bulletPool[i];
+          if (!b.active) continue;
           if (b.isMissile) {
             // Draw missile with special styling
             ctx.save();
@@ -13416,7 +13467,10 @@
               if (spaceship.hitPoints <= 0) {
                 comets = [];
                 bigComets = [];
-                bullets = [];
+                // Reset bullet pool
+                for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+                  bulletPool[i].active = false;
+                }
                 sparks = [];
                 createHugeExplosion(spaceship.x, spaceship.y);
                 gameState = GAME_STATE.GAME_OVER;
@@ -13536,7 +13590,10 @@
             if (spaceship.hitPoints <= 0) {
               comets = [];
               bigComets = [];
-              bullets = [];
+              // Reset bullet pool
+              for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+                bulletPool[i].active = false;
+              }
               sparks = [];
               createHugeExplosion(spaceship.x, spaceship.y);
               gameState = GAME_STATE.GAME_OVER;
@@ -13789,9 +13846,15 @@
           const bottomGunX = spaceship.x + Math.cos(spaceship.angle) * (spaceship.size * 0.8) - perpX * (spaceship.size * 0.4);
           const bottomGunY = spaceship.y + Math.sin(spaceship.angle) * (spaceship.size * 0.8) - perpY * (spaceship.size * 0.4);
 
+          // Center position for Odysseus
+          const centerGunX = spaceship.x + Math.cos(spaceship.angle) * (spaceship.size * 0.8);
+          const centerGunY = spaceship.y + Math.sin(spaceship.angle) * (spaceship.size * 0.8);
+
           // Bullet spawn positions from each gun - reduced to 2 guns (top and bottom)
           const spawnPositions = [
-            { x: topGunX, y: topGunY },        // Top gun
+            // For Odysseus, we'll use the center position, otherwise use top gun
+            { x: (spaceship.type === SHIP_TYPE.ODYSSEUS) ? centerGunX : topGunX, 
+              y: (spaceship.type === SHIP_TYPE.ODYSSEUS) ? centerGunY : topGunY },
             { x: bottomGunX, y: bottomGunY }   // Bottom gun
           ];
           
@@ -13840,16 +13903,13 @@
               const angle = spaceship.angle + angleVariation;
               
               // Create and add the bullet
-              const bullet = {
-                x: pos.x,
-                y: pos.y,
-                vx: Math.cos(angle) * BULLET_SPEED + spaceship.vx,
-                vy: Math.sin(angle) * BULLET_SPEED + spaceship.vy,
-                radius: BULLET_RADIUS,
-                isMissile: false,
-                fromPlayer: true // Mark as player bullet for time dilation immunity
-              };
-              bullets.push(bullet);
+              const bullet = getBullet();
+              bullet.x = pos.x;
+              bullet.y = pos.y;
+              bullet.vx = Math.cos(angle) * BULLET_SPEED + spaceship.vx;
+              bullet.vy = Math.sin(angle) * BULLET_SPEED + spaceship.vy;
+              bullet.isMissile = false;
+              bullet.hitCount = 0;           // reset extras you track
             }
           }
           bulletSoundPool[nextBulletSoundIndex].currentTime = 0;
@@ -13881,8 +13941,9 @@
         // Time factor is now set at the start of the update function
         
         // Update bullets
-        for (let i = bullets.length - 1; i >= 0; i--) {
-          let b = bullets[i];
+        for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+          const b = bulletPool[i];
+          if (!b.active) continue;
           // Player bullets always move at normal speed, other bullets follow time dilation
           // Use the global time factor variable to prevent errors
           const timeFactor = window.currentGameTimeFactor || 1.0;
@@ -13890,7 +13951,7 @@
           b.y += b.vy * dt * (b.fromPlayer ? 1.0 : timeFactor);
           // off screen => remove
           if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-            bullets.splice(i, 1);
+            b.active = false;
           }
         }
 
@@ -13938,8 +13999,9 @@
         updateTimers(dt);
 
         // Bullets vs Comets
-        for (let i = bullets.length - 1; i >= 0; i--) {
-          let b = bullets[i];
+        for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+          const b = bulletPool[i];
+          if (!b.active) continue;
           let bulletHit = false;
           for (let j = comets.length - 1; j >= 0; j--) {
             let c = comets[j];
@@ -14073,12 +14135,12 @@
               } else {
                 b.hitCount++;
                 if (b.hitCount >= 2) {
-                  bullets.splice(i, 1);
+                  b.active = false;
                 }
               }
             } else {
               // Normal behavior for other ships - bullets are removed on first hit
-              bullets.splice(i, 1);
+              b.active = false;
             }
           }
         }
